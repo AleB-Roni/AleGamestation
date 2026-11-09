@@ -14,9 +14,9 @@
   ];
   const COMBO_PRESETS = ['BACK+START', 'BACK+B', 'GUIDE', 'GUIDE+B', 'LB+RB+START', 'LS+RS', 'BACK+LB+RB', 'BACK+Y'];
   const KILL_OPTS = [
-    { value: 'dir', label: 'Alle Prozesse aus dem Spielordner' },
-    { value: 'tree', label: 'Nur gestarteter Prozess + Kinder' },
-    { value: 'name', label: 'Nach Prozessname' }
+    { value: 'dir', label: 'Alle Prozesse aus dem Spielordner', short: 'Spielordner' },
+    { value: 'tree', label: 'Nur gestarteter Prozess + Kinder', short: 'Prozess' },
+    { value: 'name', label: 'Nach Prozessname', short: 'Prozessname' }
   ];
 
   const S = { section: 0, focus: 0, rows: [], displays: [] };
@@ -39,6 +39,26 @@
     return { type: 'text', label, desc, get: () => (obj()[key] || []).join(' ; '), set: (v) => { obj()[key] = v.split(';').map((x) => x.trim()).filter(Boolean); }, ...opts };
   }
   const group = (label, extra) => ({ type: 'group', label, extra });
+  /** Kompakte Listenzeile, die eine Detailseite öffnet. status: 'ok' | 'bad' | 'off' | '' */
+  const item = (label, desc, opts = {}) => ({ type: 'item', label, desc, ...opts });
+
+  /**
+   * Detailseite öffnen. builder() liefert { title, rows } oder null (Eintrag existiert nicht mehr).
+   * ○ / Esc führt zurück zur Übersicht.
+   */
+  function openDetail(builder) {
+    S.detail = { builder, returnFocus: S.focus };
+    S.focus = 1; // erstes Feld (0 = „Zurück zur Übersicht“)
+    Sounds.play('open');
+    render();
+  }
+  function closeDetail() {
+    if (!S.detail) return false;
+    S.focus = S.detail.returnFocus || 0;
+    S.detail = null;
+    render();
+    return true;
+  }
   const button = (label, action, opts = {}) => ({ type: 'button', label, action, ...opts });
 
   const SECTIONS = [
@@ -133,7 +153,17 @@
     },
     {
       id: 'emulators', title: 'Emulatoren', rows: () => {
+        const list = C().emulators;
         const rows = [
+          button('＋ Konsole mit Emulator einrichten …', () => App.addSystemWizard(), { desc: 'Assistent: Konsole → Emulator → ROM-Ordner' }),
+          button('＋ Nur Emulator hinzufügen …', async () => {
+            const exe = await api.pickFile({ filters: [{ name: 'Programme', extensions: ['exe'] }] });
+            if (!exe) return;
+            const id = 'emu-' + Date.now();
+            C().emulators.push({ id, name: exe.split(/[\\/]/).pop().replace(/\.exe$/i, ''), exe, args: '"{rom}"' });
+            await commit(true);
+            openEmulator(id);
+          }),
           button('🔍 Installierte Emulatoren automatisch suchen', async () => {
             const r = await api.detectEmulators();
             App.cfg = r.config;
@@ -141,80 +171,57 @@
             App.toast(r.changes.length ? `Gefunden: ${r.changes.map((c) => c.name).join(', ')}` : 'Keine neuen Emulatoren gefunden', r.changes.length ? 'ok' : 'info', 5000);
             render();
           }),
-          button('＋ Konsole mit Emulator einrichten (Assistent) …', () => App.addSystemWizard(), { desc: 'Konsole wählen, Emulator wählen, ROM-Ordner wählen – fertig' }),
-          button('＋ Emulator hinzufügen', () => {
-            C().emulators.push({ id: 'emu-' + Date.now(), name: 'Neuer Emulator', exe: '', args: '"{rom}"' });
-            commit(true);
-            S.focus = S.rows.length;
-          })
+          group('Deine Emulatoren', `${list.length}`)
         ];
-        C().emulators.forEach((e, i) => {
-          const found = (App.library.emulators || []).find((x) => x.id === e.id);
+        for (const e of list) {
+          const found = ((App.library.emulators || []).find((x) => x.id === e.id) || {}).found;
           const used = C().systems.filter((s) => s.emulator === e.id).map((s) => s.short || s.name);
-          rows.push(group(e.name, `${found && found.found ? '✔ gefunden' : '✖ nicht gefunden'}${used.length ? ' · für ' + used.join(', ') : ' · noch keiner Konsole zugeordnet'}`));
-          const o = () => C().emulators[i];
-          rows.push(text('Name', o, 'name'));
-          rows.push(pathRow('Programm (.exe)', o, 'exe', 'file', '', { rescan: true }));
-          rows.push(text('Start-Argumente', o, 'args', 'Platzhalter: {rom} {romName} {romDir} {emuDir}'));
-          rows.push(button('Emulator löschen', async () => {
-            if (await App.confirm('Emulator löschen?', esc(e.name), 'Löschen')) { C().emulators.splice(i, 1); commit(true); }
-          }, { danger: true }));
-        });
+          rows.push(item(e.name, `${used.length ? 'für ' + used.join(', ') : 'keiner Konsole zugeordnet'} · ${e.exe ? e.exe.split(/[\\/]/).pop() : 'kein Programm gewählt'}`,
+            { status: found ? 'ok' : 'bad', statusText: found ? 'bereit' : 'fehlt', action: () => openEmulator(e.id) }));
+        }
         return rows;
       }
     },
     {
       id: 'systems', title: 'Systeme & ROMs', rows: () => {
-        const emuOpts = C().emulators.map((e) => ({ value: e.id, label: e.name }));
-        const rows = [button('＋ System hinzufügen', () => {
-          C().systems.push({ id: 'sys-' + Date.now(), name: 'Neues System', short: 'Neu', color: '#888888', extensions: ['.zip'], romDirs: [], emulator: (C().emulators[0] || {}).id, enabled: true });
-          commit(true);
-        })];
-        C().systems.forEach((s, i) => {
-          const o = () => C().systems[i];
-          const count = (App.library.systems.find((x) => x.id === s.id) || { count: 0 }).count;
-          rows.push(group(s.name, `${count} Spiele`));
-          rows.push(toggle('Aktiv', o, 'enabled', '', { rescan: true }));
-          rows.push(select('Standard-Emulator', o, 'emulator', emuOpts, 'Pro Spiel änderbar: Spiel auswählen → Y → „Starten mit“', { rescan: true }));
-          rows.push(listText('ROM-Ordner', o, 'romDirs', 'Mehrere mit ; trennen (Unterordner werden mit durchsucht)', { rescan: true }));
-          rows.push(button('Ordner hinzufügen …', async () => {
-            const d = await api.pickFolder();
-            if (d) { o().romDirs = [...(o().romDirs || []), d]; commit(true); }
+        const list = C().systems;
+        const rows = [
+          button('＋ Konsole hinzufügen …', () => App.addSystemWizard(), { desc: 'Assistent: Konsole → Emulator → ROM-Ordner' }),
+          group('Deine Konsolen', `${list.filter((s) => s.enabled !== false).length} von ${list.length} aktiv`)
+        ];
+        for (const s of list) {
+          const lib = App.library.systems.find((x) => x.id === s.id) || { count: 0 };
+          const emu = C().emulators.find((e) => e.id === s.emulator);
+          const found = ((App.library.emulators || []).find((x) => x.id === s.emulator) || {}).found;
+          const dirs = (s.romDirs || []).length;
+          const off = s.enabled === false;
+          rows.push(item(s.name, `${emu ? emu.name : 'kein Emulator'} · ${dirs ? dirs + (dirs === 1 ? ' Ordner' : ' Ordner') : 'kein ROM-Ordner'} · ${(s.extensions || []).join(' ')}`, {
+            status: off ? 'off' : found ? 'ok' : 'bad',
+            statusText: off ? 'aus' : found ? `${lib.count} Spiele` : 'Emulator fehlt',
+            action: () => openSystem(s.id)
           }));
-          rows.push(listText('Dateiendungen', o, 'extensions', 'z.B. .sfc ; .smc ; .zip', { rescan: true }));
-          rows.push(text('Name', o, 'name', '', { rescan: true }));
-          rows.push(text('Kurzname', o, 'short', '', { rescan: true }));
-          rows.push(pathRow('Logo / Abbildung (optional)', o, 'logo', 'image', 'Oben rechts auf der Kachel. Leer = eingebaute Abbildung. PNG mit transparentem Hintergrund sieht am besten aus', { rescan: true }));
-          rows.push(pathRow('Hintergrundbild der Kachel (optional)', o, 'tileImage', 'image', 'Füllt die ganze Kachel, z.B. ein Foto der Konsole', { rescan: true }));
-          rows.push(button('System löschen', async () => {
-            if (await App.confirm('System löschen?', esc(s.name), 'Löschen')) { C().systems.splice(i, 1); commit(true); }
-          }, { danger: true }));
-        });
+        }
         return rows;
       }
     },
     {
       id: 'games', title: 'Eigene Spiele', rows: () => {
-        const rows = [button('＋ Spiel / Programm hinzufügen …', async () => {
-          const exe = await api.pickFile();
-          if (!exe) return;
-          const name = exe.split(/[\\/]/).pop().replace(/\.(exe|lnk|bat|cmd|url)$/i, '');
-          C().pcGames.push({ id: 'pc-' + Date.now(), name, exe, args: '', cwd: '', cover: '', killMode: 'dir', processName: '' });
-          commit(true);
-        }, { desc: 'Epic-, GOG- und andere Spiele, Kodi, Emulator-Frontends …' })];
-        C().pcGames.forEach((g, i) => {
-          const o = () => C().pcGames[i];
-          rows.push(group(g.name || 'Spiel'));
-          rows.push(text('Name', o, 'name', '', { rescan: true }));
-          rows.push(pathRow('Programm', o, 'exe', 'file', '', { rescan: true }));
-          rows.push(text('Argumente', o, 'args'));
-          rows.push(pathRow('Cover-Bild', o, 'cover', 'image', 'Hochformat 600×900 sieht am besten aus', { rescan: true }));
-          rows.push(select('Beenden per Controller', o, 'killMode', KILL_OPTS, 'Wenn sich das Spiel nicht beenden lässt: „Spielordner“ wählen', { rescan: true }));
-          rows.push(text('Prozessname (bei „Nach Prozessname“)', o, 'processName', 'z.B. game-win64.exe'));
-          rows.push(button('Entfernen', async () => {
-            if (await App.confirm('Spiel entfernen?', esc(g.name), 'Entfernen')) { C().pcGames.splice(i, 1); commit(true); }
-          }, { danger: true }));
-        });
+        const list = C().pcGames;
+        const rows = [
+          button('＋ Spiel / Programm hinzufügen …', async () => {
+            const exe = await api.pickFile();
+            if (!exe) return;
+            const id = 'pc-' + Date.now();
+            C().pcGames.push({ id, name: exe.split(/[\\/]/).pop().replace(/\.(exe|lnk|bat|cmd|url)$/i, ''), exe, args: '', cwd: '', cover: '', killMode: 'dir', processName: '' });
+            await commit(true);
+            openGame(id);
+          }, { desc: '.exe, Verknüpfung (.lnk), .url oder .bat – z.B. Epic-/GOG-Spiele, Kodi, Programme' }),
+          group('Deine Spiele & Programme', `${list.length}`)
+        ];
+        for (const g of list) {
+          rows.push(item(g.name || 'Spiel', `${g.exe ? g.exe.split(/[\\/]/).pop() : 'kein Programm'} · Beenden: ${(KILL_OPTS.find((k) => k.value === (g.killMode || 'dir')) || KILL_OPTS[0]).short}`,
+            { status: g.cover ? 'ok' : '', statusText: g.cover ? 'mit Cover' : '', action: () => openGame(g.id) }));
+        }
         return rows;
       }
     },
@@ -284,7 +291,7 @@
         const P = () => C().performance;
         const programs = P().programs || [];
         const rows = [
-          group('Leistungsmodus', 'Beim Start des Konsolenmodus'),
+          group('Leistungsmodus', 'beim Start des Konsolenmodus'),
           toggle('Hintergrundprogramme pausieren / beenden', P, 'enabled', 'Spart CPU, GPU und RAM für deine Spiele – beim Verlassen wird alles wiederhergestellt'),
           toggle('Energieplan „Höchstleistung“', P, 'highPerformancePlan', 'Während des Konsolenmodus, danach wird der vorherige Plan wiederhergestellt'),
           button('＋ Empfohlene Programme hinzufügen …', recommendedMenu),
@@ -302,14 +309,27 @@
           { value: 'close', label: 'Schließen' },
           { value: 'kill', label: 'Sofort beenden' }
         ];
+        rows.push(group('Programme', `${programs.filter((p) => p.enabled !== false).length} von ${programs.length} aktiv`));
         programs.forEach((p, i) => {
-          const o = () => P().programs[i];
-          rows.push(group(p.name, p.process));
-          rows.push(toggle('Aktiv', o, 'enabled'));
-          rows.push(select('Aktion', o, 'action', ACTIONS, p.pauseArgs ? 'Wird über die programmeigene Pause-Funktion pausiert' : 'Pausieren: Programm bleibt offen, verbraucht aber keine CPU mehr'));
-          rows.push(toggle('Beim Verlassen wiederherstellen', o, 'restore', 'Fortsetzen bzw. wieder starten'));
-          rows.push(text('Prozessname(n)', o, 'process', 'z.B. wallpaper64.exe – mehrere mit ; trennen'));
-          rows.push(button('Entfernen', () => { P().programs.splice(i, 1); commit(false); }, { danger: true }));
+          const act = ACTIONS.find((a) => a.value === p.action) || ACTIONS[0];
+          rows.push(item(p.name, `${act.label}${p.restore !== false ? ', danach wiederherstellen' : ''} · ${p.process}`, {
+            status: p.enabled === false ? 'off' : 'ok', statusText: p.enabled === false ? 'aus' : 'aktiv',
+            action: () => openDetail(() => {
+              const idx = P().programs.indexOf(p);
+              if (idx < 0) return null;
+              const o = () => P().programs[idx];
+              return {
+                title: p.name,
+                rows: [
+                  toggle('Aktiv', o, 'enabled'),
+                  select('Aktion', o, 'action', ACTIONS, p.pauseArgs ? 'Wird über die programmeigene Pause-Funktion pausiert' : 'Pausieren: Programm bleibt offen, verbraucht aber keine CPU mehr'),
+                  toggle('Beim Verlassen wiederherstellen', o, 'restore', 'Fortsetzen bzw. wieder starten'),
+                  text('Prozessname(n)', o, 'process', 'z.B. wallpaper64.exe – mehrere mit ; trennen'),
+                  button('Entfernen', async () => { P().programs.splice(idx, 1); await commit(false); closeDetail(); }, { danger: true })
+                ]
+              };
+            })
+          }));
         });
         return rows;
       }
@@ -366,6 +386,94 @@
       }
     }
   ];
+
+  function openEmulator(id) {
+    openDetail(() => {
+      const i = C().emulators.findIndex((e) => e.id === id);
+      if (i < 0) return null;
+      const o = () => C().emulators[i];
+      const e = o();
+      const used = C().systems.filter((s) => s.emulator === id).map((s) => s.name);
+      return {
+        title: e.name,
+        rows: [
+          text('Name', o, 'name', '', { rescan: true }),
+          pathRow('Programm (.exe)', o, 'exe', 'file', '', { rescan: true }),
+          text('Start-Argumente', o, 'args', 'Platzhalter: {rom} {romName} {romDir} {emuDir} – z.B. -f "{rom}" für Vollbild'),
+          { type: 'info', label: 'Verwendet von', desc: used.length ? used.join(', ') : 'Keiner Konsole – über „Konsole hinzufügen“ zuordnen', get: () => '' },
+          button('Emulator löschen', async () => {
+            if (!(await App.confirm('Emulator löschen?', esc(e.name), 'Löschen'))) return;
+            C().emulators.splice(i, 1);
+            await commit(true);
+            closeDetail();
+          }, { danger: true })
+        ]
+      };
+    });
+  }
+
+  function openSystem(id) {
+    openDetail(() => {
+      const i = C().systems.findIndex((s) => s.id === id);
+      if (i < 0) return null;
+      const o = () => C().systems[i];
+      const s = o();
+      const emuOpts = C().emulators.map((e) => ({ value: e.id, label: e.name }));
+      const count = (App.library.systems.find((x) => x.id === id) || { count: 0 }).count;
+      return {
+        title: s.name,
+        extra: `${count} Spiele`,
+        rows: [
+          group('Spiele'),
+          toggle('Aktiv', o, 'enabled', 'Ausgeschaltete Konsolen werden nicht angezeigt', { rescan: true }),
+          select('Emulator', o, 'emulator', emuOpts, 'Pro Spiel änderbar: Spiel → Details → „Starten mit“', { rescan: true }),
+          listText('ROM-Ordner', o, 'romDirs', 'Mehrere mit ; trennen – Unterordner werden mit durchsucht', { rescan: true }),
+          button('＋ ROM-Ordner hinzufügen …', async () => {
+            const d = await api.pickFolder();
+            if (d) { o().romDirs = [...(o().romDirs || []), d]; await commit(true); }
+          }),
+          listText('Dateiendungen', o, 'extensions', 'z.B. .sfc ; .smc ; .zip', { rescan: true }),
+          group('Aussehen'),
+          text('Name', o, 'name', '', { rescan: true }),
+          text('Kurzname', o, 'short', 'Auf der Kachel', { rescan: true }),
+          pathRow('Logo', o, 'logo', 'image', 'Oben rechts auf der Kachel – leer = eingebaute Abbildung', { rescan: true }),
+          pathRow('Hintergrundbild', o, 'tileImage', 'image', 'Füllt die ganze Kachel, z.B. ein Foto der Konsole', { rescan: true }),
+          group('Aktionen'),
+          button('⬇ Fehlende Cover für diese Konsole laden', () => App.scrape({ system: id })),
+          button('Konsole löschen', async () => {
+            if (!(await App.confirm('Konsole löschen?', `${esc(s.name)} wird entfernt. Deine ROM-Dateien bleiben erhalten.`, 'Löschen'))) return;
+            C().systems.splice(i, 1);
+            await commit(true);
+            closeDetail();
+          }, { danger: true })
+        ]
+      };
+    });
+  }
+
+  function openGame(id) {
+    openDetail(() => {
+      const i = C().pcGames.findIndex((g) => g.id === id);
+      if (i < 0) return null;
+      const o = () => C().pcGames[i];
+      const g = o();
+      const rows = [
+        text('Name', o, 'name', '', { rescan: true }),
+        pathRow('Programm', o, 'exe', 'file', '.exe, .lnk, .url oder .bat', { rescan: true }),
+        text('Argumente', o, 'args', 'Optional'),
+        pathRow('Cover-Bild', o, 'cover', 'image', 'Hochformat 600×900 sieht am besten aus', { rescan: true }),
+        select('Beenden per Controller', o, 'killMode', KILL_OPTS, 'Lässt sich das Spiel nicht beenden: „Alle Prozesse aus dem Spielordner“ wählen', { rescan: true })
+      ];
+      if (g.killMode === 'name') rows.push(text('Prozessname', o, 'processName', 'z.B. game-win64.exe'));
+      rows.push(button('Entfernen', async () => {
+        if (!(await App.confirm('Spiel entfernen?', `${esc(g.name)} wird aus AleGamestation entfernt (die Dateien bleiben erhalten).`, 'Entfernen'))) return;
+        C().pcGames.splice(i, 1);
+        await commit(true);
+        closeDetail();
+      }, { danger: true }));
+      return { title: g.name || 'Spiel', rows };
+    });
+  }
 
   function cleanErr(e) {
     return String((e && e.message) || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
@@ -475,7 +583,7 @@
       const e = document.createElement('div');
       e.className = 'tab' + (i === S.section ? ' active' : '');
       e.textContent = s.title;
-      e.onclick = () => { S.section = i; S.focus = 0; render(); };
+      e.onclick = () => { S.section = i; S.focus = 0; S.detail = null; render(); };
       t.appendChild(e);
     });
   }
@@ -490,17 +598,34 @@
       }
       case 'text': return `<input type="${r.secret ? 'password' : 'text'}" value="${esc(v)}" spellcheck="false" autocomplete="off">`;
       case 'path': return `<input type="text" value="${esc(v)}" spellcheck="false"><span class="mini-btn">Durchsuchen</span>`;
+      case 'item': return `${r.statusText ? `<span class="item-status ${r.status || ''}">${esc(r.statusText)}</span>` : ''}<span class="chev">›</span>`;
       default: return '';
     }
   }
 
   function render() {
     renderTabs();
-    S.rows = SECTIONS[S.section].rows();
+    let detail = null;
+    if (S.detail) {
+      detail = S.detail.builder();
+      if (!detail) S.detail = null; // Eintrag wurde gelöscht
+    }
+    const section = SECTIONS[S.section];
+    S.rows = detail
+      ? [{ type: 'crumb', label: section.title, title: detail.title, extra: detail.extra }, button('‹ Zurück zur Übersicht', () => closeDetail()), ...detail.rows]
+      : section.rows();
     const body = $('#settingsBody');
+    body.classList.toggle('detail', !!detail);
     body.innerHTML = '';
     const focusables = [];
     S.rows.forEach((r) => {
+      if (r.type === 'crumb') {
+        const c = document.createElement('div');
+        c.className = 's-crumb';
+        c.innerHTML = `<span>${esc(r.label)}</span><span class="sep">›</span><b>${esc(r.title)}</b>${r.extra ? `<small>${esc(r.extra)}</small>` : ''}`;
+        body.appendChild(c);
+        return;
+      }
       if (r.type === 'group') {
         const g = document.createElement('div');
         g.className = 's-group';
@@ -509,7 +634,7 @@
         return;
       }
       const row = document.createElement('div');
-      row.className = 's-row' + (r.type === 'button' ? ' button-row' : '') + (r.danger ? ' danger' : '');
+      row.className = 's-row' + (r.type === 'button' ? ' button-row' : '') + (r.type === 'item' ? ' item-row' : '') + (r.danger ? ' danger' : '');
       row.innerHTML = `<div class="s-label"><b>${esc(r.label)}</b>${r.desc ? `<small>${esc(r.desc)}</small>` : ''}</div><div class="s-value">${valueHtml(r)}</div>`;
       const idx = focusables.length;
       row.onclick = (e) => {
@@ -561,7 +686,7 @@
       Sounds.play(r.type === 'toggle' ? 'toggle' : 'accept');
       if (r.type === 'toggle') { r.set(!r.get()); await commit(!!r.rescan); }
       else if (r.type === 'select') return act('right');
-      else if (r.type === 'button') await r.action();
+      else if (r.type === 'button' || r.type === 'item') await r.action();
       else if (r.type === 'text') { const inp = r.el.querySelector('input'); inp.focus(); inp.select(); }
       else if (r.type === 'path') {
         const p = r.kind === 'folder' ? await api.pickFolder() : r.kind === 'image' ? await api.pickImage() : await api.pickFile();
@@ -572,7 +697,7 @@
 
   window.SettingsView = {
     async open(sectionId) {
-      if (sectionId) { S.section = Math.max(0, SECTIONS.findIndex((s) => s.id === sectionId)); S.focus = 0; }
+      if (sectionId) { S.section = Math.max(0, SECTIONS.findIndex((s) => s.id === sectionId)); S.focus = 0; S.detail = null; }
       try { S.displays = await api.displays(); } catch { S.displays = []; }
       try { S.update = await api.updateState(); } catch { S.update = {}; }
       render();
@@ -581,16 +706,17 @@
       switch (a) {
         case 'up': if (S.focus > 0) { S.focus--; updateFocus(); Sounds.play('move'); } break;
         case 'down': if (S.focus < S.focusables.length - 1) { S.focus++; updateFocus(); Sounds.play('move'); } break;
-        case 'x': S.section = (S.section + SECTIONS.length - 1) % SECTIONS.length; S.focus = 0; render(); Sounds.play('tab'); break;
-        case 'y': S.section = (S.section + 1) % SECTIONS.length; S.focus = 0; render(); Sounds.play('tab'); break;
-        case 'back': case 'select': Sounds.play('back'); App.backToLibrary(); break;
+        case 'x': S.detail = null; S.section = (S.section + SECTIONS.length - 1) % SECTIONS.length; S.focus = 0; render(); Sounds.play('tab'); break;
+        case 'y': S.detail = null; S.section = (S.section + 1) % SECTIONS.length; S.focus = 0; render(); Sounds.play('tab'); break;
+        case 'back': Sounds.play('back'); if (!closeDetail()) App.backToLibrary(); break;
+        case 'select': Sounds.play('back'); S.detail = null; App.backToLibrary(); break;
         default: act(a);
       }
     },
     refreshUpdate,
     rerender: () => render(),
     hints(hint, glyph) {
-      return hint(glyph('A'), 'Ändern') + hint('◀ ▶', 'Wert') + hint(glyph('X') + glyph('Y'), 'Bereich') + hint(glyph('B'), 'Zurück');
+      return hint(glyph('A'), S.detail ? 'Ändern' : 'Öffnen / Ändern') + hint('◀ ▶', 'Wert') + hint(glyph('X') + glyph('Y'), 'Bereich') + hint(glyph('B'), S.detail ? 'Übersicht' : 'Zurück');
     }
   };
 })();
