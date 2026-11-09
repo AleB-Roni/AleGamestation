@@ -374,6 +374,15 @@ function scanLibrary(cfg, opts = {}) {
       romDirs: s.romDirs || []
     });
   }
+  // Emulatoren, die (noch) keiner aktiven Konsole zugeordnet sind, trotzdem im Emulatoren-Tab zeigen
+  const used = new Set(cfg.systems.filter((s) => s.enabled !== false).map((s) => s.emulator));
+  for (const e of cfg.emulators) {
+    if (used.has(e.id)) continue;
+    systems.push({
+      id: 'emu:' + e.id, kind: 'emulator', standalone: true, name: e.name, short: e.name, color: '#3b4260',
+      emulatorId: e.id, emulatorName: e.name, emulatorFound: !!e.exe && exists(e.exe), count: 0, logo: '', tileImage: '', romDirs: []
+    });
+  }
   const games = applyOverrides(cfg, [...steam, ...epic, ...gog, ...pc, ...roms]);
   return { systems, games, emulators, steamFound: !!findSteamPath(cfg.steam.path) };
 }

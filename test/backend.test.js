@@ -342,3 +342,18 @@ test('Updates: GitHub abfragen, Versionen vergleichen, herunterladen', async () 
   const u3 = new Updater({ version: '1.4.0', isPackaged: false, fetch: async () => { throw new Error('offline'); } });
   assert.strictEqual((await u3.check()).status, 'error');
 });
+
+test('Emulatoren ohne Konsole erscheinen trotzdem im Emulatoren-Tab', () => {
+  const cfg = mergeDefaults(DEFAULT_CONFIG, {
+    steam: { enabled: false }, stores: { epic: false, gog: false },
+    emulators: [{ id: 'ra', name: 'RetroArch', exe: '', args: '' }, { id: 'eden', name: 'Eden', exe: '', args: '' }],
+    systems: [{ id: 'snes', name: 'SNES', extensions: ['.sfc'], romDirs: [], emulator: 'ra' }]
+  });
+  const lib = scanLibrary(cfg);
+  const emu = lib.systems.filter((s) => s.kind === 'emulator');
+  assert.deepStrictEqual(emu.map((s) => s.id), ['snes', 'emu:eden']);
+  assert.strictEqual(emu[1].standalone, true);
+  // Sobald Eden einer Konsole zugeordnet ist, verschwindet die Einzel-Kachel
+  cfg.systems.push({ id: 'switch', name: 'Switch', extensions: ['.nsp'], romDirs: [], emulator: 'eden' });
+  assert.deepStrictEqual(scanLibrary(cfg).systems.filter((s) => s.kind === 'emulator').map((s) => s.id), ['snes', 'switch']);
+});

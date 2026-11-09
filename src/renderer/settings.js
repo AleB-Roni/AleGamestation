@@ -141,6 +141,7 @@
             App.toast(r.changes.length ? `Gefunden: ${r.changes.map((c) => c.name).join(', ')}` : 'Keine neuen Emulatoren gefunden', r.changes.length ? 'ok' : 'info', 5000);
             render();
           }),
+          button('＋ Konsole mit Emulator einrichten (Assistent) …', () => App.addSystemWizard(), { desc: 'Konsole wählen, Emulator wählen, ROM-Ordner wählen – fertig' }),
           button('＋ Emulator hinzufügen', () => {
             C().emulators.push({ id: 'emu-' + Date.now(), name: 'Neuer Emulator', exe: '', args: '"{rom}"' });
             commit(true);
@@ -150,7 +151,7 @@
         C().emulators.forEach((e, i) => {
           const found = (App.library.emulators || []).find((x) => x.id === e.id);
           const used = C().systems.filter((s) => s.emulator === e.id).map((s) => s.short || s.name);
-          rows.push(group(e.name, `${found && found.found ? '✔ gefunden' : '✖ nicht gefunden'}${used.length ? ' · für ' + used.join(', ') : ''}`));
+          rows.push(group(e.name, `${found && found.found ? '✔ gefunden' : '✖ nicht gefunden'}${used.length ? ' · für ' + used.join(', ') : ' · noch keiner Konsole zugeordnet'}`));
           const o = () => C().emulators[i];
           rows.push(text('Name', o, 'name'));
           rows.push(pathRow('Programm (.exe)', o, 'exe', 'file', '', { rescan: true }));

@@ -15,7 +15,8 @@
     sys('nds', 'emulator', 'Nintendo DS', 'NDS', '#8a8d91', 'melonDS'),
     sys('md', 'emulator', 'Sega Mega Drive', 'Mega Drive', '#1f4fa3', 'RetroArch (Genesis Plus GX)'),
     sys('ps1', 'emulator', 'PlayStation', 'PS1', '#a3a3a3', 'DuckStation'),
-    sys('psp', 'emulator', 'PlayStation Portable', 'PSP', '#2b2b2b', 'PPSSPP')
+    sys('psp', 'emulator', 'PlayStation Portable', 'PSP', '#2b2b2b', 'PPSSPP'),
+    Object.assign(sys('emu:yuzu', 'emulator', 'Eden', 'Eden', '#3b4260', 'Eden'), { standalone: true, emulatorId: 'yuzu' })
   ];
   const games = [];
   const add = (system, names, extra = {}) => names.forEach((n, i) => games.push({ id: `${system}-${i}`, type: systems.find((s) => s.id === system).kind === 'emulator' ? 'rom' : system === 'steam' ? 'steam' : 'pc', system, name: n, cover: '', source: extra.source, emulatorName: extra.emu, rom: extra.emu ? `C:\\ROMs\\${system}\\${n}.zip` : undefined }));

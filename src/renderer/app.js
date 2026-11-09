@@ -97,7 +97,7 @@
     const tabs = [{ id: 'home', label: 'Start' }];
     for (const s of L.systems.filter((x) => x.kind === 'store')) tabs.push({ id: 'store:' + s.id, label: s.short, system: s.id });
     if (!tabs.some((t) => t.system === 'pc')) tabs.push({ id: 'store:pc', label: 'Eigene', system: 'pc' });
-    if (L.systems.some((s) => s.kind === 'emulator')) tabs.push({ id: 'emulators', label: 'Emulatoren' });
+    tabs.push({ id: 'emulators', label: 'Emulatoren' }); // immer da – auch ohne eingerichtete Konsolen
     tabs.push({ id: 'all', label: 'Alle Spiele' });
     tabs.push({ id: 'settings', label: '⚙ Einstellungen' });
     const prev = App.tabs[App.tabIndex] && App.tabs[App.tabIndex].id;
@@ -166,10 +166,14 @@
       secs.push({ title: systemOf(tab.system).name, layout: 'grid', items });
     } else if (tab.id === 'emulators') {
       const systems = App.library.systems.filter((s) => s.kind === 'emulator');
-      App.emuSystemIndex = Math.min(App.emuSystemIndex, Math.max(0, systems.length - 1));
-      secs.push({ title: 'Emulatoren & Systeme', layout: 'systems', items: systems.map((s) => ({ kind: 'system', system: s })) });
+      const sysItems = systems.map((s) => ({ kind: 'system', system: s }));
+      sysItems.push({ kind: 'action', id: 'addSystem', title: 'Konsole hinzufügen', sub: 'Emulator + ROM-Ordner', icon: '＋' });
+      App.emuSystemIndex = Math.min(App.emuSystemIndex, sysItems.length - 1);
+      secs.push({ title: 'Emulatoren & Konsolen', layout: 'systems', items: sysItems });
       const sys = systems[App.emuSystemIndex];
-      if (sys) {
+      if (sys && sys.standalone) {
+        secs.push({ title: `${sys.name} – noch keiner Konsole zugeordnet`, layout: 'grid', items: [], emptyText: `Dieser Emulator gehört noch zu keiner Konsole. Wähle ihn oben aus und drücke die Auswahl-Taste: „Als Konsole einrichten“ (ROM-Ordner + Dateiendungen) oder den Emulator direkt starten.` });
+      } else if (sys) {
         const list = games.filter((g) => g.system === sys.id).map(gi);
         secs.push({ title: `${sys.name} – ${list.length} Spiele`, layout: 'grid', items: list, emptyText: sys.emulatorFound ? `Keine ROMs gefunden. Wähle oben ${sys.short} aus und drücke die Auswahl-Taste: ROM-Ordner öffnen, Ordner hinzufügen oder den Emulator ohne Spiel starten.` : `Emulator „${sys.emulatorName}“ wurde nicht gefunden. Pfad in Einstellungen → Emulatoren eintragen.` });
       }
@@ -401,6 +405,7 @@
     if (item.kind === 'action') {
       Sounds.play('accept');
       if (item.id === 'addGame') return addGameFlow();
+      if (item.id === 'addSystem') return App.addSystemWizard();
       if (item.id === 'bigpicture') return launch({ id: 'steam-bigpicture', name: 'Steam Big Picture' });
     }
   }
@@ -560,6 +565,7 @@
   }
 
   function systemDetails(s) {
+    if (s.standalone) return emulatorDetails(s);
     const sysCfg = App.cfg.systems.find((x) => x.id === s.id);
     const err = (e) => App.toast(String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''), 'error', 6000);
     App.menu({
@@ -619,6 +625,109 @@
     App.modalStack[App.modalStack.length - 1].header = `<div class="detail-cover sys-hero" style="--c:${esc(s.color)}${heroBg}">${heroIcon}<span>${esc(s.short)}</span></div>`;
     renderModal();
   }
+
+  /** Emulator ohne Konsole */
+  function emulatorDetails(s) {
+    const emuId = s.emulatorId;
+    const err = (e) => App.toast(String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''), 'error', 6000);
+    App.menu({
+      title: s.name,
+      text: 'Dieser Emulator ist noch keiner Konsole zugeordnet. Richte ihn als Konsole ein, damit seine Spiele hier erscheinen.',
+      className: 'system-details',
+      items: [
+        { label: 'Als Konsole einrichten …', icon: '＋', hint: 'Konsole, ROM-Ordner', action: () => { App.closeMenu(); App.addSystemWizard(emuId); } },
+        { label: `${s.name} starten`, icon: '▶', hint: s.emulatorFound ? 'ohne Spiel' : 'Programm nicht gefunden', action: async () => {
+          App.closeMenu();
+          try { const st = await api.launchEmulator(s.id); if (st && st.running) showRunning(st); } catch (e) { err(e); }
+        } },
+        { label: 'In Einstellungen bearbeiten', icon: '⚙', action: () => { App.closeMenu(); openSettings('emulators'); } }
+      ]
+    });
+    App.modalStack[App.modalStack.length - 1].header = `<div class="detail-cover sys-hero" style="--c:${esc(s.color)}">${ConsoleIcons.forSystem('generic')}<span>${esc(s.short)}</span></div>`;
+    renderModal();
+  }
+
+  // ---------- Konsole hinzufügen (Assistent) ----------
+  const SYSTEM_PRESETS = [
+    { id: 'nes', name: 'Nintendo Entertainment System', short: 'NES', color: '#e4002b', extensions: ['.nes', '.zip'] },
+    { id: 'snes', name: 'Super Nintendo', short: 'SNES', color: '#7b5aa6', extensions: ['.sfc', '.smc', '.zip'] },
+    { id: 'n64', name: 'Nintendo 64', short: 'N64', color: '#009e4f', extensions: ['.z64', '.n64', '.v64', '.zip'] },
+    { id: 'gb', name: 'Game Boy / Color', short: 'GB', color: '#8b8f3a', extensions: ['.gb', '.gbc', '.zip'] },
+    { id: 'gba', name: 'Game Boy Advance', short: 'GBA', color: '#4b2bb3', extensions: ['.gba', '.zip'] },
+    { id: 'nds', name: 'Nintendo DS', short: 'NDS', color: '#8a8d91', extensions: ['.nds', '.zip'] },
+    { id: '3ds', name: 'Nintendo 3DS', short: '3DS', color: '#c8102e', extensions: ['.3ds', '.cci', '.cia', '.3dsx'] },
+    { id: 'gc', name: 'GameCube / Wii', short: 'GC/Wii', color: '#6a5acd', extensions: ['.iso', '.gcm', '.rvz', '.wbfs', '.ciso'] },
+    { id: 'wiiu', name: 'Wii U', short: 'Wii U', color: '#009ac7', extensions: ['.wua', '.wux', '.wud', '.rpx'] },
+    { id: 'switch', name: 'Nintendo Switch', short: 'Switch', color: '#e60012', extensions: ['.nsp', '.xci'] },
+    { id: 'sms', name: 'Sega Master System', short: 'SMS', color: '#2a4fa0', extensions: ['.sms', '.zip'] },
+    { id: 'md', name: 'Sega Mega Drive', short: 'Mega Drive', color: '#1f4fa3', extensions: ['.md', '.gen', '.bin', '.zip'] },
+    { id: 'saturn', name: 'Sega Saturn', short: 'Saturn', color: '#3a3a6a', extensions: ['.cue', '.chd', '.iso'] },
+    { id: 'dc', name: 'Sega Dreamcast', short: 'Dreamcast', color: '#e95d0f', extensions: ['.gdi', '.cdi', '.chd'] },
+    { id: 'ps1', name: 'PlayStation', short: 'PS1', color: '#a3a3a3', extensions: ['.cue', '.chd', '.pbp', '.m3u'] },
+    { id: 'ps2', name: 'PlayStation 2', short: 'PS2', color: '#1d3fbb', extensions: ['.iso', '.chd', '.cso'] },
+    { id: 'ps3', name: 'PlayStation 3', short: 'PS3', color: '#222222', extensions: ['.iso', '.pkg'] },
+    { id: 'psp', name: 'PlayStation Portable', short: 'PSP', color: '#2b2b2b', extensions: ['.iso', '.cso', '.pbp'] },
+    { id: 'pce', name: 'PC Engine / TurboGrafx-16', short: 'PC Engine', color: '#d85a1a', extensions: ['.pce', '.cue', '.zip'] },
+    { id: 'arcade', name: 'Arcade (MAME / FBNeo)', short: 'Arcade', color: '#b0007a', extensions: ['.zip', '.7z'] }
+  ];
+
+  /** @param {string} [preEmuId] bereits gewählter Emulator */
+  App.addSystemWizard = function (preEmuId) {
+    const have = new Set(App.cfg.systems.map((s) => s.id));
+    const items = SYSTEM_PRESETS.filter((p) => !have.has(p.id)).map((p) => ({
+      label: p.name, hint: p.extensions.join(' '), icon: '🎮', action: () => { App.closeMenu(); pickEmulator(p); }
+    }));
+    items.push({ label: 'Eigene Konsole …', icon: '＋', hint: 'Name & Endungen später anpassen', action: () => {
+      App.closeMenu();
+      pickEmulator({ id: 'sys', name: 'Eigene Konsole', short: 'Eigene', color: '#5b6b8c', extensions: ['.zip', '.7z', '.iso', '.bin'] });
+    } });
+    App.menu({ title: 'Konsole hinzufügen', text: 'Für welche Konsole möchtest du Spiele hinzufügen?', items });
+
+    function pickEmulator(p) {
+      if (preEmuId) return pickFolder(p, preEmuId);
+      const list = App.cfg.emulators.map((e) => {
+        const info = (App.library.emulators || []).find((x) => x.id === e.id);
+        return { label: e.name, icon: '🎮', hint: info && info.found ? '✔ gefunden' : '⚠ Programm nicht gefunden', action: () => { App.closeMenu(); pickFolder(p, e.id); } };
+      });
+      list.unshift({ label: 'Neuen Emulator auswählen (.exe) …', icon: '＋', action: async () => {
+        const exe = await api.pickFile({ filters: [{ name: 'Programme', extensions: ['exe'] }] });
+        if (!exe) return;
+        const id = 'emu-' + Date.now();
+        App.cfg.emulators.push({ id, name: exe.split(/[\\/]/).pop().replace(/\.exe$/i, ''), exe, args: '"{rom}"' });
+        App.closeMenu();
+        pickFolder(p, id);
+      } });
+      App.menu({ title: `${p.short}: Emulator wählen`, text: 'Mit welchem Emulator sollen die Spiele starten? Start-Argumente (z.B. Vollbild) kannst du später unter Einstellungen → Emulatoren anpassen.', items: list });
+    }
+
+    function pickFolder(p, emuId) {
+      App.menu({
+        title: `${p.short}: ROM-Ordner`, text: 'Wo liegen deine Spiele für diese Konsole? Unterordner werden mit durchsucht.',
+        items: [
+          { label: 'Ordner auswählen …', icon: '📂', action: async () => { const d = await api.pickFolder(); if (!d) return; App.closeMenu(); finish(p, emuId, [d]); } },
+          { label: 'Später festlegen', icon: '⏭', action: () => { App.closeMenu(); finish(p, emuId, []); } }
+        ]
+      });
+    }
+
+    async function finish(p, emuId, dirs) {
+      let id = p.id;
+      while (App.cfg.systems.some((s) => s.id === id)) id = p.id + '-' + Math.random().toString(36).slice(2, 6);
+      App.cfg.systems.push({ id, name: p.name, short: p.short, color: p.color, extensions: p.extensions, romDirs: dirs, emulator: emuId, enabled: true });
+      await App.save({ immediate: true, rescan: true });
+      // Zum Emulatoren-Tab wechseln und die neue Konsole auswählen
+      App.tabIndex = Math.max(0, App.tabs.findIndex((t) => t.id === 'emulators'));
+      renderTabs();
+      showView('home');
+      const systems = App.library.systems.filter((s) => s.kind === 'emulator');
+      App.emuSystemIndex = Math.max(0, systems.findIndex((s) => s.id === id));
+      App.focus = { s: 0, i: App.emuSystemIndex };
+      renderHome();
+      const count = (systems.find((s) => s.id === id) || { count: 0 }).count;
+      Sounds.play('accept');
+      App.toast(`✔ ${p.name} eingerichtet${dirs.length ? ` – ${count} Spiele gefunden` : ' – ROM-Ordner kannst du später festlegen'}`, 'ok', 5000);
+    }
+  };
 
   // ---------- Power-Menü ----------
   function powerMenu() {
