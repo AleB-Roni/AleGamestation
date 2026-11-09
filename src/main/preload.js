@@ -27,6 +27,11 @@ contextBridge.exposeInMainWorld('api', {
   displays: () => ipcRenderer.invoke('system:displays'),
   info: () => ipcRenderer.invoke('system:info'),
 
+  updateState: () => ipcRenderer.invoke('update:get'),
+  checkUpdate: () => ipcRenderer.invoke('update:check'),
+  installUpdate: () => ipcRenderer.invoke('update:install'),
+  onUpdateState: on('update:state'),
+
   pickFile: (opts) => ipcRenderer.invoke('dialog:pickFile', opts),
   pickFolder: () => ipcRenderer.invoke('dialog:pickFolder'),
   pickImage: () => ipcRenderer.invoke('dialog:pickImage'),

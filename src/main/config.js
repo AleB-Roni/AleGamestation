@@ -20,6 +20,13 @@ const DEFAULT_CONFIG = {
     // Nach Spielende das Launcher-Fenster wieder in den Vordergrund holen
     refocusAfterGame: true,
     uiSounds: true,
+    // Sound-Thema: "modern" (sanfte Konsolen-Klänge), "retro" (8-Bit), "off"
+    soundTheme: 'modern',
+    soundVolume: 0.7,
+    // Start-Klang beim Öffnen
+    startupSound: true,
+    // Beim Start automatisch auf GitHub nach Updates suchen
+    autoUpdate: true,
     hideCursor: true,
     showClock: true,
     confirmPowerActions: true,

@@ -13,6 +13,8 @@ Alle Spiele (Steam, Epic, GOG, eigene) und Emulator-Spiele in einer modernen Obe
 - Auf jeder Spielkachel und in den Details siehst du, **mit welchem Emulator** das Spiel startet – und kannst es **pro Spiel ändern**
 - **Eigene Spiele/Programme hinzufügen** (z. B. Kodi, Spiele ohne Launcher) direkt in der Oberfläche
 - ROM-Ordner werden durchsucht (inkl. Unterordner), Covers werden automatisch erkannt (`Spielname.png` im Ordner, in `covers/` oder `media/covers/`)
+- **Konsolen-Sounds**: sanfte, glockenartige Menüklänge mit Hall (Thema „Modern“), alternativ „Retro (8-Bit)“, Lautstärke einstellbar, Start-Klang
+- **Automatische Updates** direkt von GitHub
 - Startseite mit Regalen: *Zuletzt gespielt*, *Favoriten*, je Store/System eine Reihe
 - Favoriten, **Spielzeit-Statistik**, „zuletzt gespielt“, eigene Cover, Spiele ausblenden
 - „Alle Spiele“ mit Buchstaben-Sprung (LT/RT)
@@ -37,16 +39,32 @@ Alle Spiele (Steam, Epic, GOG, eigene) und Emulator-Spiele in einer modernen Obe
 
 ## Installation
 
-Voraussetzung: [Node.js](https://nodejs.org) (LTS) auf Windows 10/11.
+1. Unter **[Releases](https://github.com/AleB-Roni/AleGamestation/releases/latest)** die Datei `AleGamestation-Setup-x.y.z.exe` herunterladen
+2. Installer starten. Da die App nicht kostenpflichtig signiert ist, zeigt Windows evtl. „Der Computer wurde durch Windows geschützt“ → **Weitere Informationen → Trotzdem ausführen**
+3. AleGamestation über das Desktop-Symbol starten – am besten in den Einstellungen **„Mit Windows starten“** aktivieren
+
+### Updates
+
+AleGamestation sucht beim Start automatisch auf GitHub nach neuen Versionen und lädt sie im Hintergrund herunter.
+Ist ein Update bereit, erscheint ein Hinweis – installieren über **Menü (☰) → „Update installieren“** oder es wird beim nächsten Beenden automatisch installiert. Kein erneutes Herunterladen nötig.
+Manuell: **Einstellungen → Info & Updates → „Jetzt nach Updates suchen“**.
+
+### Selbst bauen / entwickeln
+
+Voraussetzung: [Node.js](https://nodejs.org) (LTS).
 
 ```bash
 npm install
 npm start          # Konsolenmodus starten
 npm run dev        # Fenster-Modus zum Testen (ohne Bildschirmumschaltung)
-npm run dist       # Installer + portable .exe erstellen (Ordner dist/)
+npm run dist       # Installer lokal erstellen (Ordner dist/)
 ```
 
-Danach am besten in den Einstellungen **„Mit Windows starten“** aktivieren oder die erstellte `.exe` benutzen.
+### Neue Version veröffentlichen
+
+1. Version in `package.json` erhöhen (z. B. `1.0.1`) und committen
+2. Tag pushen: `git tag v1.0.1 && git push origin v1.0.1`
+3. GitHub Actions baut den Windows-Installer und veröffentlicht das Release – alle installierten Apps aktualisieren sich dann selbst
 
 ## Bedienung
 

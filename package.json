@@ -10,7 +10,8 @@
     "start": "electron .",
     "dev": "electron . --dev --no-display-switch",
     "test": "node --test \"test/**/*.test.js\"",
-    "dist": "electron-builder --win"
+    "dist": "electron-builder --win --publish never",
+    "release": "electron-builder --win --publish always"
   },
   "devDependencies": {
     "electron": "^44.0.0",
@@ -19,19 +20,54 @@
   "build": {
     "appId": "de.alegamestation.app",
     "productName": "AleGamestation",
-    "files": ["src/**/*", "package.json"],
-    "asarUnpack": ["src/main/xinput-watcher.ps1"],
+    "files": [
+      "src/**/*",
+      "build/icon.png",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "src/main/xinput-watcher.ps1"
+    ],
     "win": {
+      "icon": "build/icon.png",
       "target": [
-        { "target": "nsis", "arch": ["x64"] },
-        { "target": "portable", "arch": ["x64"] }
-      ]
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "AleGamestation-Setup-${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "AleGamestation"
-    }
+      "shortcutName": "AleGamestation",
+      "perMachine": false,
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "createStartMenuShortcut": true
+    },
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "AleB-Roni",
+        "repo": "AleGamestation",
+        "releaseType": "release"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AleB-Roni/AleGamestation.git"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
   }
 }

@@ -24,7 +24,7 @@
   const library = { systems, games, emulators, steamFound: true };
   let cfg = null;
   const defaults = {
-    general: { startFullscreen: true, targetDisplay: 'primary', autostartWithWindows: false, minimizeOnLaunch: true, refocusAfterGame: true, uiSounds: true, hideCursor: false, showClock: true, confirmPowerActions: true, accentColor: '#7c5cff', uiScale: 1 },
+    general: { startFullscreen: true, targetDisplay: 'primary', autostartWithWindows: false, minimizeOnLaunch: true, refocusAfterGame: true, uiSounds: true, soundTheme: 'modern', soundVolume: 0.7, startupSound: true, autoUpdate: true, hideCursor: false, showClock: true, confirmPowerActions: true, accentColor: '#7c5cff', uiScale: 1 },
     display: { onStart: 'external', onExit: 'extend', restoreBeforeShutdown: true, switchDelayMs: 2500, customCommandsOnStart: [], customCommandsOnExit: [] },
     controller: { closeGameCombo: 'BACK+START', showLauncherCombo: 'BACK+LB+RB', comboHoldMs: 800, gracefulCloseMs: 1500, useAnalogStick: true, swapAB: false },
     steam: { enabled: true, path: '', launchViaBigPicture: false, showBigPictureTile: true },
@@ -41,6 +41,7 @@
     getLibrary: async () => library, refreshLibrary: async () => library, detectEmulators: async () => ({ changes: [], config: cfg, library }),
     launch: async () => ({ running: false }), kill: async () => true, gameStatus: async () => ({ running: false }),
     power: async () => {}, setDisplayMode: async () => {}, displays: async () => [{ index: 0, label: 'TV', width: 3840, height: 2160 }], info: async () => ({}),
+    updateState: async () => ({ status: 'latest', version: '1.0.0' }), checkUpdate: async () => null, installUpdate: async () => false, onUpdateState: noop,
     pickFile: async () => null, pickFolder: async () => null, pickImage: async () => null,
     onGameStatus: noop, onConfigChanged: noop, onToast: noop, onWindowFocus: noop, onGamepadConnection: noop
   };

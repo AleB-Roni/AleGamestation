@@ -83,7 +83,8 @@
     const g = App.cfg.general;
     document.documentElement.style.setProperty('--accent', g.accentColor || '#7c5cff');
     document.documentElement.style.setProperty('--scale', g.uiScale || 1);
-    Sounds.setEnabled(g.uiSounds);
+    Sounds.setTheme(g.uiSounds === false ? 'off' : g.soundTheme || 'modern');
+    Sounds.setVolume(g.soundVolume ?? 0.7);
     Input.configure({ swapAB: App.cfg.controller.swapAB, analog: App.cfg.controller.useAnalogStick });
     $('#clock').classList.toggle('hidden', !g.showClock);
   }
@@ -412,7 +413,7 @@
     if (m.focus < 0) m.focus = 0;
     App.modalStack.push(m);
     renderModal();
-    Sounds.play('accept');
+    Sounds.play('open');
   };
   App.closeMenu = function () {
     const m = App.modalStack.pop();
@@ -567,6 +568,7 @@
       title: 'Menü',
       text: '',
       items: [
+        ...(App.update && App.update.status === 'ready' ? [{ label: `Update auf v${App.update.available} installieren`, icon: '⬆', hint: 'App startet neu', action: () => { App.closeMenu(); App.installUpdate(); } }] : []),
         { label: 'Herunterfahren', icon: '⏻', danger: true, action: () => doPower('shutdown', 'Herunterfahren') },
         { label: 'Neu starten', icon: '⟳', action: () => doPower('restart', 'Neu starten') },
         { label: 'Energie sparen', icon: '☾', action: () => doPower('sleep', 'Energie sparen') },
@@ -705,6 +707,27 @@
     api.onGameStatus((s) => (s.running ? showRunning(s) : hideRunning()));
     api.onConfigChanged((c) => { App.cfg = c; if (App.view === 'home') { const f = { ...App.focus }; renderHome(); setFocus(Math.min(f.s, Math.max(0, App.sections.length - 1)), 0, true); } });
     api.onToast((t) => App.toast(t.text, t.type));
+
+    // Updates
+    App.update = await api.updateState();
+    let announced = '';
+    api.onUpdateState((u) => {
+      App.update = u;
+      if (u.status === 'ready' && announced !== u.available) {
+        announced = u.available;
+        Sounds.play('accept');
+        App.toast(`⬆ Update v${u.available} ist bereit – im Menü (☰) installieren oder es wird beim Beenden automatisch installiert.`, 'ok', 9000);
+      }
+      if (App.view === 'settings') SettingsView.refreshUpdate && SettingsView.refreshUpdate();
+    });
+    if (App.cfg.general.startupSound !== false) setTimeout(() => Sounds.play('startup'), 300);
   }
+
+  App.installUpdate = async function () {
+    if (App.running) return App.toast('Bitte zuerst das Spiel beenden.', 'error');
+    App.toast('Update wird installiert – AleGamestation startet gleich neu …', 'ok', 10000);
+    Sounds.play('launch');
+    setTimeout(() => api.installUpdate(), 900);
+  };
   init();
 })();

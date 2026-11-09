@@ -6,6 +6,7 @@ const { scanLibrary, detectEmulators } = require('./library');
 const { Launcher } = require('./launcher');
 const { GamepadWatcher } = require('./gamepad-watcher');
 const system = require('./system');
+const { Updater } = require('./updater');
 
 // Nur eine Instanz erlauben
 if (!app.requestSingleInstanceLock()) {
@@ -16,6 +17,7 @@ if (!app.requestSingleInstanceLock()) {
 const store = new ConfigStore(app.getPath('userData'));
 const launcher = new Launcher(() => store.get());
 const watcher = new GamepadWatcher();
+let updater = null;
 let win = null;
 let library = { systems: [], games: [] };
 let quitting = false;
@@ -107,12 +109,14 @@ function createWindow() {
     autoHideMenuBar: true,
     frame: isDev,
     title: 'AleGamestation',
+    icon: path.join(__dirname, '..', '..', 'build', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      backgroundThrottling: false
+      backgroundThrottling: false,
+      autoplayPolicy: 'no-user-gesture-required'
     }
   });
   win.removeMenu();
@@ -201,6 +205,17 @@ ipcMain.handle('system:displayMode', (_e, mode) => system.setDisplayMode(mode));
 ipcMain.handle('system:displays', () => screen.getAllDisplays().map((d, i) => ({ index: i, label: d.label || `Bildschirm ${i + 1}`, width: d.size.width, height: d.size.height, primary: d.id === screen.getPrimaryDisplay().id })));
 ipcMain.handle('system:info', () => ({ platform: process.platform, version: app.getVersion(), watcher: process.platform === 'win32' }));
 
+ipcMain.handle('update:get', () => (updater ? updater.get() : { status: 'idle', version: app.getVersion() }));
+ipcMain.handle('update:check', () => (updater ? updater.check() : null));
+ipcMain.handle('update:install', async () => {
+  if (!updater || updater.get().status !== 'ready') return false;
+  // Anzeige vorher wiederherstellen, dann Installer starten (App startet danach automatisch neu)
+  quitting = true;
+  watcher.stop();
+  await leaveConsoleMode();
+  return updater.install();
+});
+
 ipcMain.handle('dialog:pickFile', async (_e, opts = {}) => {
   const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: opts.filters || [{ name: 'Programme', extensions: ['exe', 'bat', 'cmd', 'lnk', 'url'] }, { name: 'Alle Dateien', extensions: ['*'] }] });
   return r.canceled ? null : r.filePaths[0];
@@ -226,6 +241,9 @@ app.whenReady().then(async () => {
   refreshLibrary();
   createWindow();
   watcher.start();
+  updater = new Updater();
+  updater.on('state', (s) => send('update:state', s));
+  if (cfg().general.autoUpdate !== false) setTimeout(() => updater.check(), 5000);
   // Wenn Windows die Bildschirme ändert (TV an/aus), Fenster neu platzieren
   screen.on('display-added', () => setTimeout(placeWindow, 800));
   screen.on('display-removed', () => setTimeout(placeWindow, 800));

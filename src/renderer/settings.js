@@ -57,7 +57,16 @@
           { value: '#ff4d6d', label: 'Rot' }, { value: '#ff9f1c', label: 'Orange' }, { value: '#3b82f6', label: 'Blau' }, { value: '#e5e5e5', label: 'Weiß' }
         ]),
         select('Größe der Oberfläche', () => C().general, 'uiScale', [0.85, 1, 1.15, 1.3, 1.5].map((v) => ({ value: v, label: Math.round(v * 100) + ' %' })), 'Größer für weit entfernte Fernseher'),
-        toggle('Menü-Sounds', () => C().general, 'uiSounds'),
+        group('Sound'),
+        {
+          type: 'select', label: 'Menü-Sounds', desc: 'Modern = sanfte Konsolen-Klänge mit Hall',
+          options: [{ value: 'modern', label: 'Modern' }, { value: 'retro', label: 'Retro (8-Bit)' }, { value: 'off', label: 'Aus' }],
+          get: () => (C().general.uiSounds === false ? 'off' : C().general.soundTheme || 'modern'),
+          set: (v) => { C().general.uiSounds = v !== 'off'; if (v !== 'off') C().general.soundTheme = v; },
+          after: () => setTimeout(() => Sounds.play('accept'), 50)
+        },
+        select('Lautstärke', () => C().general, 'soundVolume', [0.2, 0.35, 0.5, 0.7, 0.85, 1].map((v) => ({ value: v, label: Math.round(v * 100) + ' %' })), '', { after: () => setTimeout(() => Sounds.play('accept'), 50) }),
+        toggle('Start-Klang', () => C().general, 'startupSound', 'Kurzer Klang beim Öffnen von AleGamestation'),
         toggle('Uhr anzeigen', () => C().general, 'showClock'),
         toggle('Mauszeiger ausblenden', () => C().general, 'hideCursor'),
         toggle('Herunterfahren usw. bestätigen', () => C().general, 'confirmPowerActions'),
@@ -201,8 +210,37 @@
           }, { danger: true })
         ];
       }
+    },
+    {
+      id: 'about', title: 'Info & Updates', rows: () => {
+        const u = S.update || {};
+        const status = {
+          dev: 'Entwicklerversion – Updates nur in der installierten App',
+          unsupported: 'Updates nicht verfügbar',
+          idle: 'Noch nicht gesucht',
+          checking: 'Suche nach Updates …',
+          latest: '✔ Du hast die neueste Version',
+          downloading: `⬇ Lade v${u.available || ''} herunter … ${u.progress || 0} %`,
+          ready: `⬆ Version ${u.available} ist bereit zur Installation`,
+          error: `✖ Fehler: ${u.error || ''}`
+        }[u.status] || '';
+        const rows = [
+          group('AleGamestation', `Version ${u.version || ''}`),
+          { type: 'info', label: 'Update-Status', desc: status, get: () => '' },
+          toggle('Automatisch nach Updates suchen', () => C().general, 'autoUpdate', 'Beim Start auf GitHub prüfen und im Hintergrund herunterladen')
+        ];
+        if (u.status === 'ready') rows.push(button(`⬆ Jetzt auf v${u.available} aktualisieren und neu starten`, () => App.installUpdate()));
+        rows.push(button('↻ Jetzt nach Updates suchen', async () => { await api.checkUpdate(); await refreshUpdate(); }));
+        if (u.notes) rows.push(group('Neu in dieser Version'), { type: 'info', label: u.notes.split('\n')[0].slice(0, 120), desc: u.notes.split('\n').slice(1).join(' ').slice(0, 300), get: () => '' });
+        return rows;
+      }
     }
   ];
+
+  async function refreshUpdate() {
+    try { S.update = await api.updateState(); } catch { S.update = {}; }
+    if (SECTIONS[S.section].id === 'about') render();
+  }
 
   function comboOptions(current) {
     const list = COMBO_PRESETS.includes(current) ? COMBO_PRESETS : [current, ...COMBO_PRESETS];
@@ -337,15 +375,17 @@
         r.set(r.options[n].value);
         Sounds.play('move');
         await commit(!!r.rescan);
+        if (r.after) r.after();
       } else if (r.type === 'toggle') {
         r.set(a === 'right');
-        Sounds.play('move');
+        Sounds.play('toggle');
         await commit(!!r.rescan);
       }
       return;
     }
     if (a === 'accept') {
-      Sounds.play('accept');
+      if (r.type === 'info') return;
+      Sounds.play(r.type === 'toggle' ? 'toggle' : 'accept');
       if (r.type === 'toggle') { r.set(!r.get()); await commit(!!r.rescan); }
       else if (r.type === 'select') return act('right');
       else if (r.type === 'button') await r.action();
@@ -361,6 +401,7 @@
     async open(sectionId) {
       if (sectionId) { S.section = Math.max(0, SECTIONS.findIndex((s) => s.id === sectionId)); S.focus = 0; }
       try { S.displays = await api.displays(); } catch { S.displays = []; }
+      try { S.update = await api.updateState(); } catch { S.update = {}; }
       render();
     },
     handle(a) {
@@ -373,6 +414,7 @@
         default: act(a);
       }
     },
+    refreshUpdate,
     hints(hint, glyph) {
       return hint(glyph('A'), 'Ändern') + hint('◀ ▶', 'Wert') + hint(glyph('X') + glyph('Y'), 'Bereich') + hint(glyph('B'), 'Zurück');
     }
