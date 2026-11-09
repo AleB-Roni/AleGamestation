@@ -15,6 +15,7 @@ Alle Spiele (Steam, Epic, GOG, eigene) und Emulator-Spiele in einer modernen Obe
 - ROM-Ordner werden durchsucht (inkl. Unterordner), Covers werden automatisch erkannt (`Spielname.png` im Ordner, in `covers/` oder `media/covers/`)
 - **Konsolen-Sounds**: sanfte, glockenartige Menüklänge mit Hall (Thema „Modern“), alternativ „Retro (8-Bit)“, Lautstärke einstellbar, Start-Klang
 - **Automatische Updates** direkt von GitHub
+- **Cover-Download** für ROMs (libretro-thumbnails ohne Konto, optional ScreenScraper) inkl. Screenshots als Hintergrund
 - Startseite mit Regalen: *Zuletzt gespielt*, *Favoriten*, je Store/System eine Reihe
 - Favoriten, **Spielzeit-Statistik**, „zuletzt gespielt“, eigene Cover, Spiele ausblenden
 - „Alle Spiele“ mit Buchstaben-Sprung (LT/RT)
@@ -85,6 +86,16 @@ npm run dist       # Installer lokal erstellen (Ordner dist/)
 | **BACK + START halten** | Laufendes Spiel beenden | |
 
 Tastatur: Pfeiltasten, Enter, Esc, `F` = Favorit, `Tab` = Details, `Q`/`E` = Kategorie, `M` = Menü, `S` = Einstellungen.
+
+## Cover herunterladen
+
+ROMs bekommen automatisch **Box-Art und Screenshots** (Screenshots erscheinen als Hintergrund hinter dem ausgewählten Spiel):
+
+- **libretro-thumbnails** – kostenlos, ohne Konto, sofort aktiv. Funktioniert am besten mit ROMs im üblichen No-Intro/Redump-Namensformat (z. B. `Super Mario World (USA).sfc`), erkennt aber auch unsaubere Namen wie `super_mario_world.sfc`
+- **ScreenScraper.fr** – optional, größte Datenbank, erkennt ROMs zusätzlich über Dateigröße und Prüfsumme. Benötigt ein kostenloses Konto **und** einen Entwickler-Zugang (devid/devpassword, im ScreenScraper-Forum zu beantragen). Eintragen unter **Einstellungen → Cover**
+
+Fehlende Cover werden beim Start automatisch im Hintergrund geladen. Manuell: **Menü → „Fehlende Cover herunterladen“**, pro System (Emulatoren-Tab → Y) oder pro Spiel (Details → „Cover herunterladen“). Der offizielle Spielname wird dabei gleich mit übernommen.
+Bilder liegen in `%APPDATA%\AleGamestation\media` (Speicherort änderbar). Eigene Bilder neben der ROM (`Spielname.png` oder `covers\Spielname.png`) haben Vorrang.
 
 ## Einrichtung der Emulatoren
 

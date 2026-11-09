@@ -196,7 +196,7 @@
     const sys = systemOf(g.system);
     const img = wide && g.hero ? g.hero : g.cover;
     const inner = img
-      ? `<img src="${esc(img)}" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'placeholder',innerHTML:this.dataset.ph}))" data-ph="${esc(`<div class='ph-sys'>${esc(sys.short)}</div><div class='ph-name'>${esc(g.name)}</div>`)}">`
+      ? `<div class="card-blur" style="background-image:url('${esc(img).replace(/'/g, '%27')}')"></div><img src="${esc(img)}" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'placeholder',innerHTML:this.dataset.ph}))" data-ph="${esc(`<div class='ph-sys'>${esc(sys.short)}</div><div class='ph-name'>${esc(g.name)}</div>`)}">`
       : `<div class="placeholder" style="--c:${esc(sys.color)}"><div class="ph-sys">${esc(sys.short)}</div><div class="ph-name">${esc(g.name)}</div></div>`;
     const badge = g.type === 'rom' && img ? `<span class="badge">${esc(sys.short)}</span>` : '';
     return inner + badge + (isFav(g.id) ? '<span class="fav-star">★</span>' : '');
@@ -508,6 +508,14 @@
         onChange: (v) => { if (v) ov.emulator = v; else delete ov.emulator; cleanup(); App.save({ rescan: true }); }
       });
     }
+    if (game.type === 'rom') items.push({ label: game.cover ? 'Cover neu herunterladen' : 'Cover herunterladen', icon: '⬇', action: async () => {
+      App.closeMenu();
+      App.toast(`Suche Cover für „${game.name}“ …`, 'info', 2500);
+      const r = await App.scrape({ ids: [game.id], force: true });
+      const now = gameById(game.id);
+      App.toast(now && now.cover ? `✔ Cover für „${game.name}“ geladen` : `Kein Cover für „${game.name}“ gefunden – Tipp: ROM-Datei nach No-Intro/Redump benennen oder ScreenScraper einrichten`, now && now.cover ? 'ok' : 'error', 6000);
+      return r;
+    } });
     items.push({ label: 'Cover-Bild ändern …', icon: '🖼', action: async () => {
       const p = await api.pickImage();
       if (p) { ov.cover = p; App.closeMenu(); await App.save({ immediate: true, rescan: true }); App.toast('Cover geändert', 'ok'); }
@@ -531,7 +539,8 @@
     const info = (label, value) => value && items.push({ type: 'info', label, value });
     info('System', sys.name);
     info('Quelle', game.type === 'rom' ? `Emulator ${game.emulatorName}` : game.source);
-    info('Datei', game.rom || game.exe || game.installDir);
+    const file = game.rom || game.exe || game.installDir || '';
+    info('Datei', file.length > 60 ? '…' + file.slice(-58) : file);
     info('Spielzeit', fmtPlaytime((App.cfg.playtime || {})[game.id]) || 'Noch nicht gespielt');
     info('Zuletzt', fmtDate((App.cfg.lastPlayed || {})[game.id]));
     const cover = game.cover
@@ -555,6 +564,7 @@
         },
         { type: 'info', label: 'ROM-Ordner', value: (sysCfg.romDirs || []).join(' ; ') || '–' },
         { type: 'info', label: 'Dateiendungen', value: (sysCfg.extensions || []).join(' ') },
+        { label: 'Fehlende Cover für dieses System laden', icon: '⬇', action: () => { App.closeMenu(); App.scrape({ system: s.id }); } },
         { label: 'In Einstellungen bearbeiten', icon: '⚙', action: () => { App.closeMenu(); openSettings('systems'); } }
       ]
     });
@@ -578,6 +588,7 @@
         { label: 'Energie sparen', icon: '☾', action: () => doPower('sleep', 'Energie sparen') },
         { label: 'Zum Desktop (Konsolenmodus beenden)', icon: '⇱', action: () => doPower('exit', 'Konsolenmodus beenden') },
         { label: 'Bildschirm umschalten …', icon: '🖵', action: displayMenu },
+        { label: 'Fehlende Cover herunterladen', icon: '⬇', action: () => { App.closeMenu(); App.scrape({}); } },
         { label: 'Bibliothek neu einlesen', icon: '↻', action: async () => { App.closeMenu(); await App.refreshLibrary(); App.toast(`${App.library.games.length} Spiele gefunden`, 'ok'); } },
         { label: 'Einstellungen', icon: '⚙', action: () => { App.closeMenu(); openSettings(); } }
       ]
@@ -729,6 +740,16 @@
     api.onGameStatus((s) => (s.running ? showRunning(s) : hideRunning()));
     api.onConfigChanged((c) => { App.cfg = c; if (App.view === 'home') { const f = { ...App.focus }; renderHome(); setFocus(Math.min(f.s, Math.max(0, App.sections.length - 1)), 0, true); } });
     api.onToast((t) => App.toast(t.text, t.type));
+    api.onScrapeProgress(showScrapeProgress);
+    api.onLibraryChanged((lib) => {
+      App.library = lib;
+      buildTabs();
+      if (App.view === 'home' && !App.modalStack.length) {
+        const f = { ...App.focus };
+        renderHome();
+        setFocus(Math.min(f.s, Math.max(0, App.sections.length - 1)), Math.min(f.i, Math.max(0, ((App.sections[f.s] || {}).items || [1]).length - 1)), true);
+      }
+    });
     api.onGamepadConnection((c) => {
       if (c.connected && c.type && c.source === 'hid' && !Input.connected()) Glyphs.setDetected('playstation', c.type === 'dualsense' ? 'DualSense' : 'DualShock 4');
       if (c.connected && c.source === 'hid') $('#padStatus').classList.add('on');
@@ -747,6 +768,36 @@
       if (App.view === 'settings') SettingsView.refreshUpdate && SettingsView.refreshUpdate();
     });
     if (App.cfg.general.startupSound !== false) setTimeout(() => Sounds.play('startup'), 300);
+  }
+
+  // ---------- Cover-Download ----------
+  App.scrape = async function (opts) {
+    try {
+      const r = await api.scrape(opts);
+      if (!r) return App.toast('Cover-Download läuft bereits', 'info');
+      if (!r.total) return App.toast('Alle Spiele haben bereits Cover', 'ok');
+      return r;
+    } catch (err) {
+      App.toast(String(err.message || err).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''), 'error', 6000);
+    }
+  };
+  let scrapeHide = null;
+  function showScrapeProgress(p) {
+    const box = $('#scrapeStatus');
+    clearTimeout(scrapeHide);
+    if (p.total <= 1 && !p.finished) return; // Einzelnes Spiel: nur Toast
+    box.classList.remove('hidden');
+    $('#scrapeCount').textContent = `${p.done} / ${p.total}`;
+    $('#scrapeBar').style.width = (p.total ? (p.done / p.total) * 100 : 0) + '%';
+    if (p.finished) {
+      box.classList.add('done');
+      $('#scrapeCurrent').textContent = (p.cancelled ? 'Abgebrochen – ' : 'Fertig – ') + `${p.found} gefunden, ${p.missing} ohne Treffer` + (p.error ? ` · ${p.error}` : '');
+      if (p.total > 1) Sounds.play('accept');
+      scrapeHide = setTimeout(() => { box.classList.add('hidden'); box.classList.remove('done'); }, 7000);
+    } else {
+      box.classList.remove('done');
+      $('#scrapeCurrent').textContent = p.current || '';
+    }
   }
 
   App.installUpdate = async function () {

@@ -1,5 +1,6 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, screen, shell, dialog, powerSaveBlocker } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, shell, dialog, powerSaveBlocker, net } = require('electron');
+const fs = require('fs');
 const path = require('path');
 const { ConfigStore, DEFAULT_CONFIG } = require('./config');
 const { scanLibrary, detectEmulators } = require('./library');
@@ -9,6 +10,7 @@ const system = require('./system');
 const { Updater } = require('./updater');
 const { Performance, RECOMMENDED, listRunning } = require('./performance');
 const { PsHidWatcher } = require('./ps-hid-watcher');
+const { Scraper } = require('./scraper');
 
 // Nur eine Instanz erlauben
 if (!app.requestSingleInstanceLock()) {
@@ -104,9 +106,54 @@ async function leaveConsoleMode(opts = {}) {
   await system.runCommands(d.customCommandsOnExit);
 }
 
+function mediaDir() {
+  return (cfg().scraper && cfg().scraper.mediaDir) || path.join(app.getPath('userData'), 'media');
+}
+
 function refreshLibrary() {
-  library = scanLibrary(cfg());
+  library = scanLibrary(cfg(), { mediaDir: mediaDir() });
   return library;
+}
+
+// ---------- Cover-Download ----------
+let scraper = null;
+function getScraper() {
+  if (!scraper || scraper.mediaDir !== mediaDir()) {
+    scraper = new Scraper({ mediaDir: mediaDir(), getConfig: cfg, fetch: (url, opts) => net.fetch(url, opts) });
+    scraper.on('progress', (p) => send('scrape:progress', p));
+  }
+  return scraper;
+}
+
+// Spiele, für die nichts gefunden wurde – automatische Suche erst nach 14 Tagen erneut
+function missingFile() { return path.join(mediaDir(), 'not-found.json'); }
+function readMissing() { try { return JSON.parse(fs.readFileSync(missingFile(), 'utf8')); } catch { return {}; } }
+
+async function scrapeGames(games, { force = false, auto = false } = {}) {
+  const s = getScraper();
+  if (s.running) return null;
+  const missing = readMissing();
+  const now = Date.now();
+  const list = auto ? games.filter((g) => !(missing[g.id] && now - missing[g.id] < 14 * 86400000)) : games;
+  if (!list.length) return null;
+  const before = new Set(library.games.filter((g) => g.cover).map((g) => g.id));
+  const result = await s.scrapeAll(list, { force });
+  refreshLibrary();
+  // Nicht gefundene merken
+  for (const g of list) {
+    const now2 = library.games.find((x) => x.id === g.id);
+    if (now2 && !now2.cover) missing[g.id] = now; else delete missing[g.id];
+  }
+  try { fs.mkdirSync(mediaDir(), { recursive: true }); fs.writeFileSync(missingFile(), JSON.stringify(missing)); } catch { /* ignore */ }
+  result.newCovers = library.games.filter((g) => g.cover && !before.has(g.id)).length;
+  send('library:changed', library);
+  return result;
+}
+
+function autoScrape() {
+  if (!cfg().scraper || cfg().scraper.autoScrape === false) return;
+  const todo = library.games.filter((g) => g.type === 'rom' && !g.cover);
+  if (todo.length) scrapeGames(todo, { auto: true }).catch(() => {});
 }
 
 function createWindow() {
@@ -221,6 +268,16 @@ ipcMain.handle('system:power', async (_e, action) => {
 });
 ipcMain.handle('system:displayMode', (_e, mode) => system.setDisplayMode(mode));
 ipcMain.handle('system:displays', () => screen.getAllDisplays().map((d, i) => ({ index: i, label: d.label || `Bildschirm ${i + 1}`, width: d.size.width, height: d.size.height, primary: d.id === screen.getPrimaryDisplay().id })));
+ipcMain.handle('scrape:start', (_e, opts = {}) => {
+  let games = library.games.filter((g) => g.type === 'rom');
+  if (opts.ids) games = games.filter((g) => opts.ids.includes(g.id));
+  else if (opts.system) games = games.filter((g) => g.system === opts.system);
+  if (!opts.force && !opts.ids) games = games.filter((g) => !g.cover || !g.hero);
+  if (!games.length) return { total: 0, finished: true, found: 0, missing: 0, errors: 0 };
+  return scrapeGames(games, { force: !!opts.force });
+});
+ipcMain.handle('scrape:cancel', () => { if (scraper) scraper.cancel(); return true; });
+ipcMain.handle('scrape:mediaDir', () => mediaDir());
 ipcMain.handle('performance:recommended', () => RECOMMENDED);
 ipcMain.handle('performance:running', () => listRunning());
 ipcMain.handle('system:info', () => ({ platform: process.platform, version: app.getVersion(), watcher: process.platform === 'win32' }));
@@ -268,6 +325,7 @@ app.whenReady().then(async () => {
     if (list.length) send('toast', { type: 'info', text: `Leistungsmodus: ${list.join(', ')} pausiert/beendet` });
     return list;
   }).catch(() => []);
+  setTimeout(autoScrape, 8000);
   updater = new Updater();
   updater.on('state', (s) => send('update:state', s));
   if (cfg().general.autoUpdate !== false) setTimeout(() => updater.check(), 5000);

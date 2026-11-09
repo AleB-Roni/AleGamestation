@@ -132,6 +132,20 @@ const DEFAULT_CONFIG = {
     gog: true
   },
 
+  // Cover-Download für ROMs
+  scraper: {
+    // "auto" = ScreenScraper (wenn Zugangsdaten eingetragen), sonst libretro | "libretro" | "screenscraper"
+    source: 'auto',
+    // Zusätzlich Screenshots/Fanart als Hintergrundbild laden
+    downloadSnaps: true,
+    // Nach dem Einlesen fehlende Cover automatisch im Hintergrund laden
+    autoScrape: true,
+    // Speicherort der Bilder (leer = %APPDATA%\\AleGamestation\\media)
+    mediaDir: '',
+    // Kostenloses Konto auf screenscraper.fr; devid/devpassword = Entwickler-Zugang (im ScreenScraper-Forum beantragen)
+    screenscraper: { user: '', password: '', devid: '', devpassword: '' }
+  },
+
   // Pro Spiel: { emulator: 'dolphin', hidden: true, name: 'Eigener Name', cover: 'C:\\bild.png' }
   gameOverrides: {},
 

@@ -120,3 +120,48 @@ test('Leistungsmodus: Empfehlungen und Prozessnamen', () => {
   assert.ok(RECOMMENDED.every((r) => r.process && ['pause', 'close', 'kill'].includes(r.action)));
   assert.strictEqual(DEFAULT_CONFIG.performance.programs[0].name, 'Wallpaper Engine');
 });
+
+test('Cover-Abgleich: Namen normalisieren und beste Region wählen', () => {
+  const { normalize, bestMatch } = require('../src/main/scraper');
+  assert.strictEqual(normalize('Legend of Zelda, The - A Link to the Past (USA).sfc'), normalize('The Legend of Zelda - A Link to the Past'));
+  const files = ['Super Mario World (Japan).png', 'Super Mario World (USA).png', 'Super Mario World (Europe).png', 'Super Mario World (USA) (Beta).png'];
+  assert.strictEqual(bestMatch('Super Mario World (USA).sfc', files), 'Super Mario World (USA).png');
+  assert.strictEqual(bestMatch('super_mario_world.sfc', files), 'Super Mario World (Europe).png');
+  assert.strictEqual(bestMatch('Unbekanntes Spiel.sfc', files), null);
+});
+
+test('ScreenScraper: Antwort auswerten, Region bevorzugen, Bild speichern', async () => {
+  const { Scraper } = require('../src/main/scraper');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ags-ss-'));
+  const rom = path.join(dir, 'Sonic.md');
+  fs.writeFileSync(rom, Buffer.alloc(1024, 1));
+  const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47]), Buffer.alloc(500)]);
+  const calls = [];
+  const fakeFetch = async (url) => {
+    calls.push(url);
+    if (url.includes('jeuInfos.php')) {
+      return { ok: true, text: async () => JSON.stringify({ response: { jeu: { medias: [
+        { type: 'box-2D', region: 'us', url: 'https://ss/box-us' },
+        { type: 'box-2D', region: 'eu', url: 'https://ss/box-eu' },
+        { type: 'fanart', region: 'wor', url: 'https://ss/fanart' }
+      ] } } }) };
+    }
+    return { ok: true, arrayBuffer: async () => png };
+  };
+  const cfg = mergeDefaults(DEFAULT_CONFIG, { scraper: { screenscraper: { user: 'u', password: 'p', devid: 'd', devpassword: 'dp' } } });
+  const s = new Scraper({ mediaDir: path.join(dir, 'media'), fetch: fakeFetch, getConfig: () => cfg });
+  const r = await s.scrapeGame({ id: 'x', system: 'md', rom, name: 'Sonic' });
+  assert.deepStrictEqual([r.covers, r.snaps, r.source], [true, true, 'screenscraper']);
+  assert.ok(calls[0].includes('systemeid=1') && calls[0].includes('romnom=Sonic.md') && calls[0].includes('crc='));
+  assert.ok(calls.includes('https://ss/box-eu'), 'europäisches Cover bevorzugt');
+  assert.ok(fs.existsSync(path.join(dir, 'media', 'md', 'covers', 'Sonic.png')));
+  // Bibliothek findet das heruntergeladene Bild
+  const lib = scanLibrary(mergeDefaults(DEFAULT_CONFIG, { steam: { enabled: false }, stores: { epic: false, gog: false },
+    systems: [{ id: 'md', name: 'MD', extensions: ['.md'], romDirs: [dir], emulator: 'x' }] }), { mediaDir: path.join(dir, 'media') });
+  assert.match(lib.games[0].cover, /media.*covers.*Sonic\.png/);
+  assert.match(lib.games[0].hero, /snaps.*Sonic\.png/);
+});
+
+test('Spielnamen: Artikel nach vorne', () => {
+  assert.strictEqual(prettyName('Legend of Zelda, The - A Link to the Past (USA).sfc'), 'The Legend of Zelda - A Link to the Past');
+});

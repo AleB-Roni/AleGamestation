@@ -30,6 +30,7 @@
     performance: { enabled: true, highPerformancePlan: false, programs: [{ name: 'Wallpaper Engine', process: 'wallpaper64.exe;wallpaper32.exe', action: 'pause', pauseArgs: '-control pause', resumeArgs: '-control play', restore: true, enabled: true }] },
     steam: { enabled: true, path: '', launchViaBigPicture: false, showBigPictureTile: true },
     stores: { epic: true, gog: true },
+    scraper: { source: 'auto', downloadSnaps: true, autoScrape: true, mediaDir: '', screenscraper: { user: '', password: '', devid: '', devpassword: '' } },
     emulators: emulators.map((e) => ({ id: e.id, name: e.name, exe: 'C:\\Emulatoren\\' + e.name + '.exe', args: '-f "{rom}"' })),
     systems: systems.filter((s) => s.kind === 'emulator').map((s) => ({ id: s.id, name: s.name, short: s.short, color: s.color, extensions: ['.zip'], romDirs: ['C:\\ROMs\\' + s.id], emulator: s.emulatorId, enabled: true })),
     pcGames: [], gameOverrides: {}, favorites: ['snes-1', 'steam-2'], recent: ['steam-0', 'snes-2', 'gc-0', 'steam-4'],
@@ -45,6 +46,8 @@
     updateState: async () => ({ status: 'latest', version: '1.0.0' }), checkUpdate: async () => null, installUpdate: async () => false, onUpdateState: noop,
     recommendedPrograms: async () => [{ name: 'OneDrive', process: 'OneDrive.exe', action: 'close', note: 'Synchronisation' }, { name: 'Microsoft Teams', process: 'ms-teams.exe', action: 'close', note: 'Viel RAM' }],
     runningPrograms: async () => [{ name: 'Google Chrome', process: 'chrome.exe', memMB: 1840 }, { name: 'Discord', process: 'Discord.exe', memMB: 520 }],
+    scrape: async () => ({ total: 3, found: 2, missing: 1, finished: true }), cancelScrape: async () => true, mediaDir: async () => 'media',
+    onScrapeProgress: noop, onLibraryChanged: noop,
     pickFile: async () => null, pickFolder: async () => null, pickImage: async () => null,
     onGameStatus: noop, onConfigChanged: noop, onToast: noop, onWindowFocus: noop, onGamepadConnection: noop
   };

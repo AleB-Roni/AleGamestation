@@ -193,6 +193,36 @@
       }
     },
     {
+      id: 'media', title: 'Cover', rows: () => {
+        const SC = () => C().scraper;
+        const SS = () => C().scraper.screenscraper;
+        const roms = App.library.games.filter((g) => g.type === 'rom');
+        const withCover = roms.filter((g) => g.cover).length;
+        const ssReady = ['user', 'password', 'devid', 'devpassword'].every((k) => SS()[k]);
+        return [
+          group('Cover herunterladen', `${withCover} von ${roms.length} ROMs haben ein Cover`),
+          button('⬇ Fehlende Cover jetzt herunterladen', () => App.scrape({})),
+          button('⬇ Alle Cover neu herunterladen', async () => {
+            if (await App.confirm('Alle Cover neu laden?', 'Vorhandene heruntergeladene Bilder werden ersetzt. Eigene Cover (über „Cover-Bild ändern“) bleiben erhalten.', 'Neu laden')) App.scrape({ force: true });
+          }),
+          button('✕ Laufenden Download abbrechen', () => api.cancelScrape()),
+          select('Quelle', SC, 'source', [
+            { value: 'auto', label: 'Automatisch (ScreenScraper, sonst libretro)' },
+            { value: 'libretro', label: 'Nur libretro (ohne Konto)' },
+            { value: 'screenscraper', label: 'Nur ScreenScraper' }
+          ], ssReady ? '✔ ScreenScraper-Zugang eingetragen' : 'libretro funktioniert sofort – am besten mit ROMs im No-Intro/Redump-Namensformat'),
+          toggle('Screenshots / Fanart als Hintergrund laden', SC, 'downloadSnaps', 'Wird hinter dem ausgewählten Spiel angezeigt'),
+          toggle('Neue Spiele automatisch', SC, 'autoScrape', 'Beim Start fehlende Cover im Hintergrund laden'),
+          pathRow('Speicherort', SC, 'mediaDir', 'folder', 'Leer = im AleGamestation-Datenordner', { rescan: true }),
+          group('ScreenScraper.fr', 'optional – größte Datenbank, erkennt ROMs auch per Prüfsumme'),
+          text('Benutzername', SS, 'user', 'Kostenloses Konto auf screenscraper.fr'),
+          text('Passwort', SS, 'password', '', { secret: true }),
+          text('Entwickler-ID (devid)', SS, 'devid', 'ScreenScraper verlangt zusätzlich einen Entwickler-Zugang – im ScreenScraper-Forum kostenlos beantragen'),
+          text('Entwickler-Passwort', SS, 'devpassword', '', { secret: true })
+        ];
+      }
+    },
+    {
       id: 'performance', title: 'Leistung', rows: () => {
         const P = () => C().performance;
         const programs = P().programs || [];
@@ -380,7 +410,7 @@
         const o = r.options.find((x) => String(x.value) === String(v)) || { label: v ?? '–' };
         return `<span class="select"><span class="arrow">◀</span>${esc(o.label)}<span class="arrow">▶</span></span>`;
       }
-      case 'text': return `<input type="text" value="${esc(v)}" spellcheck="false">`;
+      case 'text': return `<input type="${r.secret ? 'password' : 'text'}" value="${esc(v)}" spellcheck="false" autocomplete="off">`;
       case 'path': return `<input type="text" value="${esc(v)}" spellcheck="false"><span class="mini-btn">Durchsuchen</span>`;
       default: return '';
     }

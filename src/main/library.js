@@ -125,17 +125,23 @@ function scanSteam(cfg) {
   return games.sort((a, b) => a.name.localeCompare(b.name, 'de'));
 }
 
+/** "Legend of Zelda, The - A Link to the Past" -> "The Legend of Zelda - A Link to the Past" */
+function fixArticle(name) {
+  return String(name).replace(/^(.+?), (The|A|An|Der|Die|Das|Le|La|Les)( - .*)?$/i, '$2 $1$3');
+}
+
 /** Hübscher Name aus Dateiname: "Super Mario World (USA) [!].sfc" -> "Super Mario World" */
 function prettyName(file) {
   const base = path.basename(file, path.extname(file));
   const clean = base.replace(/\s*[([].*?[)\]]/g, '').replace(/_/g, ' ').trim();
-  return clean || base;
+  return fixArticle(clean || base);
 }
 
-function findRomCover(romPath) {
+function findRomCover(romPath, systemId, mediaDir) {
   const dir = path.dirname(romPath);
   const base = path.basename(romPath, path.extname(romPath));
   const dirs = [dir, path.join(dir, 'covers'), path.join(dir, 'media', 'covers'), path.join(dir, 'media', 'box2dfront'), path.join(dir, 'images')];
+  if (mediaDir) dirs.push(path.join(mediaDir, systemId, 'covers'));
   for (const d of dirs) {
     for (const ext of IMAGE_EXT) {
       const p = path.join(d, base + ext);
@@ -143,6 +149,13 @@ function findRomCover(romPath) {
     }
   }
   return '';
+}
+
+/** Heruntergeladener Screenshot / Fanart als Hintergrundbild */
+function findRomSnap(romPath, systemId, mediaDir) {
+  if (!mediaDir) return '';
+  const p = path.join(mediaDir, systemId, 'snaps', path.basename(romPath, path.extname(romPath)) + '.png');
+  return exists(p) ? fileUrl(p) : '';
 }
 
 function walk(dir, exts, depth, out) {
@@ -159,13 +172,15 @@ function walk(dir, exts, depth, out) {
   }
 }
 
-function scanRoms(cfg) {
+function scanRoms(cfg, mediaDir) {
   const games = [];
   for (const sys of cfg.systems) {
     if (sys.enabled === false) continue;
     const exts = (sys.extensions || []).map((e) => (e.startsWith('.') ? e : '.' + e).toLowerCase());
     const files = [];
     for (const d of sys.romDirs || []) walk(d, exts, 2, files);
+    let titles = {};
+    if (mediaDir) { try { titles = JSON.parse(fs.readFileSync(path.join(mediaDir, sys.id, 'names.json'), 'utf8')); } catch { /* keine */ } }
     // .cue/.bin Duplikate vermeiden: wenn .cue/.m3u existiert, zugehörige .bin ignorieren
     const set = new Set(files.map((f) => f.toLowerCase()));
     for (const f of files) {
@@ -178,9 +193,10 @@ function scanRoms(cfg) {
         id: `rom-${sys.id}-${Buffer.from(f).toString('base64url').slice(-40)}`,
         type: 'rom',
         system: sys.id,
-        name: prettyName(f),
+        name: fixArticle(titles[path.basename(f, path.extname(f))] || prettyName(f)),
         rom: f,
-        cover: findRomCover(f)
+        cover: findRomCover(f, sys.id, mediaDir),
+        hero: findRomSnap(f, sys.id, mediaDir)
       });
     }
   }
@@ -324,12 +340,12 @@ function resolveEmulator(cfg, game) {
   return { emulator: cfg.emulators.find((e) => e.id === id) || null, isOverride: !!ov.emulator };
 }
 
-function scanLibrary(cfg) {
+function scanLibrary(cfg, opts = {}) {
   const steam = scanSteam(cfg);
   const epic = scanEpic(cfg);
   const gog = scanGog(cfg);
   const pc = manualGames(cfg);
-  const roms = scanRoms(cfg);
+  const roms = scanRoms(cfg, opts.mediaDir);
   for (const g of roms) {
     const { emulator, isOverride } = resolveEmulator(cfg, g);
     g.emulatorId = emulator ? emulator.id : '';

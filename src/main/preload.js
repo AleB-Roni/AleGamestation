@@ -26,6 +26,11 @@ contextBridge.exposeInMainWorld('api', {
   setDisplayMode: (mode) => ipcRenderer.invoke('system:displayMode', mode),
   displays: () => ipcRenderer.invoke('system:displays'),
   info: () => ipcRenderer.invoke('system:info'),
+  scrape: (opts) => ipcRenderer.invoke('scrape:start', opts),
+  cancelScrape: () => ipcRenderer.invoke('scrape:cancel'),
+  mediaDir: () => ipcRenderer.invoke('scrape:mediaDir'),
+  onScrapeProgress: on('scrape:progress'),
+  onLibraryChanged: on('library:changed'),
   recommendedPrograms: () => ipcRenderer.invoke('performance:recommended'),
   runningPrograms: () => ipcRenderer.invoke('performance:running'),
 
