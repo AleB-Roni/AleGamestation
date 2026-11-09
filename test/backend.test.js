@@ -309,3 +309,36 @@ test('Eigene Programme: Verknüpfungen, URLs und Batch-Dateien richtig starten',
   assert.strictEqual(isSafeKillDir(path.join(dir, 'Tool')), true);
   if (old === undefined) delete process.env.SystemRoot; else process.env.SystemRoot = old;
 });
+
+test('Updates: GitHub abfragen, Versionen vergleichen, herunterladen', async () => {
+  const { Updater, compareVersions, cleanNotes } = require('../src/main/updater');
+  assert.strictEqual(compareVersions('1.10.0', '1.9.3'), 1);
+  assert.strictEqual(compareVersions('v1.5.0', '1.5.0'), 0);
+  assert.strictEqual(compareVersions('1.4.0', '1.5.0'), -1);
+  assert.strictEqual(cleanNotes('## Neu\n- **Fett** [Link](http://x)\n\n\n- Zwei'), 'Neu\n- Fett Link\n\n- Zwei');
+  const release = { tag_name: 'v1.5.0', body: '- Tastatur\n- Konsolen-Bilder', html_url: 'https://github.com/AleB-Roni/AleGamestation/releases/tag/v1.5.0',
+    assets: [{ name: 'AleGamestation-Setup-1.5.0.exe', browser_download_url: 'https://github.com/x.exe' }, { name: 'latest.yml' }] };
+  const fetch = async (url) => { assert.match(url, /api\.github\.com\/repos\/AleB-Roni\/AleGamestation\/releases\/latest/); return { ok: true, text: async () => JSON.stringify(release) }; };
+  // Ohne electron-updater (Entwicklerversion): nur Hinweis + Installer-Link
+  const u1 = new Updater({ version: '1.4.0', isPackaged: false, fetch });
+  const s1 = await u1.check();
+  assert.deepStrictEqual([s1.status, s1.available, s1.canInstall, s1.installerUrl], ['available', '1.5.0', false, 'https://github.com/x.exe']);
+  assert.match(s1.notes, /Tastatur/);
+  // Bereits aktuell
+  assert.strictEqual((await new Updater({ version: '1.5.0', isPackaged: false, fetch }).check()).status, 'latest');
+  // Mit (simuliertem) electron-updater, automatisches Herunterladen aus
+  const { EventEmitter } = require('events');
+  const au = new EventEmitter();
+  au.checkForUpdates = async () => { au.emit('update-available', { version: '1.5.0' }); };
+  au.downloadUpdate = async () => { au.emit('download-progress', { percent: 50 }); au.emit('update-downloaded', { version: '1.5.0' }); };
+  let installed = false; au.quitAndInstall = () => { installed = true; };
+  const u2 = new Updater({ version: '1.4.0', isPackaged: true, fetch, autoUpdater: au, getConfig: () => ({ general: { autoDownloadUpdates: false } }) });
+  const s2 = await u2.check();
+  assert.deepStrictEqual([s2.status, s2.canInstall], ['available', true]);
+  await u2.download();
+  assert.strictEqual(u2.get().status, 'ready');
+  assert.ok(u2.install() && installed);
+  // GitHub nicht erreichbar
+  const u3 = new Updater({ version: '1.4.0', isPackaged: false, fetch: async () => { throw new Error('offline'); } });
+  assert.strictEqual((await u3.check()).status, 'error');
+});

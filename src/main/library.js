@@ -370,6 +370,7 @@ function scanLibrary(cfg, opts = {}) {
       emulatorFound: !!emu && exists(emu.exe),
       count: roms.filter((g) => g.system === s.id).length,
       logo: s.logo ? toImageUrl(s.logo) : '',
+      tileImage: s.tileImage ? toImageUrl(s.tileImage) : '',
       romDirs: s.romDirs || []
     });
   }

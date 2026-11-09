@@ -185,9 +185,11 @@
     }
     if (item.kind === 'system') {
       const s = item.system;
-      const icon = s.logo ? `<img src="${esc(s.logo)}" alt="">` : ConsoleIcons.forSystem(s.id, s.name);
-      return `<div class="sys-tile" style="--c:${esc(s.color)}">
-        <div class="sys-icon">${icon}</div>
+      // Eigenes Logo > eingebaute Abbildung; bei eigenem Hintergrundbild ohne Logo keine Abbildung
+      const icon = s.logo ? `<img src="${esc(s.logo)}" alt="">` : s.tileImage ? '' : ConsoleIcons.forSystem(s.id, s.name);
+      const bg = s.tileImage ? ` has-image" style="--c:${esc(s.color)};--img:url('${esc(s.tileImage).replace(/'/g, '%27')}')` : `" style="--c:${esc(s.color)}`;
+      return `<div class="sys-tile${bg}">
+        ${icon ? `<div class="sys-icon">${icon}</div>` : ''}
         <div class="sys-short">${esc(s.short)}</div>
         <div class="sys-name">${esc(s.name)}</div>
         <div class="sys-emu"><span class="dot ${s.emulatorFound ? 'ok' : 'bad'}"></span>${esc(s.emulatorName)}</div>
@@ -449,7 +451,7 @@
     if (!m) return;
     const box = $('#modal');
     box.className = 'modal ' + (m.className || '');
-    box.innerHTML = (m.header || '') + `<h2>${esc(m.title || '')}</h2>` + (m.text ? `<p>${m.text}</p>` : '');
+    box.innerHTML = (m.header || '') + `<h2>${esc(m.title || '')}</h2>` + (m.text ? `<div class="modal-text">${m.text}</div>` : '');
     const list = el('div', 'menu');
     m.items.forEach((it, i) => {
       if (it.type === 'info') {
@@ -591,18 +593,30 @@
         { type: 'info', label: 'ROM-Ordner', value: (sysCfg.romDirs || []).join(' ; ') || '–' },
         { type: 'info', label: 'Dateiendungen', value: (sysCfg.extensions || []).join(' ') },
         { label: 'Fehlende Cover für dieses System laden', icon: '⬇', action: () => { App.closeMenu(); App.scrape({ system: s.id }); } },
-        { label: 'Eigenes Logo-Bild wählen …', icon: '🖼', action: async () => {
+        { label: sysCfg.logo ? 'Logo / Abbildung ändern …' : 'Eigenes Logo / Abbildung wählen …', icon: '🖼', hint: 'oben rechts auf der Kachel', action: async () => {
           const p = await api.pickImage();
           if (!p) return;
           sysCfg.logo = p;
           App.closeMenu();
           await App.save({ immediate: true, rescan: true });
+          App.toast('Logo gespeichert', 'ok');
         } },
-        ...(sysCfg.logo ? [{ label: 'Standard-Abbildung verwenden', icon: '↺', action: async () => { delete sysCfg.logo; App.closeMenu(); await App.save({ immediate: true, rescan: true }); } }] : []),
+        ...(sysCfg.logo ? [{ label: 'Eingebaute Abbildung verwenden', icon: '↺', action: async () => { delete sysCfg.logo; App.closeMenu(); await App.save({ immediate: true, rescan: true }); } }] : []),
+        { label: sysCfg.tileImage ? 'Hintergrundbild ändern …' : 'Hintergrundbild für die Kachel wählen …', icon: '🏞', hint: 'z.B. Foto der Konsole', action: async () => {
+          const p = await api.pickImage();
+          if (!p) return;
+          sysCfg.tileImage = p;
+          App.closeMenu();
+          await App.save({ immediate: true, rescan: true });
+          App.toast('Hintergrundbild gespeichert', 'ok');
+        } },
+        ...(sysCfg.tileImage ? [{ label: 'Hintergrundbild entfernen', icon: '↺', action: async () => { delete sysCfg.tileImage; App.closeMenu(); await App.save({ immediate: true, rescan: true }); } }] : []),
         { label: 'In Einstellungen bearbeiten', icon: '⚙', action: () => { App.closeMenu(); openSettings('systems'); } }
       ]
     });
-    App.modalStack[App.modalStack.length - 1].header = `<div class="detail-cover sys-hero" style="--c:${esc(s.color)}">${s.logo ? `<img src="${esc(s.logo)}" alt="">` : ConsoleIcons.forSystem(s.id, s.name)}<span>${esc(s.short)}</span></div>`;
+    const heroBg = s.tileImage ? `;background-image:linear-gradient(to top, rgba(0,0,0,.75), rgba(0,0,0,.1)),url('${esc(s.tileImage).replace(/'/g, '%27')}');background-size:cover;background-position:center` : '';
+    const heroIcon = s.logo ? `<img src="${esc(s.logo)}" alt="">` : s.tileImage ? '<div style="flex:1"></div>' : ConsoleIcons.forSystem(s.id, s.name);
+    App.modalStack[App.modalStack.length - 1].header = `<div class="detail-cover sys-hero" style="--c:${esc(s.color)}${heroBg}">${heroIcon}<span>${esc(s.short)}</span></div>`;
     renderModal();
   }
 
@@ -619,6 +633,7 @@
       text: '',
       items: [
         ...(App.update && App.update.status === 'ready' ? [{ label: `Update auf v${App.update.available} installieren`, icon: '⬆', hint: 'App startet neu', action: () => { App.closeMenu(); App.installUpdate(); } }] : []),
+        { label: 'Nach Updates suchen', icon: '⟳', hint: App.update && App.update.available ? `v${App.update.available} verfügbar` : `v${(App.update && App.update.version) || ''}`, action: () => { App.closeMenu(); App.updateDialog(true); } },
         { label: 'Herunterfahren', icon: '⏻', danger: true, action: () => doPower('shutdown', 'Herunterfahren') },
         { label: 'Neu starten', icon: '⟳', action: () => doPower('restart', 'Neu starten') },
         { label: 'Energie sparen', icon: '☾', action: () => doPower('sleep', 'Energie sparen') },
@@ -804,16 +819,25 @@
 
     // Updates
     App.update = await api.updateState();
+    updateBadge();
     let announced = '';
+    let announcedAvail = '';
     api.onUpdateState((u) => {
       App.update = u;
+      updateBadge();
       if (u.status === 'ready' && announced !== u.available) {
         announced = u.available;
         Sounds.play('accept');
-        App.toast(`⬆ Update v${u.available} ist bereit – im Menü (☰) installieren oder es wird beim Beenden automatisch installiert.`, 'ok', 9000);
+        if (App.installWhenReady) { App.installWhenReady = false; App.installUpdate(); return; }
+        App.toast(`⬆ Update v${u.available} ist bereit – Menü → „Nach Updates suchen“ oder es wird beim Beenden automatisch installiert.`, 'ok', 9000);
+      } else if (u.status === 'available' && announcedAvail !== u.available) {
+        announcedAvail = u.available;
+        App.toast(`⬆ Version ${u.available} ist verfügbar – Menü → „Nach Updates suchen“`, 'ok', 7000);
       }
+      if (App.updateDialogOpen) App.updateDialog(false);
       if (App.view === 'settings') SettingsView.refreshUpdate && SettingsView.refreshUpdate();
     });
+    $('#updateBadge').onclick = () => App.updateDialog(false);
     if (App.cfg.general.startupSound !== false) setTimeout(() => Sounds.play('startup'), 300);
   }
 
@@ -846,6 +870,70 @@
       $('#scrapeCurrent').textContent = p.current || '';
     }
   }
+
+  // ---------- Update-Fenster ----------
+  function updateBadge() {
+    const u = App.update || {};
+    const show = ['available', 'downloading', 'ready'].includes(u.status);
+    const b = $('#updateBadge');
+    b.classList.toggle('hidden', !show);
+    b.textContent = u.status === 'downloading' ? `⬇ ${u.progress || 0} %` : u.status === 'ready' ? '⬆ Update bereit' : `⬆ v${u.available || ''}`;
+  }
+
+  function notesHtml(notes) {
+    if (!notes) return '';
+    const lines = notes.split('\n').filter((l) => l.trim());
+    const items = lines.map((l) => {
+      const m = l.match(/^\s*[-*•]\s+(.*)$/);
+      return m ? `<li>${esc(m[1])}</li>` : `<li class="plain">${esc(l)}</li>`;
+    }).join('');
+    return `<div class="update-notes"><b>Was ist neu</b><ul>${items}</ul></div>`;
+  }
+
+  /** @param {boolean} check sofort bei GitHub nachsehen */
+  App.updateDialog = function (check) {
+    const u = App.update || {};
+    const items = [];
+    const close = () => { App.updateDialogOpen = false; App.closeMenu(); };
+    if (u.status === 'checking') items.push({ type: 'info', label: 'Status', value: 'Frage GitHub nach der neuesten Version …' });
+    if (u.status === 'latest') items.push({ type: 'info', label: 'Status', value: '✔ Du hast die neueste Version' });
+    if (u.status === 'error') items.push({ type: 'info', label: 'Fehler', value: u.error || 'Unbekannt' });
+    if (u.status === 'available' && u.canInstall) {
+      items.push({ label: `Herunterladen & installieren`, icon: '⬇', hint: `v${u.available}`, action: async () => { App.installWhenReady = true; await api.downloadUpdate(); } });
+    }
+    if (u.status === 'available' && !u.canInstall) {
+      items.push({ label: 'Installer herunterladen', icon: '⬇', hint: 'öffnet den Browser', action: () => api.openUpdatePage(u.installerUrl || u.releaseUrl) });
+    }
+    if (u.status === 'downloading') items.push({ label: 'Im Hintergrund weiterladen', icon: '⤓', hint: `${u.progress || 0} %`, action: close });
+    if (u.status === 'ready') {
+      items.push({ label: 'Jetzt installieren & neu starten', icon: '⬆', action: () => { close(); App.installUpdate(); } });
+      items.push({ label: 'Beim nächsten Beenden installieren', icon: '⏱', action: close });
+    }
+    if (['latest', 'error', 'idle', 'dev', 'unsupported'].includes(u.status)) items.push({ label: 'Erneut suchen', icon: '⟳', action: () => api.checkUpdate() });
+    items.push({ label: 'Release-Seite auf GitHub öffnen', icon: '↗', action: () => api.openUpdatePage(u.releaseUrl) });
+    if (!['downloading', 'ready'].includes(u.status)) items.push({ label: 'Schließen', icon: '✕', action: close });
+
+    const progress = u.status === 'downloading' ? `<div class="progress update-progress"><div style="width:${u.progress || 0}%"></div></div>` : '';
+    const versions = `<div class="update-versions"><div><small>Installiert</small><b>v${esc(u.version || '?')}</b></div><span>→</span><div><small>Neueste</small><b>${u.available ? 'v' + esc(u.available) : u.status === 'latest' ? 'v' + esc(u.version) : '…'}</b></div></div>`;
+    const text = versions + progress + (u.available || u.status === 'latest' ? notesHtml(u.notes) : '');
+    const top = App.modalStack[App.modalStack.length - 1];
+    if (App.updateDialogOpen && top && top.className === 'update-dialog') {
+      // Offenes Fenster aktualisieren, Fokus behalten
+      const focusLabel = top.items[top.focus] && top.items[top.focus].label;
+      top.text = text;
+      top.items = items;
+      const fi = items.findIndex((x) => x.label === focusLabel);
+      top.focus = fi >= 0 ? fi : Math.max(0, items.findIndex((x) => x.type !== 'info'));
+      renderModal();
+    } else {
+      App.updateDialogOpen = true;
+      App.menu({ title: 'Software-Update', text, items, className: 'update-dialog', onClose: () => { App.updateDialogOpen = false; } });
+      const m = App.modalStack[App.modalStack.length - 1];
+      m.focus = Math.max(0, items.findIndex((x) => x.type !== 'info'));
+      renderModal();
+    }
+    if (check) api.checkUpdate();
+  };
 
   App.installUpdate = async function () {
     if (App.running) return App.toast('Bitte zuerst das Spiel beenden.', 'error');

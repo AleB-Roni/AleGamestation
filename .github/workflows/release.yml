@@ -16,6 +16,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v5
         with:
@@ -57,9 +59,20 @@ jobs:
           for id in $(gh api "repos/$REPO/releases" --paginate --jq '.[] | select(([.assets[].name | endswith(".exe")] | any) | not) | .id'); do
             gh api -X DELETE "repos/$REPO/releases/$id"
           done
+          # Änderungen seit der letzten Version aus den Commit-Nachrichten
+          PREV="$(git describe --tags --abbrev=0 "$TAG^" 2>/dev/null || true)"
+          RANGE="${PREV:+$PREV..}$TAG"
+          # Aufzählungspunkte übernehmen, eingerückte Folgezeilen an den Punkt anhängen
+          git log --no-merges --format='- %s%n%b' "$RANGE" | awk '
+            /^- / { if (item) print item; item = $0; next }
+            /^  +[^ -]/ { if (item) { sub(/^ +/, ""); item = item " " $0 }; next }
+            { if (item) print item; item = "" }
+            END { if (item) print item }' > notes.md || true
+          [ -s notes.md ] || echo "- Verbesserungen und Fehlerbehebungen" > notes.md
+          printf '\n**Installation:** AleGamestation-Setup-%s.exe herunterladen und starten. Installierte Versionen aktualisieren sich über das Menü → „Nach Updates suchen“.\n' "$VER" >> notes.md
           gh release create "$TAG" \
             "dist/AleGamestation-Setup-$VER.exe" \
             "dist/AleGamestation-Setup-$VER.exe.blockmap" \
             "dist/latest.yml" \
             --repo "$REPO" --title "AleGamestation $VER" --latest \
-            --notes "Installer: **AleGamestation-Setup-$VER.exe** herunterladen und starten. Bereits installierte Versionen aktualisieren sich automatisch."
+            --notes-file notes.md

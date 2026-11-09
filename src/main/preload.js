@@ -43,6 +43,8 @@ contextBridge.exposeInMainWorld('api', {
   updateState: () => ipcRenderer.invoke('update:get'),
   checkUpdate: () => ipcRenderer.invoke('update:check'),
   installUpdate: () => ipcRenderer.invoke('update:install'),
+  downloadUpdate: () => ipcRenderer.invoke('update:download'),
+  openUpdatePage: (url) => ipcRenderer.invoke('update:openPage', url),
   onUpdateState: on('update:state'),
 
   pickFile: (opts) => ipcRenderer.invoke('dialog:pickFile', opts),

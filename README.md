@@ -52,9 +52,11 @@ Alle Spiele (Steam, Epic, GOG, eigene) und Emulator-Spiele in einer modernen Obe
 
 ### Updates
 
-AleGamestation sucht beim Start automatisch auf GitHub nach neuen Versionen und lädt sie im Hintergrund herunter.
-Ist ein Update bereit, erscheint ein Hinweis – installieren über **Menü (☰) → „Update installieren“** oder es wird beim nächsten Beenden automatisch installiert. Kein erneutes Herunterladen nötig.
-Manuell: **Einstellungen → Info & Updates → „Jetzt nach Updates suchen“**.
+**Menü (☰ / Options) → „Nach Updates suchen“** fragt GitHub nach der neuesten Version und zeigt installierte und neue Version sowie die **Liste der Änderungen**. Von dort: **Herunterladen & installieren** (mit Fortschrittsbalken), später installieren oder die Release-Seite öffnen.
+
+- Beim Start und alle 6 Stunden wird automatisch gesucht; ein verfügbares Update erscheint oben als **„⬆ Update“**-Hinweis
+- Updates werden im Hintergrund geladen (abschaltbar: dann wird erst nachgefragt) und erst installiert, wenn du es bestätigst oder die App beendest
+- Einstellungen unter **Einstellungen → Info & Updates**
 
 ### Selbst bauen / entwickeln
 
@@ -68,6 +70,9 @@ npm run dist       # Installer lokal erstellen (Ordner dist/)
 ```
 
 ### Neue Version veröffentlichen
+
+Die Änderungsliste im Update-Fenster wird automatisch aus den Commit-Nachrichten seit der letzten Version erzeugt.
+
 
 1. Version in `package.json` erhöhen (z. B. `1.0.1`) und committen
 2. Auf GitHub **Actions → Release → „Run workflow“** klicken (oder Tag pushen: `git tag v1.0.1 && git push origin v1.0.1`)

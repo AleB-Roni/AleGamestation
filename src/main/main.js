@@ -368,6 +368,13 @@ ipcMain.handle('system:info', () => ({ platform: process.platform, version: app.
 
 ipcMain.handle('update:get', () => (updater ? updater.get() : { status: 'idle', version: app.getVersion() }));
 ipcMain.handle('update:check', () => (updater ? updater.check() : null));
+ipcMain.handle('update:download', () => (updater ? updater.download() : false));
+ipcMain.handle('update:openPage', (_e, url) => {
+  // Nur GitHub-Links dieses Projekts öffnen
+  const target = String(url || '');
+  if (/^https:\/\/github\.com\/AleB-Roni\/AleGamestation\//i.test(target)) return shell.openExternal(target);
+  return shell.openExternal('https://github.com/AleB-Roni/AleGamestation/releases/latest');
+});
 ipcMain.handle('update:install', async () => {
   if (!updater || updater.get().status !== 'ready') return false;
   // Anzeige vorher wiederherstellen, dann Installer starten (App startet danach automatisch neu)
@@ -410,9 +417,18 @@ app.whenReady().then(async () => {
     return list;
   }).catch(() => []);
   setTimeout(autoScrape, 8000);
-  updater = new Updater();
+  // Erst über Chromium (System-Proxy), bei Fehlern über Node erneut versuchen
+  const robustFetch = async (u, o) => {
+    try { const r = await net.fetch(u, o); if (r.ok) return r; } catch { /* Fallback */ }
+    return globalThis.fetch(u, o);
+  };
+  updater = new Updater({ version: app.getVersion(), isPackaged: app.isPackaged, fetch: robustFetch, getConfig: cfg });
   updater.on('state', (s) => send('update:state', s));
-  if (cfg().general.autoUpdate !== false) setTimeout(() => updater.check(), 5000);
+  // Beim Start und danach alle 6 Stunden auf GitHub nach Updates suchen
+  if (cfg().general.autoUpdate !== false) {
+    setTimeout(() => updater.check(), 5000);
+    setInterval(() => { if (cfg().general.autoUpdate !== false && !launcher.isRunning()) updater.check(); }, 6 * 3600 * 1000);
+  }
   // Wenn Windows die Bildschirme ändert (TV an/aus), Fenster neu platzieren
   screen.on('display-added', () => setTimeout(placeWindow, 800));
   screen.on('display-removed', () => setTimeout(placeWindow, 800));

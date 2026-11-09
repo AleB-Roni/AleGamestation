@@ -27,6 +27,8 @@ const DEFAULT_CONFIG = {
     startupSound: true,
     // Beim Start automatisch auf GitHub nach Updates suchen
     autoUpdate: true,
+    // Gefundene Updates sofort im Hintergrund herunterladen (sonst erst nachfragen)
+    autoDownloadUpdates: true,
     hideCursor: true,
     showClock: true,
     confirmPowerActions: true,

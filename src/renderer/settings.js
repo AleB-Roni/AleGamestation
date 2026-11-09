@@ -175,7 +175,8 @@
           rows.push(listText('Dateiendungen', o, 'extensions', 'z.B. .sfc ; .smc ; .zip', { rescan: true }));
           rows.push(text('Name', o, 'name', '', { rescan: true }));
           rows.push(text('Kurzname', o, 'short', '', { rescan: true }));
-          rows.push(pathRow('Logo-Bild (optional)', o, 'logo', 'image', 'Leer = eingebaute Konsolen-Abbildung. PNG mit transparentem Hintergrund sieht am besten aus', { rescan: true }));
+          rows.push(pathRow('Logo / Abbildung (optional)', o, 'logo', 'image', 'Oben rechts auf der Kachel. Leer = eingebaute Abbildung. PNG mit transparentem Hintergrund sieht am besten aus', { rescan: true }));
+          rows.push(pathRow('Hintergrundbild der Kachel (optional)', o, 'tileImage', 'image', 'Füllt die ganze Kachel, z.B. ein Foto der Konsole', { rescan: true }));
           rows.push(button('System löschen', async () => {
             if (await App.confirm('System löschen?', esc(s.name), 'Löschen')) { C().systems.splice(i, 1); commit(true); }
           }, { danger: true }));
@@ -337,6 +338,7 @@
           unsupported: 'Updates nicht verfügbar',
           idle: 'Noch nicht gesucht',
           checking: 'Suche nach Updates …',
+          available: `⬆ Version ${u.available} ist verfügbar`,
           latest: '✔ Du hast die neueste Version',
           downloading: `⬇ Lade v${u.available || ''} herunter … ${u.progress || 0} %`,
           ready: `⬆ Version ${u.available} ist bereit zur Installation`,
@@ -345,11 +347,12 @@
         const rows = [
           group('AleGamestation', `Version ${u.version || ''}`),
           { type: 'info', label: 'Update-Status', desc: status, get: () => '' },
-          toggle('Automatisch nach Updates suchen', () => C().general, 'autoUpdate', 'Beim Start auf GitHub prüfen und im Hintergrund herunterladen')
+          button('⟳ Nach Updates suchen …', () => App.updateDialog(true), { desc: 'Fragt GitHub nach der neuesten Version und zeigt die Änderungen' }),
+          toggle('Automatisch nach Updates suchen', () => C().general, 'autoUpdate', 'Beim Start und alle 6 Stunden auf GitHub prüfen'),
+          toggle('Updates automatisch herunterladen', () => C().general, 'autoDownloadUpdates', 'Aus = erst nachfragen. Installiert wird immer erst, wenn du es bestätigst oder die App beendest')
         ];
         if (u.status === 'ready') rows.push(button(`⬆ Jetzt auf v${u.available} aktualisieren und neu starten`, () => App.installUpdate()));
-        rows.push(button('↻ Jetzt nach Updates suchen', async () => { await api.checkUpdate(); await refreshUpdate(); }));
-        if (u.notes) rows.push(group('Neu in dieser Version'), { type: 'info', label: u.notes.split('\n')[0].slice(0, 120), desc: u.notes.split('\n').slice(1).join(' ').slice(0, 300), get: () => '' });
+        if (u.notes && u.available) rows.push(group(`Neu in Version ${u.available}`), ...u.notes.split('\n').filter((l) => l.trim()).slice(0, 12).map((l) => ({ type: 'info', label: l.replace(/^\s*[-*•]\s*/, '• '), get: () => '' })));
         return rows;
       }
     }
