@@ -213,6 +213,11 @@
   function renderHome() {
     App.sections = buildSections();
     const wrap = $('#grid');
+    // Scroll-Positionen merken, damit der Neuaufbau nicht an den Anfang springt
+    const keepTop = wrap.scrollTop;
+    const keepLeft = [...wrap.children].map((sec) => { const r = sec.querySelector('.shelf-items'); return r ? r.scrollLeft : 0; });
+    const sameTab = App._lastRenderedTab === App.tabIndex;
+    App._lastRenderedTab = App.tabIndex;
     wrap.innerHTML = '';
     const totalItems = App.sections.reduce((n, s) => n + s.items.length, 0);
     $('#empty').classList.toggle('hidden', totalItems > 0 || App.tabs[App.tabIndex].id !== 'home');
@@ -234,7 +239,11 @@
       secEl.appendChild(row);
       wrap.appendChild(secEl);
     });
-    updateFocus();
+    if (sameTab) {
+      wrap.scrollTop = keepTop;
+      [...wrap.children].forEach((sec, i) => { const r = sec.querySelector('.shelf-items'); if (r && keepLeft[i]) r.scrollLeft = keepLeft[i]; });
+    }
+    updateFocus(!sameTab);
   }
 
   function focusedItem() {
@@ -253,8 +262,12 @@
     const card = secEl && secEl.querySelector('.shelf-items').children[App.focus.i];
     if (card && card.classList.contains('card')) {
       card.classList.add('selected');
-      card.scrollIntoView({ block: 'nearest', inline: 'center', behavior: silent ? 'auto' : 'smooth' });
-      if (App.focus.s === 0 && secEl) secEl.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      // Nur scrollen, wenn die Auswahl an den Rand kommt (scroll-margin hält Nachbarn sichtbar)
+      card.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: silent ? 'auto' : 'smooth' });
+      if (App.focus.s === 0 && secEl) secEl.scrollIntoView({ block: 'start', behavior: silent ? 'auto' : 'smooth' });
+      // Äußere Container dürfen nie seitlich mitscrollen (sonst „springt“ das ganze Feld)
+      $('#grid').scrollLeft = 0;
+      $('#gridWrap').scrollLeft = 0;
     }
     updateHero();
     renderHints();
@@ -793,7 +806,8 @@
     App.running = st;
     $('#runningTitle').textContent = st.game.name;
     const combo = Glyphs.comboHtml(App.cfg.controller.closeGameCombo);
-    $('#runningHint').innerHTML = `Zum Beenden am Controller ${combo} gedrückt halten`;
+    const guide = App.cfg.controller.guideButton !== 'off' ? ` oder ${Glyphs.html('GUIDE', { raw: true, pad: true })} drücken` : '';
+    $('#runningHint').innerHTML = `Zum Beenden am Controller ${combo} gedrückt halten${guide}`;
     $('#running').classList.remove('hidden');
     renderHints();
   }

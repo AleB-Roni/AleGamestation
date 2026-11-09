@@ -301,3 +301,14 @@ body.hide-cursor, body.hide-cursor * { cursor: none !important; }
 .s-crumb b { color: var(--text); font-size: 1.35rem; }
 .s-crumb .sep { opacity: 0.6; }
 .s-crumb small { margin-left: 0.6rem; font-size: 0.85rem; }
+
+/* ---------- Ruhige Navigation ohne Springen ---------- */
+/* Auswahl in Einstellungen: hervorheben statt verschieben */
+.s-row { transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease; scroll-margin: 4.5rem 0; }
+.s-row.focused { transform: none; }
+.s-row.focused::before { content: ''; position: absolute; left: 0; top: 18%; bottom: 18%; width: 3px; border-radius: 3px; background: var(--accent); }
+.s-row { position: relative; }
+#settingsBody { scroll-behavior: auto; }
+/* Kacheln: Nachbarn beim Scrollen sichtbar halten */
+.card { scroll-margin: 3rem 6rem; }
+.shelf { scroll-margin-top: 0.4rem; }

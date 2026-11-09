@@ -113,6 +113,10 @@
         group('Spiel beenden'),
         select('Tastenkombination „Spiel beenden“', () => C().controller, 'closeGameCombo', comboOptions(C().controller.closeGameCombo), 'Funktioniert auch, während das Spiel im Vordergrund ist'),
         button('Kombination „Spiel beenden“ aufnehmen …', () => recordCombo('closeGameCombo')),
+        select('PS- / Xbox-Taste im Spiel', () => C().controller, 'guideButton', [
+          { value: 'quickMenu', label: 'Schnellmenü (Beenden mit Rückfrage)' },
+          { value: 'off', label: 'Nichts tun' }
+        ], 'Blendet über dem Spiel ein: ✕ Beenden · △ Zur Oberfläche · ○ Weiterspielen'),
         select('Tastenkombination „Oberfläche zeigen“', () => C().controller, 'showLauncherCombo', comboOptions(C().controller.showLauncherCombo), 'Holt AleGamestation in den Vordergrund, ohne das Spiel zu beenden'),
         button('Kombination „Oberfläche zeigen“ aufnehmen …', () => recordCombo('showLauncherCombo')),
         select('Gedrückt halten für', () => C().controller, 'comboHoldMs', [0, 300, 500, 800, 1200, 2000].map((v) => ({ value: v, label: v ? v / 1000 + ' s' : 'sofort' }))),
@@ -615,6 +619,10 @@
       ? [{ type: 'crumb', label: section.title, title: detail.title, extra: detail.extra }, button('‹ Zurück zur Übersicht', () => closeDetail()), ...detail.rows]
       : section.rows();
     const body = $('#settingsBody');
+    // Beim Neuaufbau derselben Seite die Scroll-Position behalten (kein Springen)
+    const pageKey = `${S.section}|${detail ? detail.title : ''}`;
+    const keepTop = S.lastPage === pageKey ? body.scrollTop : null;
+    S.lastPage = pageKey;
     body.classList.toggle('detail', !!detail);
     body.innerHTML = '';
     const focusables = [];
@@ -652,14 +660,19 @@
     });
     S.focusables = focusables;
     S.focus = Math.min(S.focus, focusables.length - 1);
-    updateFocus();
+    if (keepTop !== null) body.scrollTop = keepTop;
+    updateFocus(keepTop !== null, keepTop === null);
     App.renderHints();
   }
 
-  function updateFocus(noScroll) {
+  /** @param {boolean} noScroll  @param {boolean} instant ohne Animation (neue Seite) */
+  function updateFocus(noScroll, instant) {
     (S.focusables || []).forEach((r, i) => r.el.classList.toggle('focused', i === S.focus));
     const r = S.focusables && S.focusables[S.focus];
-    if (r && !noScroll) r.el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    if (!r) return;
+    // Nur scrollen, wenn die Zeile aus dem sichtbaren Bereich wandert
+    if (!noScroll) r.el.scrollIntoView({ block: 'nearest', behavior: instant ? 'auto' : 'smooth' });
+    else if (noScroll && !instant) r.el.scrollIntoView({ block: 'nearest', behavior: 'auto' });
   }
 
   async function act(a) {

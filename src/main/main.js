@@ -5,7 +5,7 @@ const path = require('path');
 const { ConfigStore, DEFAULT_CONFIG } = require('./config');
 const { scanLibrary, detectEmulators } = require('./library');
 const { Launcher } = require('./launcher');
-const { GamepadWatcher } = require('./gamepad-watcher');
+const { GamepadWatcher, BUTTONS } = require('./gamepad-watcher');
 const system = require('./system');
 const { Updater } = require('./updater');
 const { Performance, RECOMMENDED, listRunning } = require('./performance');
@@ -97,7 +97,8 @@ function applyCombos() {
   watcher.setCombos([
     { name: 'closeGame', combo: c.closeGameCombo, holdMs: c.comboHoldMs },
     { name: 'showLauncher', combo: c.showLauncherCombo, holdMs: c.comboHoldMs },
-    { name: 'mouseMode', combo: c.mouseModeCombo, holdMs: Math.min(c.comboHoldMs, 600) }
+    { name: 'mouseMode', combo: c.mouseModeCombo, holdMs: Math.min(c.comboHoldMs, 600) },
+    ...(c.guideButton === 'off' ? [] : [{ name: 'guideMenu', combo: 'GUIDE', holdMs: 0 }])
   ]);
 }
 
@@ -244,10 +245,57 @@ launcher.on('exited', (info) => {
 launcher.on('error', (err) => send('toast', { type: 'error', text: String(err.message || err) }));
 launcher.on('opened', (st) => { send('game:status', { running: false }); send('toast', { type: 'ok', text: `${st.name} wurde geöffnet` }); });
 
+// ---------- Spiel beenden / Schnellmenü ----------
+let lastPadIsPlayStation = false;
+const escHtml = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const padLabel = (k) => {
+  const t = (lastPadIsPlayStation ? { A: '✕', B: '○', Y: '△' } : { A: 'A', B: 'B', Y: 'Y' })[k];
+  return `<b class="k ${lastPadIsPlayStation ? 'ps' : 'xb'} ${k.toLowerCase()}">${t}</b>`;
+};
+
+async function closeCurrentGame() {
+  const name = launcher.isRunning() ? launcher.status().game.name : (launcher.hasRecent() ? launcher.last.game.name : '');
+  if (!name) {
+    osd.show('🎮', 'Kein laufendes Spiel erkannt', '', 2500);
+    return false;
+  }
+  osd.show('⏹', `${escHtml(name)} wird beendet …`, '', 0);
+  send('toast', { type: 'info', text: `${name} wird beendet …` });
+  const ok = await launcher.kill();
+  osd.show(ok ? '✔' : '🎮', ok ? `${escHtml(name)} beendet` : 'Kein laufendes Spiel erkannt', '', 2000);
+  return ok;
+}
+
+let quickMenu = null;
+let quickMenuClosedAt = 0;
+function openQuickMenu() {
+  if (quickMenu || Date.now() - quickMenuClosedAt < 400) return;
+  if (!launcher.isRunning() && !launcher.hasRecent()) return;
+  const name = launcher.isRunning() ? launcher.status().game.name : launcher.last.game.name;
+  quickMenu = { openedAt: Date.now(), timer: setTimeout(closeQuickMenu, 10000) };
+  osd.show('⏸', escHtml(name), `${padLabel('A')} Spiel beenden &nbsp;·&nbsp; ${padLabel('Y')} Zur Oberfläche &nbsp;·&nbsp; ${padLabel('B')} Weiterspielen`, 0);
+}
+function closeQuickMenu() {
+  if (!quickMenu) return;
+  clearTimeout(quickMenu.timer);
+  quickMenu = null;
+  quickMenuClosedAt = Date.now();
+  osd.hide();
+}
+watcher.on('pressed', ({ id, pressed }) => {
+  lastPadIsPlayStation = String(id).startsWith('ps:');
+  if (!quickMenu || Date.now() - quickMenu.openedAt < 250) return;
+  if (pressed & BUTTONS.A) { closeQuickMenu(); closeCurrentGame(); }
+  else if (pressed & BUTTONS.Y) { closeQuickMenu(); bringToFront(); }
+  else if (pressed & (BUTTONS.B | BUTTONS.GUIDE)) closeQuickMenu();
+});
+
 watcher.on('combo', async ({ name }) => {
-  if (name === 'closeGame' && launcher.isRunning()) {
-    send('toast', { type: 'info', text: 'Spiel wird beendet …' });
-    await launcher.kill();
+  if (name === 'closeGame') {
+    await closeCurrentGame();
+  } else if (name === 'guideMenu') {
+    // Nur während ein Spiel läuft – sonst öffnet die PS-Taste in der Oberfläche das normale Menü
+    if (launcher.isRunning()) openQuickMenu();
   } else if (name === 'showLauncher') {
     bringToFront();
   } else if (name === 'mouseMode') {
@@ -420,6 +468,9 @@ ipcMain.handle('dialog:pickImage', async () => {
 });
 
 // ---------- App-Lebenszyklus ----------
+// Nur für automatische Tests (AGS_TEST=1): Zugriff auf interne Objekte
+if (process.env.AGS_TEST === '1') global.__ags = { watcher, launcher, osd };
+
 app.on('second-instance', () => bringToFront());
 
 app.whenReady().then(async () => {

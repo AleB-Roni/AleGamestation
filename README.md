@@ -34,6 +34,7 @@ Alle Spiele (Steam, Epic, GOG, eigene) und Emulator-Spiele in einer modernen Obe
 **Controller**
 - **PlayStation-Controller werden erkannt** (DualSense, DualSense Edge, DualShock 4): Oberfläche zeigt ✕ ○ □ △, L1/R1, Options, PS. Xbox- und Nintendo-Symbole ebenfalls – automatisch oder fest einstellbar
 - PlayStation-Controller werden per USB/Bluetooth **direkt ausgelesen** – die Beenden-Kombination (*Create + Options*) funktioniert ohne Steam Input oder DS4Windows
+- **PS-Taste im Spiel öffnet ein Schnellmenü** über dem Spiel: ✕ Spiel beenden (mit Rückfrage), △ zur Oberfläche, ○ weiterspielen
 - **Tastenkombination zum Beenden von Spielen/Emulatoren** (Standard: `BACK + START` 0,8 s halten) – funktioniert **auch, während das Spiel im Vordergrund ist**
 - Zweite Kombination, um die Oberfläche hervorzuholen, ohne das Spiel zu beenden (Standard: `BACK + LB + RB`)
 - Kombinationen frei wählbar oder **direkt am Controller aufnehmen**
@@ -92,6 +93,7 @@ Die Änderungsliste im Update-Fenster wird automatisch aus den Commit-Nachrichte
 | **☰ Start** | Menü (Herunterfahren, Bildschirm, …) | |
 | **⧉ Back** | Einstellungen | Zurück |
 | **BACK + START halten** | Laufendes Spiel beenden | |
+| **PS- / Xbox-Taste** (im Spiel) | Schnellmenü: ✕ Spiel beenden · △ Zur Oberfläche · ○ Weiterspielen | |
 
 **Tastatur** (komplett bedienbar, Symbole wechseln automatisch zwischen Tastatur und Controller):
 

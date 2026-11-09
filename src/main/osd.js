@@ -10,7 +10,10 @@ html,body{margin:0;background:transparent;overflow:hidden;font-family:"Segoe UI 
 #b{display:flex;justify-content:center;padding-top:18px}
 #t{display:inline-flex;align-items:center;gap:12px;padding:12px 22px;border-radius:999px;background:rgba(18,18,30,.92);color:#f3f3f8;
 font-size:18px;border:1px solid rgba(255,255,255,.14);box-shadow:0 10px 40px rgba(0,0,0,.5);opacity:0;transform:translateY(-10px);transition:all .25s ease}
-#t.on{opacity:1;transform:none}#i{font-size:20px}small{color:#a5a5bb;font-size:14px}
+#t.on{opacity:1;transform:none}#i{font-size:20px}small{color:#c9c9da;font-size:15px;display:inline-flex;align-items:center;gap:6px;margin-left:8px}
+.k{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;font-size:13px;font-weight:800;margin-left:6px}
+.k.xb.a{background:#3ddc84;color:#111}.k.xb.b{background:#ff5a6e;color:#111}.k.xb.y{background:#ffcc3d;color:#111}
+.k.ps{background:#1d1d2b;border:1.5px solid rgba(255,255,255,.3)}.k.ps.a{color:#8fb4ff}.k.ps.b{color:#ff6f86}.k.ps.y{color:#4fe0b6}
 </style></head><body><div id="b"><div id="t"><span id="i"></span><span id="m"></span></div></div>
 <script>window.show=(icon,msg,sub)=>{i.textContent=icon||'';m.innerHTML=msg+(sub?' <small>'+sub+'</small>':'');t.classList.add('on')};window.hide=()=>t.classList.remove('on')</script>
 </body></html>`;

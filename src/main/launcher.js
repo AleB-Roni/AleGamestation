@@ -108,6 +108,7 @@ class Launcher extends EventEmitter {
 
   async launch(game, shellOpen) {
     if (this.current) throw new Error('Es läuft bereits ein Spiel.');
+    this.last = null; // Merker des vorherigen Spiels verwerfen
     const cfg = this.getConfig();
 
     if (game.type === 'steam') return this._launchSteam(game, cfg, shellOpen);
@@ -266,13 +267,20 @@ class Launcher extends EventEmitter {
     if (!cur) return;
     clearTimeout(cur.poll);
     this.current = null;
+    // Merken: falls das Spiel/der Emulator doch weiterläuft (z.B. Neustart in neuem Prozess), kann es trotzdem beendet werden
+    this.last = { game: cur.game, dirs: cur.dirs.slice(), endedAt: Date.now() };
     this.emit('exited', { game: { id: cur.game.id, name: cur.game.name }, playedMs: Date.now() - cur.startedAt });
   }
 
   /** Beendet das laufende Spiel: erst sanft, dann hart (inkl. Kindprozessen und Prozessen aus dem Spielordner). */
+  /** Gibt es ein zuletzt gestartetes Spiel, dessen Prozesse noch laufen könnten? */
+  hasRecent() {
+    return !!(this.last && this.last.dirs.length && Date.now() - this.last.endedAt < 12 * 3600 * 1000);
+  }
+
   async kill() {
     const cur = this.current;
-    if (!cur) return false;
+    if (!cur) return this._killRecent();
     const cfg = this.getConfig();
     const game = cur.game;
 
@@ -294,6 +302,20 @@ class Launcher extends EventEmitter {
     for (const d of cur.dirs) for (const pid of await pidsInDir(d)) await taskkill(['/PID', String(pid), '/T', '/F']);
 
     this._finish();
+    return true;
+  }
+
+  /** Übrig gebliebene Prozesse des zuletzt gestarteten Spiels beenden (nur aus dessen Ordnern). */
+  async _killRecent() {
+    if (!IS_WIN || !this.hasRecent()) return false;
+    let pids = [];
+    for (const d of this.last.dirs) pids = pids.concat(await pidsInDir(d));
+    pids = [...new Set(pids)];
+    if (!pids.length) return false;
+    await closeGracefully(pids, this.getConfig().controller.gracefulCloseMs);
+    for (const pid of pids) await taskkill(['/PID', String(pid), '/T', '/F']);
+    this.emit('exited', { game: { id: this.last.game.id, name: this.last.game.name }, playedMs: 0 });
+    this.last = null;
     return true;
   }
 }

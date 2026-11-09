@@ -357,3 +357,21 @@ test('Emulatoren ohne Konsole erscheinen trotzdem im Emulatoren-Tab', () => {
   cfg.systems.push({ id: 'switch', name: 'Switch', extensions: ['.nsp'], romDirs: [], emulator: 'eden' });
   assert.deepStrictEqual(scanLibrary(cfg).systems.filter((s) => s.kind === 'emulator').map((s) => s.id), ['snes', 'switch']);
 });
+
+test('PS-Taste: Schnellmenü-Kombination und Tasten-Ereignisse', async () => {
+  const w = new GamepadWatcher();
+  w.setCombos([{ name: 'guideMenu', combo: 'GUIDE', holdMs: 0 }, { name: 'closeGame', combo: 'CREATE+OPTIONS', holdMs: 30 }]);
+  const combos = []; const pressed = [];
+  w.on('combo', (c) => combos.push(c.name));
+  w.on('pressed', (p) => pressed.push(p.pressed));
+  w._update('ps:1', BUTTONS.GUIDE);
+  await new Promise((r) => setTimeout(r, 10));
+  assert.deepStrictEqual(combos, ['guideMenu']);
+  w._update('ps:1', 0);
+  w._update('ps:1', BUTTONS.A);
+  assert.deepStrictEqual(pressed, [BUTTONS.GUIDE, BUTTONS.A]);
+  // Create + Options (= BACK + START) gehalten
+  w._update('ps:1', BUTTONS.BACK | BUTTONS.START);
+  await new Promise((r) => setTimeout(r, 60));
+  assert.ok(combos.includes('closeGame'));
+});

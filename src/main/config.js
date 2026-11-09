@@ -71,6 +71,8 @@ const DEFAULT_CONFIG = {
     glyphStyle: 'auto',
     // PlayStation-Controller (DualSense/DualShock 4) direkt auslesen – Beenden-Kombination ohne Steam Input/DS4Windows
     playstationHid: true,
+    // PS-/Xbox-Taste während eines Spiels: Schnellmenü (Spiel beenden mit Rückfrage) | "off"
+    guideButton: 'quickMenu',
     // Maus- & Tastatursteuerung per Controller ein/aus (funktioniert überall in Windows)
     mouseModeCombo: 'BACK+Y',
     // Mausgeschwindigkeit (1 = normal)

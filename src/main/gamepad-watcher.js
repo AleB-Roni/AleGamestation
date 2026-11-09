@@ -82,7 +82,10 @@ class GamepadWatcher extends EventEmitter {
     }
     if (st.mask === 0 && mask === 0 && !st.seen) this.emit('connection', { index: idx, connected: true });
     st.seen = true;
+    const prev = st.mask;
     st.mask = mask;
+    // Für das Schnellmenü: welche Tasten wurden gerade neu gedrückt
+    if (mask & ~prev) this.emit('pressed', { id: idx, pressed: mask & ~prev, mask });
     for (const combo of this.combos) {
       const active = (mask & combo.mask) === combo.mask;
       const timer = st.timers.get(combo.name);
