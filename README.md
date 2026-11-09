@@ -63,7 +63,7 @@ npm run dist       # Installer lokal erstellen (Ordner dist/)
 ### Neue Version veröffentlichen
 
 1. Version in `package.json` erhöhen (z. B. `1.0.1`) und committen
-2. Tag pushen: `git tag v1.0.1 && git push origin v1.0.1`
+2. Auf GitHub **Actions → Release → „Run workflow“** klicken (oder Tag pushen: `git tag v1.0.1 && git push origin v1.0.1`)
 3. GitHub Actions baut den Windows-Installer und veröffentlicht das Release – alle installierten Apps aktualisieren sich dann selbst
 
 ## Bedienung
