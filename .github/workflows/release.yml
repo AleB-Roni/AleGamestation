@@ -38,7 +38,28 @@ jobs:
             git tag "$TAG" && git push origin "$TAG"
           fi
 
-      - name: Installer bauen und auf GitHub veröffentlichen
-        run: npx electron-builder --win --publish always
+      - name: Installer bauen
+        run: npx electron-builder --win --publish never
+
+      - name: Auf GitHub veröffentlichen
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VER="$(node -p "require('./package.json').version")"
+          TAG="v$VER"
+          REPO="$GITHUB_REPOSITORY"
+          # Bestehende Releases dieser Version entfernen (z.B. bei erneutem Ausführen)
+          for id in $(gh api "repos/$REPO/releases" --paginate --jq ".[] | select(.tag_name==\"$TAG\") | .id"); do
+            gh api -X DELETE "repos/$REPO/releases/$id"
+          done
+          # Unvollständige Releases (ohne Installer) aufräumen
+          for id in $(gh api "repos/$REPO/releases" --paginate --jq '.[] | select(([.assets[].name | endswith(".exe")] | any) | not) | .id'); do
+            gh api -X DELETE "repos/$REPO/releases/$id"
+          done
+          gh release create "$TAG" \
+            "dist/AleGamestation-Setup-$VER.exe" \
+            "dist/AleGamestation-Setup-$VER.exe.blockmap" \
+            "dist/latest.yml" \
+            --repo "$REPO" --title "AleGamestation $VER" --latest \
+            --notes "Installer: **AleGamestation-Setup-$VER.exe** herunterladen und starten. Bereits installierte Versionen aktualisieren sich automatisch."
