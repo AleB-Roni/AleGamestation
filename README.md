@@ -88,7 +88,19 @@ npm run dist       # Installer lokal erstellen (Ordner dist/)
 | **⧉ Back** | Einstellungen | Zurück |
 | **BACK + START halten** | Laufendes Spiel beenden | |
 
-Tastatur: Pfeiltasten, Enter, Esc, `F` = Favorit, `Tab` = Details, `Q`/`E` = Kategorie, `M` = Menü, `S` = Einstellungen.
+**Tastatur** (komplett bedienbar, Symbole wechseln automatisch zwischen Tastatur und Controller):
+
+| Taste | Funktion |
+|---|---|
+| WASD / Pfeiltasten | Navigieren |
+| Leertaste / Enter | Auswählen / Starten |
+| Esc / Rücktaste | Zurück |
+| Q / E | Kategorie wechseln |
+| F | Favorit |
+| R / Tab | Details |
+| Z / C | Buchstaben-Sprung |
+| M | Menü |
+| O | Einstellungen |
 
 ## Home Assistant – Fernseher automatisch einschalten
 

@@ -23,7 +23,11 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 const store = new ConfigStore(app.getPath('userData'));
-const launcher = new Launcher(() => store.get());
+const launcher = new Launcher(() => store.get(), {
+  readShortcutLink: (p) => shell.readShortcutLink(p),
+  openPath: (p) => shell.openPath(p),
+  openExternal: (u) => shell.openExternal(u)
+});
 const watcher = new GamepadWatcher();
 let updater = null;
 const perf = new Performance();
@@ -238,6 +242,7 @@ launcher.on('exited', (info) => {
   if (c.general.refocusAfterGame) bringToFront();
 });
 launcher.on('error', (err) => send('toast', { type: 'error', text: String(err.message || err) }));
+launcher.on('opened', (st) => { send('game:status', { running: false }); send('toast', { type: 'ok', text: `${st.name} wurde geöffnet` }); });
 
 watcher.on('combo', async ({ name }) => {
   if (name === 'closeGame' && launcher.isRunning()) {

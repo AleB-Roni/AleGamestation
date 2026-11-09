@@ -54,10 +54,45 @@ async function closeGracefully(pids, waitMs) {
   await new Promise((r) => setTimeout(r, waitMs));
 }
 
+/**
+ * Ordner, deren Prozesse niemals "als Spielordner" beendet werden dürfen
+ * (z.B. Notepad liegt in C:\Windows\System32 – dort laufen viele Windows-Prozesse).
+ */
+function isSafeKillDir(dir) {
+  if (!dir) return false;
+  const norm = path.resolve(dir).replace(/[\\/]+$/, '').toLowerCase();
+  const env = process.env;
+  const blocked = [
+    env.SystemRoot || 'C:\\Windows', env.windir,
+    env.ProgramFiles, env['ProgramFiles(x86)'], env.ProgramW6432, env.ProgramData,
+    env.USERPROFILE, env.APPDATA, env.LOCALAPPDATA, env.LOCALAPPDATA && path.join(env.LOCALAPPDATA, 'Programs'),
+    env.USERPROFILE && path.join(env.USERPROFILE, 'Desktop'), env.USERPROFILE && path.join(env.USERPROFILE, 'Downloads')
+  ].filter(Boolean).map((d) => path.resolve(d).replace(/[\\/]+$/, '').toLowerCase());
+  const sysRoot = path.resolve(env.SystemRoot || 'C:\\Windows').toLowerCase();
+  if (norm === sysRoot || norm.startsWith(sysRoot + path.sep)) return false;
+  if (blocked.includes(norm)) return false;
+  // Laufwerkswurzel (C:\) oder zu kurze Pfade
+  if (/^[a-z]:$/.test(norm) || norm === '/' || norm.split(/[\\/]/).filter(Boolean).length < 2) return false;
+  return true;
+}
+
+/** Inhalt einer .url-Datei (Internet-Verknüpfung) -> URL */
+function readUrlFile(file) {
+  try {
+    const m = fs.readFileSync(file, 'utf8').match(/^\s*URL\s*=\s*(.+?)\s*$/im);
+    return m ? m[1] : '';
+  } catch { return ''; }
+}
+
 class Launcher extends EventEmitter {
-  constructor(getConfig) {
+  /**
+   * @param {Function} getConfig
+   * @param {{ readShortcutLink?: Function, openPath?: Function, openExternal?: Function }} platform Electron-shell-Funktionen
+   */
+  constructor(getConfig, platform = {}) {
     super();
     this.getConfig = getConfig;
+    this.platform = platform;
     this.current = null; // { game, child, pid, dirs, startedAt, poll }
   }
 
@@ -99,18 +134,81 @@ class Launcher extends EventEmitter {
       cwd = emu.cwd || path.dirname(emu.exe);
       dirs.push(path.dirname(emu.exe));
     } else {
-      if (!fs.existsSync(game.exe)) throw new Error(`Programm nicht gefunden: ${game.exe}`);
-      exe = game.exe;
-      args = splitArgs(game.args);
-      cwd = game.cwd || path.dirname(game.exe);
-      if (game.killMode === 'dir') dirs.push(path.dirname(game.exe));
+      if (!/^[a-z][a-z0-9+.-]+:/i.test(game.exe) && !fs.existsSync(game.exe)) throw new Error(`Programm nicht gefunden: ${game.exe}`);
+      const target = this.resolveTarget(game);
+      if (target.mode !== 'spawn') return this._launchOpen(game, target);
+      exe = target.exe;
+      args = target.args;
+      cwd = target.cwd;
+      if (game.killMode === 'dir' && isSafeKillDir(path.dirname(exe))) dirs.push(path.dirname(exe));
+      if (target.viaCmd) return this._spawn(game, process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', `"${[exe, ...args].map((a) => `"${a}"`).join(' ')}"`], cwd, dirs, { windowsVerbatimArguments: true });
     }
+    return this._spawn(game, exe, args, cwd, dirs);
+  }
 
-    const child = spawn(exe, args, { cwd, detached: !IS_WIN, windowsHide: false, stdio: 'ignore' });
+  /**
+   * Wie wird ein eigenes Programm gestartet?
+   * @returns {{mode:'spawn', exe, args, cwd, viaCmd?:boolean} | {mode:'open', path:string, dir?:string} | {mode:'url', url:string}}
+   */
+  resolveTarget(game) {
+    const file = game.exe;
+    if (/^[a-z][a-z0-9+.-]+:/i.test(file) && !/^[a-z]:[\\/]/i.test(file)) return { mode: 'url', url: file };
+    const ext = path.extname(file).toLowerCase();
+    const userArgs = splitArgs(game.args);
+    if (ext === '.lnk' && this.platform.readShortcutLink) {
+      try {
+        const l = this.platform.readShortcutLink(file);
+        if (l && l.target && /\.(exe|com)$/i.test(l.target) && fs.existsSync(l.target)) {
+          return { mode: 'spawn', exe: l.target, args: [...splitArgs(l.args), ...userArgs], cwd: game.cwd || l.cwd || path.dirname(l.target) };
+        }
+        return { mode: 'open', path: file, dir: l && l.target ? path.dirname(l.target) : '' };
+      } catch { return { mode: 'open', path: file }; }
+    }
+    if (ext === '.url') {
+      const url = readUrlFile(file);
+      return url ? { mode: 'url', url } : { mode: 'open', path: file };
+    }
+    if (ext === '.bat' || ext === '.cmd') return { mode: 'spawn', exe: file, args: userArgs, cwd: game.cwd || path.dirname(file), viaCmd: true };
+    if (ext === '.exe' || ext === '.com' || !IS_WIN) return { mode: 'spawn', exe: file, args: userArgs, cwd: game.cwd || path.dirname(file) };
+    return { mode: 'open', path: file, dir: path.dirname(file) };
+  }
+
+  /** Über Windows öffnen (Verknüpfungen, Store-Apps, URLs ...). Überwacht den Programmordner, wenn bekannt. */
+  async _launchOpen(game, target) {
+    if (target.mode === 'url') {
+      if (!this.platform.openExternal) throw new Error('Kann URL nicht öffnen');
+      await this.platform.openExternal(target.url);
+    } else {
+      if (!this.platform.openPath) throw new Error('Kann Datei nicht öffnen');
+      const err = await this.platform.openPath(target.path);
+      if (err) throw new Error(`Windows konnte „${path.basename(target.path)}“ nicht öffnen: ${err}`);
+    }
+    const dir = target.dir && isSafeKillDir(target.dir) ? target.dir : '';
+    if (!dir) {
+      // Ohne bekannten Programmordner lässt sich das Programm nicht überwachen – nur starten
+      return { running: false, opened: true, name: game.name };
+    }
+    this.current = { game, child: null, pid: null, dirs: [dir], startedAt: Date.now(), seen: false };
+    this.emit('started', this.status());
+    this._waitForDirProcesses(30000);
+    return this.status();
+  }
+
+  _spawn(game, exe, args, cwd, dirs, extra = {}) {
+    let child;
+    try {
+      child = spawn(exe, args, { cwd, detached: !IS_WIN, windowsHide: false, stdio: 'ignore', ...extra });
+    } catch (err) {
+      return this._spawnFailed(game, exe, err);
+    }
     this.current = { game, child, pid: child.pid, dirs, startedAt: Date.now() };
     child.on('error', (err) => {
-      this.emit('error', err);
-      this._finish();
+      const cur = this.current;
+      if (cur && cur.child === child) { clearTimeout(cur.poll); this.current = null; }
+      // Kein startbares Programm (z.B. EFTYPE): über Windows öffnen
+      this._spawnFailed(game, exe, err).then((st) => {
+        if (st && !st.running) this.emit('opened', st);
+      }).catch((e) => { this.emit('error', e); this.emit('exited', { game: { id: game.id, name: game.name }, playedMs: 0 }); });
     });
     child.on('exit', () => {
       // Manche Programme starten sich neu bzw. starten einen Kindprozess und beenden den Startprozess sofort.
@@ -119,6 +217,13 @@ class Launcher extends EventEmitter {
     });
     this.emit('started', this.status());
     return this.status();
+  }
+
+  async _spawnFailed(game, exe, err) {
+    if (IS_WIN && this.platform.openPath && ['EFTYPE', 'EINVAL', 'EACCES', 'UNKNOWN', 'ENOEXEC'].includes(err.code) && !game._fallback) {
+      return this._launchOpen({ ...game, _fallback: true }, { mode: 'open', path: exe, dir: path.dirname(exe) });
+    }
+    throw new Error(`Start fehlgeschlagen (${err.code || err.message}): ${exe}`);
   }
 
   async _launchSteam(game, cfg, shellOpen) {
@@ -193,4 +298,4 @@ class Launcher extends EventEmitter {
   }
 }
 
-module.exports = { Launcher, splitArgs, fillPlaceholders, powershell };
+module.exports = { Launcher, splitArgs, fillPlaceholders, powershell, isSafeKillDir, readUrlFile };

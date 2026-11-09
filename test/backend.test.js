@@ -281,3 +281,31 @@ test('Touchpad: Daten lesen und als Maus verwenden', () => {
   tp.update('d', t([{ id: 6, x: 300, y: 300 }]), true, 3030);
   assert.strictEqual(sent.length, n);
 });
+
+test('Eigene Programme: Verknüpfungen, URLs und Batch-Dateien richtig starten', () => {
+  const { Launcher, isSafeKillDir, readUrlFile } = require('../src/main/launcher');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ags-launch-'));
+  const exe = path.join(dir, 'Tool', 'tool.exe'); fs.mkdirSync(path.dirname(exe)); fs.writeFileSync(exe, '');
+  const lnk = path.join(dir, 'Tool.lnk'); fs.writeFileSync(lnk, '');
+  const store = path.join(dir, 'StoreApp.lnk'); fs.writeFileSync(store, '');
+  const url = path.join(dir, 'Seite.url'); fs.writeFileSync(url, '[InternetShortcut]\r\nURL=steam://rungameid/570\r\n');
+  const bat = path.join(dir, 'start.bat'); fs.writeFileSync(bat, '@echo off');
+  const l = new Launcher(() => ({}), {
+    readShortcutLink: (p) => (p === lnk ? { target: exe, args: '--fullscreen', cwd: '' } : { target: '' })
+  });
+  assert.deepStrictEqual(l.resolveTarget({ exe: lnk, args: '-x' }), { mode: 'spawn', exe, args: ['--fullscreen', '-x'], cwd: path.dirname(exe) });
+  assert.strictEqual(l.resolveTarget({ exe: store }).mode, 'open');
+  assert.strictEqual(readUrlFile(url), 'steam://rungameid/570');
+  assert.deepStrictEqual(l.resolveTarget({ exe: url }), { mode: 'url', url: 'steam://rungameid/570' });
+  assert.deepStrictEqual(l.resolveTarget({ exe: 'steam://open/bigpicture' }), { mode: 'url', url: 'steam://open/bigpicture' });
+  assert.strictEqual(l.resolveTarget({ exe: bat }).viaCmd, true);
+  assert.strictEqual(l.resolveTarget({ exe }).mode, 'spawn');
+  // Systemordner dürfen nie "als Spielordner" beendet werden
+  const old = process.env.SystemRoot;
+  process.env.SystemRoot = path.join(dir, 'Windows');
+  assert.strictEqual(isSafeKillDir(path.join(dir, 'Windows', 'System32')), false);
+  assert.strictEqual(isSafeKillDir(path.join(dir, 'Windows')), false);
+  assert.strictEqual(isSafeKillDir(path.parse(dir).root), false);
+  assert.strictEqual(isSafeKillDir(path.join(dir, 'Tool')), true);
+  if (old === undefined) delete process.env.SystemRoot; else process.env.SystemRoot = old;
+});

@@ -704,15 +704,16 @@
     $('#killGlyph').outerHTML = Glyphs.html('A').replace('class="glyph', 'id="killGlyph" class="glyph');
     $('#emptyMenuGlyph').outerHTML = Glyphs.html('START').replace('class="glyph', 'id="emptyMenuGlyph" class="glyph');
     const pad = $('#padStatus');
-    pad.textContent = Glyphs.style() === 'playstation' ? 'PS' : Glyphs.style() === 'nintendo' ? 'NS' : '🎮';
+    pad.textContent = Glyphs.style() === 'keyboard' ? '⌨' : Glyphs.style() === 'playstation' ? 'PS' : Glyphs.style() === 'nintendo' ? 'NS' : '🎮';
     pad.title = Glyphs.detected().name || 'Controller';
     if (App.running) showRunning(App.running);
     renderHints();
     if (App.view === 'settings' && SettingsView.rerender) SettingsView.rerender();
   }
-  Glyphs.onChange(() => {
+  Glyphs.onChange((style, reason) => {
     refreshGlyphs();
-    App.toast(`${Glyphs.NAMES[Glyphs.style()]}-Controller erkannt`, 'info', 1800);
+    // Nur beim Wechsel des Controller-Typs einblenden, nicht bei jedem Wechsel Tastatur <-> Controller
+    if (reason === 'controller') App.toast(`${Glyphs.NAMES[Glyphs.padStyle()]}-Controller erkannt`, 'info', 1800);
   });
 
   // ---------------- Start ----------------

@@ -16,11 +16,15 @@
   }
 
   // ---------- Tastatur ----------
+  // Tastatur-Belegung (Groß-/Kleinschreibung egal)
   const KEYS = {
-    ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
-    Enter: 'accept', ' ': 'accept', Escape: 'back', Backspace: 'back',
-    f: 'x', F: 'x', Tab: 'y', q: 'lb', Q: 'lb', e: 'rb', E: 'rb', PageUp: 'lb', PageDown: 'rb',
-    F1: 'start', m: 'start', M: 'start', s: 'select', S: 'select'
+    arrowup: 'up', arrowdown: 'down', arrowleft: 'left', arrowright: 'right',
+    w: 'up', s: 'down', a: 'left', d: 'right',
+    enter: 'accept', ' ': 'accept', escape: 'back', backspace: 'back',
+    f: 'x', r: 'y', tab: 'y',
+    q: 'lb', e: 'rb', pageup: 'lb', pagedown: 'rb',
+    z: 'lt', c: 'rt',
+    m: 'start', f1: 'start', o: 'select', f2: 'select'
   };
   window.addEventListener('keydown', (ev) => {
     const t = ev.target;
@@ -29,8 +33,14 @@
       if (ev.key === 'Escape' || ev.key === 'Enter') { t.blur(); ev.preventDefault(); }
       return;
     }
-    const a = KEYS[ev.key];
-    if (a) { ev.preventDefault(); emit(a, 'keyboard'); }
+    if (ev.ctrlKey || ev.altKey || ev.metaKey) return;
+    const a = KEYS[ev.key.toLowerCase()];
+    if (!a) return;
+    ev.preventDefault();
+    if (window.Glyphs) Glyphs.setInputMethod('keyboard');
+    // Gehaltene Pfeiltasten/WASD wiederholen (Browser-Wiederholung), andere Tasten nicht
+    if (ev.repeat && !['up', 'down', 'left', 'right', 'lb', 'rb'].includes(a)) return;
+    emit(a, 'keyboard');
   });
 
   // ---------- Controller ----------
@@ -52,6 +62,7 @@
           Glyphs.setDetected(Glyphs.typeFromId(p.id), p.id.split('(')[0].trim());
         }
         if (b.pressed || b.value > 0.5) {
+          if (window.Glyphs && !state.paused && !state.gamepadDisabled) Glyphs.setInputMethod('gamepad');
           let a = MAP[i];
           if (state.swapAB && a === 'accept') a = 'back';
           else if (state.swapAB && a === 'back') a = 'accept';

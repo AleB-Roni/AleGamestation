@@ -25,10 +25,24 @@
       START: ['+', 'pill'], BACK: ['−', 'pill'], GUIDE: ['⌂', 'pill'], LS: ['L-Stick', 'pill'], RS: ['R-Stick', 'pill'], TOUCHPAD: ['', 'pill']
     }
   };
-  const NAMES = { xbox: 'Xbox', playstation: 'PlayStation', nintendo: 'Nintendo' };
+  // Tastatur: Bedien-Tasten -> Tastenkappen
+  STYLES.keyboard = {
+    A: ['Leertaste', 'key'], B: ['Esc', 'key'], X: ['F', 'key'], Y: ['R', 'key'],
+    LB: ['Q', 'key'], RB: ['E', 'key'], LT: ['Z', 'key'], RT: ['C', 'key'],
+    START: ['M', 'key'], BACK: ['O', 'key'], GUIDE: ['M', 'key'], LS: ['', 'key'], RS: ['', 'key'], TOUCHPAD: ['', 'key']
+  };
+  const NAMES = { xbox: 'Xbox', playstation: 'PlayStation', nintendo: 'Nintendo', keyboard: 'Tastatur' };
+  let method = 'gamepad';
 
-  function style() {
+  /** Symbole des Controllers (ohne Tastatur) – für Tastenkombinationen und Belegungs-Texte */
+  function padStyle() {
     return configured && configured !== 'auto' ? configured : detected;
+  }
+
+  /** Aktuell angezeigte Symbole: Tastatur, sobald zuletzt mit der Tastatur bedient wurde */
+  function style() {
+    if (method === 'keyboard' && (!configured || configured === 'auto')) return 'keyboard';
+    return padStyle();
   }
 
   /** Physische Taste für eine Bedien-Taste (bei vertauschtem A/B) */
@@ -39,22 +53,23 @@
   }
 
   function label(key) {
-    const s = STYLES[style()];
+    const s = STYLES[padStyle()];
     const k = String(key).toUpperCase();
     if (s[k]) return s[k][0];
     return key;
   }
 
-  function html(key, { raw = false } = {}) {
-    const k = raw ? String(key).toUpperCase() : physical(String(key).toUpperCase());
-    const def = STYLES[style()][k];
+  function html(key, { raw = false, pad = false } = {}) {
+    const st = pad ? padStyle() : style();
+    const k = raw || st === 'keyboard' ? String(key).toUpperCase() : physical(String(key).toUpperCase());
+    const def = STYLES[st][k];
     if (!def) return `<span class="glyph pill">${key}</span>`;
     return `<span class="glyph ${def[1]}">${def[0]}</span>`;
   }
 
   /** "BACK+START" -> Symbole des aktuellen Controllers */
   function comboHtml(combo) {
-    return String(combo || '').split('+').map((k) => html(k.trim(), { raw: true })).join(' + ');
+    return String(combo || '').split('+').map((k) => html(k.trim(), { raw: true, pad: true })).join(' + ');
   }
   function comboLabel(combo) {
     return String(combo || '').split('+').map((k) => label(k.trim())).join(' + ');
@@ -71,11 +86,19 @@
     const changed = type !== detected;
     detected = type;
     detectedName = name || '';
-    if (changed) listeners.forEach((fn) => fn(style()));
+    if (changed) listeners.forEach((fn) => fn(style(), 'controller'));
+  }
+
+  function setInputMethod(m) {
+    if (m === method) return;
+    const before = style();
+    method = m;
+    if (style() !== before) listeners.forEach((fn) => fn(style(), 'method'));
   }
 
   window.Glyphs = {
-    html, label, comboHtml, comboLabel, style, typeFromId, setDetected,
+    html, label, comboHtml, comboLabel, style, padStyle, typeFromId, setDetected, setInputMethod,
+    inputMethod: () => method,
     detected: () => ({ type: detected, name: detectedName, label: NAMES[detected] }),
     configure: (opts) => {
       const before = style();
