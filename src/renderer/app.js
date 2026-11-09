@@ -812,7 +812,14 @@
         setFocus(Math.min(f.s, Math.max(0, App.sections.length - 1)), Math.min(f.i, Math.max(0, ((App.sections[f.s] || {}).items || [1]).length - 1)), true);
       }
     });
+    api.onPadState((s) => Input.hidState(s));
+    try { Input.hidConnected(await api.hidControllers()); } catch { /* ignore */ }
     api.onGamepadConnection((c) => {
+      if (c.source === 'hid' && typeof c.count === 'number') {
+        Input.hidConnected(c.count);
+        $('#padStatus').classList.toggle('on', Input.connected() > 0);
+        if (c.connected) Glyphs.setDetected('playstation', c.type === 'dualsense' ? 'DualSense' : 'DualShock 4');
+      }
       if (c.connected && c.type && c.source === 'hid' && !Input.connected()) Glyphs.setDetected('playstation', c.type === 'dualsense' ? 'DualSense' : 'DualShock 4');
       if (c.connected && c.source === 'hid') $('#padStatus').classList.add('on');
     });

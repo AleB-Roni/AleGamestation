@@ -55,5 +55,7 @@ contextBridge.exposeInMainWorld('api', {
   onConfigChanged: on('config:changed'),
   onToast: on('toast'),
   onWindowFocus: on('window:focus'),
-  onGamepadConnection: on('gamepad:connection')
+  onGamepadConnection: on('gamepad:connection'),
+  onPadState: on('pad:state'),
+  hidControllers: () => ipcRenderer.invoke('pad:hidCount')
 });

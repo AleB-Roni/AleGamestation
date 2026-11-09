@@ -256,7 +256,26 @@ watcher.on('combo', async ({ name }) => {
 });
 watcher.on('connection', (c) => send('gamepad:connection', c));
 watcher.on('state', (s) => mouseMode.update(s));
-psWatcher.on('state', (s) => mouseMode.update(s));
+// PlayStation-Controller direkt an die Oberfläche weitergeben (Chromium kann DualSense per Bluetooth
+// im erweiterten Modus nicht lesen). Nur wenn die Oberfläche bedient werden darf – nie während eines Spiels im Hintergrund.
+let padForwarded = false;
+function uiAcceptsController() {
+  if (!win || win.isDestroyed() || mouseMode.active) return false;
+  if (win.isFocused()) return true;
+  return win.isVisible() && !win.isMinimized() && !launcher.isRunning();
+}
+psWatcher.on('state', (s) => {
+  mouseMode.update(s);
+  if (uiAcceptsController()) {
+    // Windows gibt der Oberfläche beim Autostart nicht immer den Fokus – beim ersten Tastendruck holen
+    if (s.mask > 0 && !win.isFocused()) bringToFront();
+    send('pad:state', { mask: s.mask, axes: s.axes });
+    padForwarded = true;
+  } else if (padForwarded) {
+    send('pad:state', { mask: 0, axes: [0, 0, 0, 0] }); // gedrückte Tasten loslassen
+    padForwarded = false;
+  }
+});
 psWatcher.on('touch', (t) => touchpad.update(t.id, t.touch, t.button));
 
 // ---------- Maus- & Tastatursteuerung ----------
@@ -277,7 +296,7 @@ function startPlayStationWatcher() {
   psWatcher.start();
 }
 psWatcher.on('buttons', ({ id, mask }) => watcher._update('ps:' + id, mask));
-psWatcher.on('connection', (c) => send('gamepad:connection', { ...c, source: 'hid' }));
+psWatcher.on('connection', (c) => send('gamepad:connection', { ...c, source: 'hid', count: psWatcher.devices.size }));
 
 // ---------- IPC ----------
 ipcMain.handle('config:get', () => store.get());
@@ -330,6 +349,7 @@ ipcMain.handle('system:power', async (_e, action) => {
 });
 ipcMain.handle('system:displayMode', (_e, mode) => system.setDisplayMode(mode));
 ipcMain.handle('system:displays', () => screen.getAllDisplays().map((d, i) => ({ index: i, label: d.label || `Bildschirm ${i + 1}`, width: d.size.width, height: d.size.height, primary: d.id === screen.getPrimaryDisplay().id })));
+ipcMain.handle('pad:hidCount', () => psWatcher.devices.size);
 ipcMain.handle('ha:test', () => ha.test());
 // Emulator eines Systems ohne Spiel starten (z.B. zum Einrichten)
 ipcMain.handle('emulator:launch', (_e, systemId) => {

@@ -59,6 +59,6 @@
     haTest: async () => ({ message: 'API running.', players: [{ id: 'media_player.lg_tv', name: 'LG OLED Wohnzimmer', state: 'off', sources: ['HDMI 1', 'HDMI 2', 'HDMI 3', 'Netflix', 'YouTube'] }], scripts: [] }),
     haTv: async () => ({ on: true, source: 'HDMI 2' }), toggleMouseMode: async () => true, onMouseMode: noop,
     pickFile: async () => null, pickFolder: async () => null, pickImage: async () => null,
-    onGameStatus: noop, onConfigChanged: noop, onToast: noop, onWindowFocus: noop, onGamepadConnection: noop
+    onGameStatus: noop, onConfigChanged: noop, onToast: noop, onWindowFocus: noop, onGamepadConnection: noop, onPadState: noop, hidControllers: async () => 0
   };
 })();

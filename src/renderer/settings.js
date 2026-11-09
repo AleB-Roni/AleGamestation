@@ -98,6 +98,14 @@
         select('Gedrückt halten für', () => C().controller, 'comboHoldMs', [0, 300, 500, 800, 1200, 2000].map((v) => ({ value: v, label: v ? v / 1000 + ' s' : 'sofort' }))),
         select('Spiel erst sanft schließen', () => C().controller, 'gracefulCloseMs', [0, 800, 1500, 3000].map((v) => ({ value: v, label: v ? `ja, ${v / 1000} s warten` : 'nein, sofort beenden' })), 'Gibt Emulatoren Zeit zum Speichern'),
         group('Controller-Typ', `Erkannt: ${Glyphs.detected().label}${Glyphs.detected().name ? ' – ' + Glyphs.detected().name : ''}`),
+        (() => {
+          const d = Input.debug();
+          const lines = [
+            d.hid ? `PlayStation direkt (HID): ${d.hid} verbunden${d.lastHid !== null ? ` · letzte Eingabe vor ${d.lastHid} s` : ' · noch keine Eingabe'}` : 'PlayStation direkt (HID): keiner',
+            `Windows/Chromium: ${d.pads.length ? d.pads.join(', ') : 'keiner'}`
+          ];
+          return { type: 'button', label: 'Controller-Diagnose (aktualisieren)', desc: lines.join(' · '), action: () => { render(); App.toast(`Gedrückt: ${Input.debug().pressed.join(' + ') || 'nichts'}`, 'info', 1500); } };
+        })(),
         select('Tastensymbole', () => C().controller, 'glyphStyle', [
           { value: 'auto', label: 'Automatisch erkennen' }, { value: 'playstation', label: 'PlayStation  ✕ ○ □ △' },
           { value: 'xbox', label: 'Xbox  A B X Y' }, { value: 'nintendo', label: 'Nintendo' }
