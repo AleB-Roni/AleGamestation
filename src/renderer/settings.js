@@ -175,6 +175,7 @@
           rows.push(listText('Dateiendungen', o, 'extensions', 'z.B. .sfc ; .smc ; .zip', { rescan: true }));
           rows.push(text('Name', o, 'name', '', { rescan: true }));
           rows.push(text('Kurzname', o, 'short', '', { rescan: true }));
+          rows.push(pathRow('Logo-Bild (optional)', o, 'logo', 'image', 'Leer = eingebaute Konsolen-Abbildung. PNG mit transparentem Hintergrund sieht am besten aus', { rescan: true }));
           rows.push(button('System löschen', async () => {
             if (await App.confirm('System löschen?', esc(s.name), 'Löschen')) { C().systems.splice(i, 1); commit(true); }
           }, { danger: true }));

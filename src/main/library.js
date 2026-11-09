@@ -368,7 +368,9 @@ function scanLibrary(cfg, opts = {}) {
       id: s.id, kind: 'emulator', name: s.name, short: s.short || s.name, color: s.color || '#444',
       emulatorId: emu ? emu.id : '', emulatorName: emu ? emu.name : 'Kein Emulator',
       emulatorFound: !!emu && exists(emu.exe),
-      count: roms.filter((g) => g.system === s.id).length
+      count: roms.filter((g) => g.system === s.id).length,
+      logo: s.logo ? toImageUrl(s.logo) : '',
+      romDirs: s.romDirs || []
     });
   }
   const games = applyOverrides(cfg, [...steam, ...epic, ...gog, ...pc, ...roms]);

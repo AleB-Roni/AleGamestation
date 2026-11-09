@@ -28,6 +28,8 @@ contextBridge.exposeInMainWorld('api', {
   info: () => ipcRenderer.invoke('system:info'),
   scrape: (opts) => ipcRenderer.invoke('scrape:start', opts),
   haTest: () => ipcRenderer.invoke('ha:test'),
+  launchEmulator: (systemId) => ipcRenderer.invoke('emulator:launch', systemId),
+  openRomDir: (systemId) => ipcRenderer.invoke('system:openRomDir', systemId),
   haTv: (on) => ipcRenderer.invoke('ha:tv', on),
   toggleMouseMode: () => ipcRenderer.invoke('mouse:toggle'),
   onMouseMode: on('mousemode'),

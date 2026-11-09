@@ -240,3 +240,21 @@ body.hide-cursor, body.hide-cursor * { cursor: none !important; }
 .modal.details img.detail-cover { object-fit: contain; background: #0b0b14; }
 /* Tastenkappen für Tastatur-Bedienung */
 .glyph.key { border-radius: 7px; min-width: 2em; padding: 0 0.45em; font-size: 0.72em; font-weight: 700; color: #15151f; background: linear-gradient(#f4f4fa, #d6d6e2); box-shadow: 0 2px 0 #8a8aa0; letter-spacing: 0.02em; }
+
+/* Konsolen-Abbildungen auf den System-Kacheln */
+.sys-tile { position: relative; overflow: hidden; }
+.sys-icon { position: absolute; right: 0.7rem; top: 0.75rem; width: 38%; color: #fff; opacity: 0.45; transition: opacity 0.25s, transform 0.25s; pointer-events: none; }
+.sys-short, .sys-name { max-width: 58%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sys-emu { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sys-icon svg, .sys-icon img { width: 100%; height: auto; display: block; filter: drop-shadow(0 4px 14px rgba(0,0,0,0.4)); }
+.sys-icon img { max-height: 4rem; object-fit: contain; }
+.card.selected .sys-icon, .card.current .sys-icon { opacity: 0.95; transform: scale(1.06) rotate(-3deg); }
+.sys-tile > :not(.sys-icon) { position: relative; }
+/* Konsolen-Seite */
+.modal.system-details { display: grid; grid-template-columns: auto 1fr; column-gap: 2rem; min-width: 52rem; }
+.modal.system-details .sys-hero { grid-row: 1 / span 3; width: 15rem; aspect-ratio: 3 / 4; border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; padding: 1.4rem; color: #fff;
+  background: linear-gradient(150deg, var(--c) 0%, color-mix(in srgb, var(--c) 30%, #0b0b14) 70%); box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+.modal.system-details .sys-hero svg, .modal.system-details .sys-hero img { width: 100%; max-height: 9rem; object-fit: contain; }
+.modal.system-details .sys-hero span { font-size: 1.6rem; font-weight: 800; }
+.modal.system-details h2 { align-self: end; }
+.modal.system-details .menu { grid-column: 2; }

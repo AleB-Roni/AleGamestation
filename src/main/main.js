@@ -331,6 +331,25 @@ ipcMain.handle('system:power', async (_e, action) => {
 ipcMain.handle('system:displayMode', (_e, mode) => system.setDisplayMode(mode));
 ipcMain.handle('system:displays', () => screen.getAllDisplays().map((d, i) => ({ index: i, label: d.label || `Bildschirm ${i + 1}`, width: d.size.width, height: d.size.height, primary: d.id === screen.getPrimaryDisplay().id })));
 ipcMain.handle('ha:test', () => ha.test());
+// Emulator eines Systems ohne Spiel starten (z.B. zum Einrichten)
+ipcMain.handle('emulator:launch', (_e, systemId) => {
+  const c = cfg();
+  const sys = c.systems.find((s) => s.id === systemId);
+  const emu = sys && c.emulators.find((e) => e.id === sys.emulator);
+  if (!emu || !emu.exe) throw new Error('Für dieses System ist kein Emulator eingestellt');
+  if (!fs.existsSync(emu.exe)) throw new Error(`Emulator nicht gefunden: ${emu.exe}`);
+  return launcher.launch({ id: 'emu-' + emu.id, type: 'pc', system: systemId, name: emu.name, exe: emu.exe, args: '', cwd: path.dirname(emu.exe), killMode: 'dir' });
+});
+// ROM-Ordner im Explorer öffnen (wird bei Bedarf angelegt)
+ipcMain.handle('system:openRomDir', async (_e, systemId) => {
+  const sys = cfg().systems.find((s) => s.id === systemId);
+  const dir = sys && (sys.romDirs || [])[0];
+  if (!dir) throw new Error('Für dieses System ist kein ROM-Ordner eingetragen');
+  fs.mkdirSync(dir, { recursive: true });
+  const err = await shell.openPath(dir);
+  if (err) throw new Error(err);
+  return dir;
+});
 ipcMain.handle('ha:tv', async (_e, on) => (on ? ha.tvOn() : ha.tvOff()));
 ipcMain.handle('mouse:toggle', () => mouseMode.toggle());
 ipcMain.handle('scrape:start', (_e, opts = {}) => {

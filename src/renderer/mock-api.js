@@ -9,7 +9,13 @@
     sys('snes', 'emulator', 'Super Nintendo', 'SNES', '#7b5aa6', 'RetroArch (Snes9x)'),
     sys('n64', 'emulator', 'Nintendo 64', 'N64', '#009e4f', 'RetroArch (Mupen64Plus-Next)'),
     sys('gc', 'emulator', 'GameCube / Wii', 'GC/Wii', '#6a5acd', 'Dolphin'),
-    sys('ps2', 'emulator', 'PlayStation 2', 'PS2', '#1d3fbb', 'PCSX2', false)
+    sys('ps2', 'emulator', 'PlayStation 2', 'PS2', '#1d3fbb', 'PCSX2', false),
+    sys('nes', 'emulator', 'Nintendo Entertainment System', 'NES', '#e4002b', 'RetroArch (Mesen)'),
+    sys('gba', 'emulator', 'Game Boy Advance', 'GBA', '#4b2bb3', 'RetroArch (mGBA)'),
+    sys('nds', 'emulator', 'Nintendo DS', 'NDS', '#8a8d91', 'melonDS'),
+    sys('md', 'emulator', 'Sega Mega Drive', 'Mega Drive', '#1f4fa3', 'RetroArch (Genesis Plus GX)'),
+    sys('ps1', 'emulator', 'PlayStation', 'PS1', '#a3a3a3', 'DuckStation'),
+    sys('psp', 'emulator', 'PlayStation Portable', 'PSP', '#2b2b2b', 'PPSSPP')
   ];
   const games = [];
   const add = (system, names, extra = {}) => names.forEach((n, i) => games.push({ id: `${system}-${i}`, type: systems.find((s) => s.id === system).kind === 'emulator' ? 'rom' : system === 'steam' ? 'steam' : 'pc', system, name: n, cover: '', source: extra.source, emulatorName: extra.emu, rom: extra.emu ? `C:\\ROMs\\${system}\\${n}.zip` : undefined }));
@@ -49,6 +55,7 @@
     runningPrograms: async () => [{ name: 'Google Chrome', process: 'chrome.exe', memMB: 1840 }, { name: 'Discord', process: 'Discord.exe', memMB: 520 }],
     scrape: async () => ({ total: 3, found: 2, missing: 1, finished: true }), cancelScrape: async () => true, mediaDir: async () => 'media',
     onScrapeProgress: noop, onLibraryChanged: noop,
+    launchEmulator: async () => ({ running: false }), openRomDir: async () => 'C:\\ROMs',
     haTest: async () => ({ message: 'API running.', players: [{ id: 'media_player.lg_tv', name: 'LG OLED Wohnzimmer', state: 'off', sources: ['HDMI 1', 'HDMI 2', 'HDMI 3', 'Netflix', 'YouTube'] }], scripts: [] }),
     haTv: async () => ({ on: true, source: 'HDMI 2' }), toggleMouseMode: async () => true, onMouseMode: noop,
     pickFile: async () => null, pickFolder: async () => null, pickImage: async () => null,

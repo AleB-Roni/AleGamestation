@@ -171,7 +171,7 @@
       const sys = systems[App.emuSystemIndex];
       if (sys) {
         const list = games.filter((g) => g.system === sys.id).map(gi);
-        secs.push({ title: `${sys.name} – ${list.length} Spiele`, layout: 'grid', items: list, emptyText: sys.emulatorFound ? `Keine ROMs gefunden. Lege Spiele in die ROM-Ordner von ${sys.short} oder ändere sie in den Einstellungen.` : `Emulator „${sys.emulatorName}“ wurde nicht gefunden. Pfad in Einstellungen → Emulatoren eintragen.` });
+        secs.push({ title: `${sys.name} – ${list.length} Spiele`, layout: 'grid', items: list, emptyText: sys.emulatorFound ? `Keine ROMs gefunden. Wähle oben ${sys.short} aus und drücke die Auswahl-Taste: ROM-Ordner öffnen, Ordner hinzufügen oder den Emulator ohne Spiel starten.` : `Emulator „${sys.emulatorName}“ wurde nicht gefunden. Pfad in Einstellungen → Emulatoren eintragen.` });
       }
     } else if (tab.id === 'all') {
       secs.push({ title: `Alle Spiele (${games.length})`, layout: 'grid', items: games.slice().sort((a, b) => a.name.localeCompare(b.name, 'de')).map(gi), letterJump: true });
@@ -185,7 +185,9 @@
     }
     if (item.kind === 'system') {
       const s = item.system;
+      const icon = s.logo ? `<img src="${esc(s.logo)}" alt="">` : ConsoleIcons.forSystem(s.id, s.name);
       return `<div class="sys-tile" style="--c:${esc(s.color)}">
+        <div class="sys-icon">${icon}</div>
         <div class="sys-short">${esc(s.short)}</div>
         <div class="sys-name">${esc(s.name)}</div>
         <div class="sys-emu"><span class="dot ${s.emulatorFound ? 'ok' : 'bad'}"></span>${esc(s.emulatorName)}</div>
@@ -389,7 +391,11 @@
     const item = focusedItem();
     if (!item) return;
     if (item.kind === 'game') return launch(item.game);
-    if (item.kind === 'system') { moveVertical(1); return; }
+    if (item.kind === 'system') {
+      // Mit Spielen: in die Spieleliste springen, sonst die Konsolen-Seite öffnen
+      if (item.system.count > 0) moveVertical(1); else systemDetails(item.system);
+      return;
+    }
     if (item.kind === 'action') {
       Sounds.play('accept');
       if (item.id === 'addGame') return addGameFlow();
@@ -553,10 +559,30 @@
 
   function systemDetails(s) {
     const sysCfg = App.cfg.systems.find((x) => x.id === s.id);
+    const err = (e) => App.toast(String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''), 'error', 6000);
     App.menu({
       title: s.name,
-      text: 'Standard-Emulator für dieses System. Einzelne Spiele kannst du über ihre Details auf einen anderen Emulator umstellen.',
+      text: s.count ? `${s.count} Spiele · Emulator: ${esc(s.emulatorName)}` : 'Noch keine Spiele gefunden – lege ROMs in den ROM-Ordner und lies die Bibliothek neu ein.',
+      className: 'system-details',
       items: [
+        ...(s.count ? [{ label: 'Spiele anzeigen', icon: '▤', action: () => { App.closeMenu(); moveVertical(1); } }] : []),
+        { label: `${s.emulatorName} ohne Spiel starten`, icon: '▶', hint: s.emulatorFound ? 'z.B. zum Einrichten' : 'Emulator nicht gefunden', action: async () => {
+          App.closeMenu();
+          try { const st = await api.launchEmulator(s.id); if (st && st.running) showRunning(st); } catch (e) { err(e); }
+        } },
+        { label: 'ROM-Ordner öffnen', icon: '📂', hint: (sysCfg.romDirs || [])[0] || '', action: async () => {
+          App.closeMenu();
+          try { const d = await api.openRomDir(s.id); App.toast(`Ordner geöffnet: ${d}`, 'ok'); } catch (e) { err(e); }
+        } },
+        { label: 'ROM-Ordner hinzufügen …', icon: '＋', action: async () => {
+          const d = await api.pickFolder();
+          if (!d) return;
+          sysCfg.romDirs = [...(sysCfg.romDirs || []), d];
+          App.closeMenu();
+          await App.save({ immediate: true, rescan: true });
+          App.toast(`Ordner hinzugefügt – ${(App.library.systems.find((x) => x.id === s.id) || { count: 0 }).count} Spiele gefunden`, 'ok');
+        } },
+        { label: 'Bibliothek neu einlesen', icon: '↻', action: async () => { App.closeMenu(); await App.refreshLibrary(); } },
         {
           type: 'select', label: 'Emulator', icon: '🎮', value: sysCfg.emulator,
           options: App.library.emulators.map((e) => ({ value: e.id, label: e.name + (e.found ? '' : ' ⚠') })),
@@ -565,9 +591,19 @@
         { type: 'info', label: 'ROM-Ordner', value: (sysCfg.romDirs || []).join(' ; ') || '–' },
         { type: 'info', label: 'Dateiendungen', value: (sysCfg.extensions || []).join(' ') },
         { label: 'Fehlende Cover für dieses System laden', icon: '⬇', action: () => { App.closeMenu(); App.scrape({ system: s.id }); } },
+        { label: 'Eigenes Logo-Bild wählen …', icon: '🖼', action: async () => {
+          const p = await api.pickImage();
+          if (!p) return;
+          sysCfg.logo = p;
+          App.closeMenu();
+          await App.save({ immediate: true, rescan: true });
+        } },
+        ...(sysCfg.logo ? [{ label: 'Standard-Abbildung verwenden', icon: '↺', action: async () => { delete sysCfg.logo; App.closeMenu(); await App.save({ immediate: true, rescan: true }); } }] : []),
         { label: 'In Einstellungen bearbeiten', icon: '⚙', action: () => { App.closeMenu(); openSettings('systems'); } }
       ]
     });
+    App.modalStack[App.modalStack.length - 1].header = `<div class="detail-cover sys-hero" style="--c:${esc(s.color)}">${s.logo ? `<img src="${esc(s.logo)}" alt="">` : ConsoleIcons.forSystem(s.id, s.name)}<span>${esc(s.short)}</span></div>`;
+    renderModal();
   }
 
   // ---------- Power-Menü ----------
@@ -655,7 +691,7 @@
     else {
       const item = focusedItem();
       if (item && item.kind === 'game') html += hint(glyph('A'), 'Spielen') + hint(glyph('X'), 'Favorit') + hint(glyph('Y'), 'Details');
-      else if (item && item.kind === 'system') html += hint(glyph('A'), 'Spiele') + hint(glyph('Y'), 'Emulator wählen');
+      else if (item && item.kind === 'system') html += hint(glyph('A'), item.system.count ? 'Spiele' : 'Öffnen') + hint(glyph('Y'), 'Konsole');
       else if (item) html += hint(glyph('A'), 'Öffnen');
       if (App.sections[App.focus.s] && App.sections[App.focus.s].letterJump) html += hint(glyph('LT') + glyph('RT'), 'Buchstabe');
       html += hint(glyph('LB') + glyph('RB'), 'Kategorie') + hint(glyph('START'), 'Menü');
