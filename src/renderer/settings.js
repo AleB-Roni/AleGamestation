@@ -109,6 +109,15 @@
         select('Mausgeschwindigkeit', () => C().controller, 'mouseSpeed', [0.5, 0.75, 1, 1.25, 1.5, 2].map((v) => ({ value: v, label: Math.round(v * 100) + ' %' }))),
         button('🖱 Maussteuerung jetzt einschalten', () => api.toggleMouseMode()),
         { type: 'info', label: 'Belegung', desc: `Linker Stick: Maus · Rechter Stick: Scrollen · ${Glyphs.label('A')}: Linksklick · ${Glyphs.label('B')}: Rechtsklick · ${Glyphs.label('X')}: Bildschirmtastatur · ${Glyphs.label('Y')}: Enter · Steuerkreuz: Pfeiltasten · ${Glyphs.label('LB')}: Alt+Tab · ${Glyphs.label('RB')}: Tab · ${Glyphs.label('LT')}: Rücktaste · ${Glyphs.label('RT')} halten: langsame Maus · ${Glyphs.label('START')}: Esc · ${Glyphs.label('LS')}: Mittelklick`, get: () => '' },
+        group('Touchpad als Maus', 'DualSense / DualShock 4'),
+        select('Touchpad als Maus verwenden', () => C().controller, 'touchpadMouse', [
+          { value: 'outsideGames', label: 'Immer außerhalb von Spielen' },
+          { value: 'mouseMode', label: 'Nur in der Maussteuerung' },
+          { value: 'off', label: 'Aus' }
+        ], 'Während ein Spiel läuft, gehört das Touchpad dem Spiel'),
+        select('Touchpad-Geschwindigkeit', () => C().controller, 'touchpadSpeed', [0.5, 0.75, 1, 1.25, 1.5, 2].map((v) => ({ value: v, label: Math.round(v * 100) + ' %' }))),
+        toggle('Antippen = Klick', () => C().controller, 'touchpadTap', '1 Finger = Linksklick, 2 Finger = Rechtsklick'),
+        { type: 'info', label: 'Bedienung', desc: '1 Finger: Maus bewegen · Touchpad drücken: Linksklick (gedrückt halten = ziehen) · mit 2 Fingern drücken: Rechtsklick · 2 Finger bewegen: scrollen', get: () => '' },
         group('Navigation'),
         toggle('Analog-Stick zur Navigation', () => C().controller, 'useAnalogStick'),
         toggle('A/B tauschen (Nintendo-Layout)', () => C().controller, 'swapAB')

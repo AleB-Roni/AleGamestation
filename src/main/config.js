@@ -72,7 +72,12 @@ const DEFAULT_CONFIG = {
     // Maus- & Tastatursteuerung per Controller ein/aus (funktioniert überall in Windows)
     mouseModeCombo: 'BACK+Y',
     // Mausgeschwindigkeit (1 = normal)
-    mouseSpeed: 1
+    mouseSpeed: 1,
+    // Touchpad (DualSense/DualShock 4) als Maus: "outsideGames" | "mouseMode" (nur in der Maussteuerung) | "off"
+    touchpadMouse: 'outsideGames',
+    touchpadSpeed: 1,
+    // Antippen = Klick
+    touchpadTap: true
   },
 
   // Home Assistant: Fernseher einschalten und HDMI-Eingang wählen

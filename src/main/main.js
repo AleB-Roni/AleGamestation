@@ -14,6 +14,7 @@ const { Scraper } = require('./scraper');
 const { HomeAssistant } = require('./homeassistant');
 const { MouseMode } = require('./mouse-mode');
 const { Osd } = require('./osd');
+const { TouchpadMouse } = require('./touchpad');
 
 // Nur eine Instanz erlauben
 if (!app.requestSingleInstanceLock()) {
@@ -31,6 +32,17 @@ const psWatcher = new PsHidWatcher();
 const ha = new HomeAssistant({ fetch: (url, opts) => net.fetch(url, opts), getConfig: () => store.get(), log: (m) => send('toast', { type: 'info', text: m }) });
 const mouseMode = new MouseMode({ getConfig: () => store.get() });
 const osd = new Osd();
+// Touchpad als Maus: außerhalb von Spielen (oder nur in der Maussteuerung)
+const touchpad = new TouchpadMouse({
+  send: (line) => mouseMode.send(line),
+  getConfig: () => store.get(),
+  isEnabled: () => {
+    const m = (store.get().controller || {}).touchpadMouse || 'outsideGames';
+    if (m === 'off') return false;
+    if (mouseMode.active) return true;
+    return m === 'outsideGames' && !launcher.isRunning();
+  }
+});
 let startupNotes = [];
 let win = null;
 let library = { systems: [], games: [] };
@@ -211,6 +223,7 @@ function createWindow() {
 // ---------- Launcher-Events ----------
 launcher.on('started', (status) => {
   send('game:status', status);
+  touchpad.reset();
   if (cfg().general.minimizeOnLaunch && win) setTimeout(() => win && !win.isDestroyed() && launcher.isRunning() && win.minimize(), 1200);
 });
 launcher.on('exited', (info) => {
@@ -239,6 +252,7 @@ watcher.on('combo', async ({ name }) => {
 watcher.on('connection', (c) => send('gamepad:connection', c));
 watcher.on('state', (s) => mouseMode.update(s));
 psWatcher.on('state', (s) => mouseMode.update(s));
+psWatcher.on('touch', (t) => touchpad.update(t.id, t.touch, t.button));
 
 // ---------- Maus- & Tastatursteuerung ----------
 function comboText(combo, ps) {

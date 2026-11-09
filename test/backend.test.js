@@ -235,3 +235,49 @@ test('PlayStation: Analog-Sticks auslesen', () => {
   const bt = Buffer.alloc(78); bt[0] = 0x31; bt[2] = 1; bt[3] = 128; bt[4] = 128; bt[5] = 255;
   assert.ok(parseAxes(0x0ce6, bt)[0] < -0.98 && parseAxes(0x0ce6, bt)[3] === 1);
 });
+
+test('Touchpad: Daten lesen und als Maus verwenden', () => {
+  const { parseTouch, TouchpadMouse } = require('../src/main/touchpad');
+  // Touchpunkt kodieren (4 Bytes): aktiv-Bit, ID, 12 Bit X, 12 Bit Y
+  const enc = (buf, o, f) => {
+    if (!f) { buf[o] = 0x80; return; }
+    buf[o] = f.id & 0x7f; buf[o + 1] = f.x & 0xff; buf[o + 2] = ((f.x >> 8) & 0x0f) | ((f.y & 0x0f) << 4); buf[o + 3] = f.y >> 4;
+  };
+  const report = (fingers, bt) => {
+    const b = Buffer.alloc(bt ? 78 : 64); b[0] = bt ? 0x31 : 0x01;
+    const o = bt ? 34 : 33; enc(b, o, fingers[0]); enc(b, o + 4, fingers[1]); return b;
+  };
+  assert.deepStrictEqual(parseTouch(0x0ce6, report([{ id: 5, x: 1500, y: 900 }])).fingers, [{ id: 5, x: 1500, y: 900 }]);
+  assert.strictEqual(parseTouch(0x0ce6, report([{ id: 1, x: 10, y: 20 }, { id: 2, x: 1900, y: 1000 }], true)).fingers.length, 2);
+  assert.strictEqual(parseTouch(0x0ce6, report([])).fingers.length, 0);
+
+  const sent = []; let enabled = true;
+  const tp = new TouchpadMouse({ send: (l) => sent.push(l), getConfig: () => ({ controller: {} }), isEnabled: () => enabled });
+  const t = (fingers) => parseTouch(0x0ce6, report(fingers));
+  // Bewegen
+  tp.update('d', t([{ id: 1, x: 100, y: 100 }]), false, 0);
+  tp.update('d', t([{ id: 1, x: 140, y: 110 }]), false, 30);
+  const m = sent.find((l) => l.startsWith('m '));
+  assert.ok(m && Number(m.split(' ')[1]) > 40 && Number(m.split(' ')[2]) > 0);
+  // Loslassen nach Bewegung: kein Tipp-Klick
+  tp.update('d', t([]), false, 60);
+  assert.ok(!sent.includes('b L 1'));
+  // Kurz antippen = Linksklick
+  tp.update('d', t([{ id: 2, x: 500, y: 500 }]), false, 1000);
+  tp.update('d', t([]), false, 1100);
+  assert.deepStrictEqual(sent.slice(-2), ['b L 1', 'b L 0']);
+  // Mit 2 Fingern drücken = Rechtsklick
+  tp.update('d', t([{ id: 3, x: 500, y: 500 }, { id: 4, x: 800, y: 500 }]), true, 2000);
+  assert.strictEqual(sent[sent.length - 1], 'b R 1');
+  tp.update('d', t([{ id: 3, x: 500, y: 500 }, { id: 4, x: 800, y: 500 }]), false, 2100);
+  assert.strictEqual(sent[sent.length - 1], 'b R 0');
+  // 2 Finger bewegen = scrollen
+  tp.update('d', t([{ id: 3, x: 500, y: 560 }, { id: 4, x: 800, y: 560 }]), false, 2200);
+  assert.ok(sent[sent.length - 1].startsWith('w '));
+  tp.update('d', t([]), false, 2300);
+  // Während eines Spiels: nichts senden
+  enabled = false; const n = sent.length;
+  tp.update('d', t([{ id: 6, x: 100, y: 100 }]), true, 3000);
+  tp.update('d', t([{ id: 6, x: 300, y: 300 }]), true, 3030);
+  assert.strictEqual(sent.length, n);
+});

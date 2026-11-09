@@ -6,6 +6,7 @@
  */
 const { EventEmitter } = require('events');
 const { BUTTONS } = require('./gamepad-watcher');
+const { parseTouch } = require('./touchpad');
 
 const SONY = 0x054c;
 const DUALSENSE = new Set([0x0ce6, 0x0df2]);
@@ -98,9 +99,20 @@ class PsHidWatcher extends EventEmitter {
       this.devices.set(info.path, entry);
       const type = DUALSENSE.has(info.productId) ? 'dualsense' : 'dualshock4';
       this.emit('connection', { id: info.path, type, connected: true, name: info.product });
+      // Per Bluetooth senden die Controller erst nach dem Lesen des Kalibrier-Reports den
+      // erweiterten Report (mit Touchpad-Daten). Per USB ist das harmlos.
+      try { await dev.getFeatureReport(DUALSENSE.has(info.productId) ? 0x05 : 0x02, DUALSENSE.has(info.productId) ? 41 : 37); } catch { /* ignore */ }
       dev.on('data', (data) => {
         const mask = parseReport(info.productId, data);
         if (mask === null) return;
+        const touch = parseTouch(info.productId, data);
+        if (touch) {
+          const tsig = (mask & BUTTONS.TOUCHPAD ? 'B' : '') + touch.fingers.map((f) => `${f.id}:${f.x}:${f.y}`).join('|');
+          if (tsig !== entry.tsig) {
+            entry.tsig = tsig;
+            this.emit('touch', { id: 'ps:' + info.path, touch, button: !!(mask & BUTTONS.TOUCHPAD) });
+          }
+        }
         const axes = parseAxes(info.productId, data) || [0, 0, 0, 0];
         // Sticks gerundet vergleichen, damit nicht jeder Report (250+/s) ein Ereignis auslöst
         const sig = mask + ':' + axes.map((v) => Math.round(v * 32)).join(',');

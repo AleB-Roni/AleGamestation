@@ -17,6 +17,7 @@ Alle Spiele (Steam, Epic, GOG, eigene) und Emulator-Spiele in einer modernen Obe
 - **Automatische Updates** direkt von GitHub
 - **Home Assistant**: Fernseher beim Start einschalten und auf den richtigen HDMI-Eingang schalten
 - **Maus & Tastatur per Controller** – nie wieder zur Tastatur greifen
+- **DualSense-Touchpad als Maus** außerhalb von Spielen
 - **Cover-Download** für ROMs (libretro-thumbnails ohne Konto, optional ScreenScraper) inkl. Screenshots als Hintergrund
 - Startseite mit Regalen: *Zuletzt gespielt*, *Favoriten*, je Store/System eine Reihe
 - Favoriten, **Spielzeit-Statistik**, „zuletzt gespielt“, eigene Cover, Spiele ausblenden
@@ -120,6 +121,20 @@ Für Launcher-Fenster, Logins oder den Browser: **Create + △** (Xbox: View + Y
 | L3 | Mittelklick |
 
 Kombination und Mausgeschwindigkeit sind unter **Einstellungen → Controller** einstellbar.
+
+### Touchpad als Maus (DualSense / DualShock 4)
+
+Außerhalb von Spielen funktioniert das Touchpad wie am Laptop – ganz ohne Umschalten:
+
+| Touchpad | Funktion |
+|---|---|
+| 1 Finger bewegen | Maus bewegen |
+| Drücken | Linksklick (gedrückt halten = ziehen) |
+| Mit 2 Fingern drücken | Rechtsklick |
+| Kurz antippen (1 / 2 Finger) | Links- / Rechtsklick |
+| 2 Finger bewegen | Scrollen |
+
+Sobald ein Spiel läuft, gehört das Touchpad wieder dem Spiel. Einstellbar unter **Einstellungen → Controller** (immer außerhalb von Spielen / nur in der Maussteuerung / aus, Geschwindigkeit, Antippen).
 
 ## Cover herunterladen
 
