@@ -68,7 +68,33 @@ const DEFAULT_CONFIG = {
     // Tastensymbole in der Oberfläche: "auto" (erkennt den Controller) | "xbox" | "playstation" | "nintendo"
     glyphStyle: 'auto',
     // PlayStation-Controller (DualSense/DualShock 4) direkt auslesen – Beenden-Kombination ohne Steam Input/DS4Windows
-    playstationHid: true
+    playstationHid: true,
+    // Maus- & Tastatursteuerung per Controller ein/aus (funktioniert überall in Windows)
+    mouseModeCombo: 'BACK+Y',
+    // Mausgeschwindigkeit (1 = normal)
+    mouseSpeed: 1
+  },
+
+  // Home Assistant: Fernseher einschalten und HDMI-Eingang wählen
+  homeassistant: {
+    enabled: false,
+    url: 'http://homeassistant.local:8123',
+    // Langlebiges Zugangstoken (HA → Profil → Sicherheit → Token erstellen)
+    token: '',
+    // z.B. media_player.wohnzimmer_tv
+    tvEntity: '',
+    // Eingang, z.B. "HDMI 2" (Liste kommt aus Home Assistant)
+    source: '',
+    turnOnAtStart: true,
+    // So lange warten, bis der Fernseher eingeschaltet ist
+    waitForTvSeconds: 20,
+    // Beim Zurückkehren zum Desktop: Fernseher aus bzw. auf anderen Eingang schalten
+    turnOffAtExit: false,
+    sourceAtExit: '',
+    turnOffAtShutdown: true,
+    // Weitere Dienste, z.B. "script.gaming_licht", "scene.kino" oder "light.turn_off:light.wohnzimmer"
+    startServices: [],
+    exitServices: []
   },
 
   // Leistungsmodus: Programme beim Start pausieren/schließen und beim Beenden wiederherstellen

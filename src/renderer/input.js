@@ -11,7 +11,7 @@
   let connected = 0;
 
   function emit(action, source) {
-    if (state.paused || (source === 'gamepad' && !document.hasFocus())) return;
+    if (state.paused || (source === 'gamepad' && (!document.hasFocus() || state.gamepadDisabled))) return;
     for (const fn of listeners) fn(action, source);
   }
 

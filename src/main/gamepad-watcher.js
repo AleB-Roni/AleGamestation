@@ -50,8 +50,12 @@ class GamepadWatcher extends EventEmitter {
     this.proc = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     const rl = readline.createInterface({ input: this.proc.stdout });
     rl.on('line', (line) => {
-      const [idx, mask] = line.trim().split(/\s+/).map(Number);
-      if (Number.isFinite(idx)) this._update(idx, mask);
+      const [idx, mask, lx, ly, rx, ry] = line.trim().split(/\s+/).map(Number);
+      if (!Number.isFinite(idx)) return;
+      // Sticks: XInput liefert -32..32 (gerundet), Y nach oben positiv -> auf -1..1 mit Y nach unten umrechnen
+      const axes = Number.isFinite(lx) ? [lx / 32, -ly / 32, rx / 32, -ry / 32].map((v) => Math.max(-1, Math.min(1, v))) : [0, 0, 0, 0];
+      this.emit('state', { id: 'xinput:' + idx, mask, axes });
+      if (mask !== (this.state.get(idx) || {}).mask) this._update(idx, mask);
     });
     this.proc.stderr.on('data', (d) => this.emit('log', String(d)));
     this.proc.on('exit', () => {

@@ -103,6 +103,12 @@
           { value: 'xbox', label: 'Xbox  A B X Y' }, { value: 'nintendo', label: 'Nintendo' }
         ], 'Welche Symbole in der Oberfläche angezeigt werden'),
         toggle('PlayStation-Controller direkt unterstützen', () => C().controller, 'playstationHid', 'DualSense / DualShock 4 per USB oder Bluetooth – Beenden-Kombination funktioniert ohne Steam Input oder DS4Windows'),
+        group('Maus & Tastatur per Controller', 'z.B. für Launcher-Fenster, Logins, Browser'),
+        select('Tastenkombination „Maussteuerung“', () => C().controller, 'mouseModeCombo', comboOptions(C().controller.mouseModeCombo), 'Ein-/Ausschalten – funktioniert überall in Windows'),
+        button('Kombination „Maussteuerung“ aufnehmen …', () => recordCombo('mouseModeCombo')),
+        select('Mausgeschwindigkeit', () => C().controller, 'mouseSpeed', [0.5, 0.75, 1, 1.25, 1.5, 2].map((v) => ({ value: v, label: Math.round(v * 100) + ' %' }))),
+        button('🖱 Maussteuerung jetzt einschalten', () => api.toggleMouseMode()),
+        { type: 'info', label: 'Belegung', desc: `Linker Stick: Maus · Rechter Stick: Scrollen · ${Glyphs.label('A')}: Linksklick · ${Glyphs.label('B')}: Rechtsklick · ${Glyphs.label('X')}: Bildschirmtastatur · ${Glyphs.label('Y')}: Enter · Steuerkreuz: Pfeiltasten · ${Glyphs.label('LB')}: Alt+Tab · ${Glyphs.label('RB')}: Tab · ${Glyphs.label('LT')}: Rücktaste · ${Glyphs.label('RT')} halten: langsame Maus · ${Glyphs.label('START')}: Esc · ${Glyphs.label('LS')}: Mittelklick`, get: () => '' },
         group('Navigation'),
         toggle('Analog-Stick zur Navigation', () => C().controller, 'useAnalogStick'),
         toggle('A/B tauschen (Nintendo-Layout)', () => C().controller, 'swapAB')
@@ -190,6 +196,37 @@
           }, { danger: true }));
         });
         return rows;
+      }
+    },
+    {
+      id: 'ha', title: 'Home Assistant', rows: () => {
+        const H = () => C().homeassistant;
+        const players = (S.ha && S.ha.players) || [];
+        const cur = players.find((p) => p.id === H().tvEntity);
+        const keep = (list, v, label) => (v && !list.some((o) => o.value === v) ? [{ value: v, label: label || v }, ...list] : list);
+        const playerOpts = keep([{ value: '', label: '– bitte wählen –' }, ...players.map((p) => ({ value: p.id, label: `${p.name} (${p.state})` }))], H().tvEntity);
+        const sourceOpts = keep([{ value: '', label: 'Nicht umschalten' }, ...((cur && cur.sources) || []).map((s) => ({ value: s, label: s }))], H().source);
+        const exitOpts = keep([{ value: '', label: 'Nicht umschalten' }, ...((cur && cur.sources) || []).map((s) => ({ value: s, label: s }))], H().sourceAtExit);
+        return [
+          group('Verbindung', S.ha ? (S.ha.error ? '✖ ' + S.ha.error : `✔ verbunden · ${players.length} Geräte`) : 'Fernseher automatisch einschalten'),
+          toggle('Home Assistant verwenden', H, 'enabled'),
+          text('Adresse', H, 'url', 'z.B. http://homeassistant.local:8123 oder http://192.168.1.10:8123'),
+          text('Zugangstoken', H, 'token', 'Home Assistant → Profil → Sicherheit → „Langlebiges Zugangstoken“ erstellen', { secret: true }),
+          button('🔌 Verbindung testen & Geräte laden', haLoad),
+          group('Fernseher'),
+          select('Fernseher', H, 'tvEntity', playerOpts, players.length ? 'Mediaplayer aus Home Assistant' : 'Erst „Verbindung testen“ drücken'),
+          select('HDMI-Eingang', H, 'source', sourceOpts, 'Auf diesen Eingang wird beim Start automatisch umgeschaltet'),
+          toggle('Beim Start einschalten', H, 'turnOnAtStart'),
+          select('Warten bis der Fernseher an ist', H, 'waitForTvSeconds', [5, 10, 15, 20, 30, 45].map((v) => ({ value: v, label: `bis zu ${v} s` }))),
+          toggle('Beim Zurückkehren zum Desktop ausschalten', H, 'turnOffAtExit'),
+          select('…oder auf diesen Eingang schalten', H, 'sourceAtExit', exitOpts, 'Wenn der Fernseher anbleiben soll'),
+          toggle('Beim Herunterfahren ausschalten', H, 'turnOffAtShutdown'),
+          button('📺 Fernseher jetzt einschalten + Eingang wählen', async () => { App.toast('Schalte Fernseher ein …'); try { const r = await api.haTv(true); App.toast(`Fernseher ${r && r.on ? 'an' : 'angesteuert'}${r && r.source ? ' · ' + r.source : ''}`, 'ok'); } catch (e) { App.toast(cleanErr(e), 'error', 6000); } }),
+          button('Fernseher jetzt ausschalten', async () => { try { await api.haTv(false); App.toast('Fernseher aus', 'ok'); } catch (e) { App.toast(cleanErr(e), 'error', 6000); } }),
+          group('Weitere Aktionen', 'Szenen, Skripte, Licht …'),
+          listText('Beim Start ausführen', H, 'startServices', 'z.B. scene.gaming ; script.licht_dimmen ; light.turn_off:light.decke'),
+          listText('Beim Beenden ausführen', H, 'exitServices')
+        ];
       }
     },
     {
@@ -307,6 +344,25 @@
       }
     }
   ];
+
+  function cleanErr(e) {
+    return String((e && e.message) || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
+  }
+
+  async function haLoad() {
+    App.toast('Verbinde mit Home Assistant …', 'info', 1500);
+    try {
+      S.ha = await api.haTest();
+      App.toast(`✔ Verbunden – ${S.ha.players.length} Mediaplayer gefunden`, 'ok');
+      // Einzigen Fernseher automatisch auswählen
+      const H = C().homeassistant;
+      if (!H.tvEntity && S.ha.players.length === 1) { H.tvEntity = S.ha.players[0].id; await commit(false); }
+    } catch (e) {
+      S.ha = { error: cleanErr(e), players: [] };
+      App.toast(S.ha.error, 'error', 7000);
+    }
+    render();
+  }
 
   async function recommendedMenu() {
     const list = await api.recommendedPrograms();
@@ -464,6 +520,7 @@
     if (!r) return;
     if (a === 'left' || a === 'right') {
       if (r.type === 'select') {
+        if (!r.options.length) return;
         const i = r.options.findIndex((o) => String(o.value) === String(r.get()));
         const n = (i + (a === 'right' ? 1 : -1) + r.options.length) % r.options.length;
         r.set(r.options[n].value);

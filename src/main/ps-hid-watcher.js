@@ -50,6 +50,19 @@ function parseReport(productId, data) {
   return mask;
 }
 
+/** Analog-Sticks: [lx, ly, rx, ry] im Bereich -1..1 (Y nach unten positiv) oder null */
+function parseAxes(productId, data) {
+  const b = data;
+  if (!b || b.length < 10) return null;
+  const ds = DUALSENSE.has(productId);
+  let o;
+  if (b[0] === 0x01) o = 1;
+  else if (b[0] === 0x31 && ds) o = 2;
+  else if (b[0] === 0x11 && !ds) o = 3;
+  else return null;
+  return [b[o], b[o + 1], b[o + 2], b[o + 3]].map((v) => Math.max(-1, Math.min(1, (v - 128) / 127)));
+}
+
 class PsHidWatcher extends EventEmitter {
   constructor() {
     super();
@@ -87,7 +100,15 @@ class PsHidWatcher extends EventEmitter {
       this.emit('connection', { id: info.path, type, connected: true, name: info.product });
       dev.on('data', (data) => {
         const mask = parseReport(info.productId, data);
-        if (mask === null || mask === entry.last) return;
+        if (mask === null) return;
+        const axes = parseAxes(info.productId, data) || [0, 0, 0, 0];
+        // Sticks gerundet vergleichen, damit nicht jeder Report (250+/s) ein Ereignis auslöst
+        const sig = mask + ':' + axes.map((v) => Math.round(v * 32)).join(',');
+        if (sig !== entry.sig) {
+          entry.sig = sig;
+          this.emit('state', { id: 'ps:' + info.path, mask, axes });
+        }
+        if (mask === entry.last) return;
         entry.last = mask;
         this.emit('buttons', { id: info.path, mask });
       });
@@ -113,4 +134,4 @@ class PsHidWatcher extends EventEmitter {
   }
 }
 
-module.exports = { PsHidWatcher, parseReport };
+module.exports = { PsHidWatcher, parseReport, parseAxes };

@@ -587,6 +587,11 @@
         { label: 'Neu starten', icon: '⟳', action: () => doPower('restart', 'Neu starten') },
         { label: 'Energie sparen', icon: '☾', action: () => doPower('sleep', 'Energie sparen') },
         { label: 'Zum Desktop (Konsolenmodus beenden)', icon: '⇱', action: () => doPower('exit', 'Konsolenmodus beenden') },
+        { label: 'Maus- & Tastatursteuerung', icon: '🖱', hint: Glyphs.comboLabel(App.cfg.controller.mouseModeCombo), action: () => { App.closeMenu(); api.toggleMouseMode(); } },
+        ...(App.cfg.homeassistant && App.cfg.homeassistant.enabled ? [
+          { label: 'Fernseher einschalten / Eingang wählen', icon: '📺', action: async () => { App.closeMenu(); try { await api.haTv(true); App.toast('Fernseher angesteuert', 'ok'); } catch (e) { App.toast(String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''), 'error', 6000); } } },
+          { label: 'Fernseher ausschalten', icon: '⏼', action: async () => { App.closeMenu(); try { await api.haTv(false); } catch (e) { App.toast(String(e.message || e), 'error'); } } }
+        ] : []),
         { label: 'Bildschirm umschalten …', icon: '🖵', action: displayMenu },
         { label: 'Fehlende Cover herunterladen', icon: '⬇', action: () => { App.closeMenu(); App.scrape({}); } },
         { label: 'Bibliothek neu einlesen', icon: '↻', action: async () => { App.closeMenu(); await App.refreshLibrary(); App.toast(`${App.library.games.length} Spiele gefunden`, 'ok'); } },
@@ -741,6 +746,11 @@
     api.onConfigChanged((c) => { App.cfg = c; if (App.view === 'home') { const f = { ...App.focus }; renderHome(); setFocus(Math.min(f.s, Math.max(0, App.sections.length - 1)), 0, true); } });
     api.onToast((t) => App.toast(t.text, t.type));
     api.onScrapeProgress(showScrapeProgress);
+    api.onMouseMode((on) => {
+      Input.configure({ gamepadDisabled: on });
+      document.body.classList.toggle('hide-cursor', !on && App.cfg.general.hideCursor);
+      App.toast(on ? '🖱 Maus- & Tastatursteuerung aktiv' : '🎮 Controller-Navigation aktiv', 'info', 2000);
+    });
     api.onLibraryChanged((lib) => {
       App.library = lib;
       buildTabs();

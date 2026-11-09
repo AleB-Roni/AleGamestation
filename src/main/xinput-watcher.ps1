@@ -19,6 +19,8 @@ public static class AgsXInput {
   [DllImport("xinput9_1_0.dll", EntryPoint = "XInputGetState")] static extern int GetState910(int i, ref STATE s);
 
   static int mode = 0;
+  // Letzte Stick-Werte (-32768..32767), gelesen zusammen mit Read()
+  public static int LX, LY, RX, RY;
   public static int Read(int i) {
     STATE s = new STATE();
     int r = -1;
@@ -32,6 +34,7 @@ public static class AgsXInput {
       } catch (Exception) { mode++; if (mode > 3) return -1; }
     }
     if (r != 0) return -1;
+    LX = s.Gamepad.sThumbLX; LY = s.Gamepad.sThumbLY; RX = s.Gamepad.sThumbRX; RY = s.Gamepad.sThumbRY;
     int mask = s.Gamepad.wButtons;
     if (s.Gamepad.bLeftTrigger > 120) mask |= 0x10000;
     if (s.Gamepad.bRightTrigger > 120) mask |= 0x20000;
@@ -40,19 +43,24 @@ public static class AgsXInput {
 }
 "@
 
-$last = @(-2, -2, -2, -2)
+$last = @('', '', '', '')
+$lastMask = @(-2, -2, -2, -2)
 $tick = 0
+# Sticks auf 1/32 runden, damit nur echte Bewegungen gemeldet werden
+function Q([int]$v) { [Math]::Round($v / 1024) }
 while ($true) {
   for ($i = 0; $i -lt 4; $i++) {
     # Nicht verbundene Controller nur selten abfragen (XInput ist bei leeren Slots langsam)
-    if ($last[$i] -eq -1 -and ($tick % 60) -ne 0) { continue }
+    if ($lastMask[$i] -eq -1 -and ($tick % 60) -ne 0) { continue }
     $m = [AgsXInput]::Read($i)
-    if ($m -ne $last[$i]) {
-      $last[$i] = $m
-      [Console]::Out.WriteLine("$i $m")
+    $line = if ($m -lt 0) { "$i -1" } else { "$i $m $(Q ([AgsXInput]::LX)) $(Q ([AgsXInput]::LY)) $(Q ([AgsXInput]::RX)) $(Q ([AgsXInput]::RY))" }
+    $lastMask[$i] = $m
+    if ($line -ne $last[$i]) {
+      $last[$i] = $line
+      [Console]::Out.WriteLine($line)
       [Console]::Out.Flush()
     }
   }
   $tick++
-  Start-Sleep -Milliseconds 25
+  Start-Sleep -Milliseconds 12
 }

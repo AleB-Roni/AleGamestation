@@ -15,6 +15,8 @@ Alle Spiele (Steam, Epic, GOG, eigene) und Emulator-Spiele in einer modernen Obe
 - ROM-Ordner werden durchsucht (inkl. Unterordner), Covers werden automatisch erkannt (`Spielname.png` im Ordner, in `covers/` oder `media/covers/`)
 - **Konsolen-Sounds**: sanfte, glockenartige Menüklänge mit Hall (Thema „Modern“), alternativ „Retro (8-Bit)“, Lautstärke einstellbar, Start-Klang
 - **Automatische Updates** direkt von GitHub
+- **Home Assistant**: Fernseher beim Start einschalten und auf den richtigen HDMI-Eingang schalten
+- **Maus & Tastatur per Controller** – nie wieder zur Tastatur greifen
 - **Cover-Download** für ROMs (libretro-thumbnails ohne Konto, optional ScreenScraper) inkl. Screenshots als Hintergrund
 - Startseite mit Regalen: *Zuletzt gespielt*, *Favoriten*, je Store/System eine Reihe
 - Favoriten, **Spielzeit-Statistik**, „zuletzt gespielt“, eigene Cover, Spiele ausblenden
@@ -86,6 +88,38 @@ npm run dist       # Installer lokal erstellen (Ordner dist/)
 | **BACK + START halten** | Laufendes Spiel beenden | |
 
 Tastatur: Pfeiltasten, Enter, Esc, `F` = Favorit, `Tab` = Details, `Q`/`E` = Kategorie, `M` = Menü, `S` = Einstellungen.
+
+## Home Assistant – Fernseher automatisch einschalten
+
+Beim Start schaltet AleGamestation den Fernseher über Home Assistant ein, wartet bis er an ist und wechselt auf den gewählten **HDMI-Eingang** – erst danach wird das Bild auf den TV umgeschaltet.
+
+1. In Home Assistant: **Profil → Sicherheit → Langlebiges Zugangstoken erstellen**
+2. In AleGamestation: **Einstellungen → Home Assistant** → Adresse (z. B. `http://homeassistant.local:8123`) und Token eintragen → **„Verbindung testen & Geräte laden“**
+3. Fernseher und HDMI-Eingang auswählen (die Eingangsliste kommt direkt vom Fernseher)
+
+Optional: Fernseher beim Herunterfahren / Zurückkehren zum Desktop ausschalten oder auf einen anderen Eingang schalten, und eigene Aktionen beim Start/Beenden (z. B. `scene.gaming`, `script.licht_dimmen`, `light.turn_off:light.decke`).
+Funktioniert mit allen Fernsehern, die Home Assistant als Mediaplayer kennt (LG webOS, Samsung, Sony Bravia, Android TV, Philips …). Ob ein ausgeschalteter Fernseher eingeschaltet werden kann, hängt von der jeweiligen Integration ab (bei LG z. B. per Wake-on-LAN-Automation).
+
+## Maus & Tastatur per Controller
+
+Für Launcher-Fenster, Logins oder den Browser: **Create + △** (Xbox: View + Y) kurz halten schaltet die Maussteuerung ein bzw. aus – überall in Windows, auch über anderen Programmen. Eine Einblendung oben zeigt den Status.
+
+| Controller | Funktion |
+|---|---|
+| Linker Stick | Maus bewegen (R2/RT halten = langsam & präzise) |
+| Rechter Stick | Scrollen |
+| ✕ / A | Linksklick (halten = ziehen) |
+| ○ / B | Rechtsklick |
+| □ / X | Bildschirmtastatur ein/aus |
+| △ / Y | Enter |
+| Steuerkreuz | Pfeiltasten |
+| L1 / LB | Alt+Tab (Fenster wechseln) |
+| R1 / RB | Tab |
+| L2 / LT | Rücktaste |
+| Options / Start | Esc |
+| L3 | Mittelklick |
+
+Kombination und Mausgeschwindigkeit sind unter **Einstellungen → Controller** einstellbar.
 
 ## Cover herunterladen
 

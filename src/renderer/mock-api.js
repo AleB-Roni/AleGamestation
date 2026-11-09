@@ -26,7 +26,8 @@
   const defaults = {
     general: { startFullscreen: true, targetDisplay: 'primary', autostartWithWindows: false, minimizeOnLaunch: true, refocusAfterGame: true, uiSounds: true, soundTheme: 'modern', soundVolume: 0.7, startupSound: true, autoUpdate: true, hideCursor: false, showClock: true, confirmPowerActions: true, accentColor: '#7c5cff', uiScale: 1 },
     display: { onStart: 'external', onExit: 'extend', restoreBeforeShutdown: true, switchDelayMs: 2500, customCommandsOnStart: [], customCommandsOnExit: [] },
-    controller: { closeGameCombo: 'BACK+START', showLauncherCombo: 'BACK+LB+RB', comboHoldMs: 800, gracefulCloseMs: 1500, useAnalogStick: true, swapAB: false, glyphStyle: 'auto', playstationHid: true },
+    controller: { closeGameCombo: 'BACK+START', showLauncherCombo: 'BACK+LB+RB', comboHoldMs: 800, gracefulCloseMs: 1500, useAnalogStick: true, swapAB: false, glyphStyle: 'auto', playstationHid: true, mouseModeCombo: 'BACK+Y', mouseSpeed: 1 },
+    homeassistant: { enabled: true, url: 'http://homeassistant.local:8123', token: 'abc', tvEntity: '', source: '', turnOnAtStart: true, waitForTvSeconds: 20, turnOffAtExit: false, sourceAtExit: '', turnOffAtShutdown: true, startServices: [], exitServices: [] },
     performance: { enabled: true, highPerformancePlan: false, programs: [{ name: 'Wallpaper Engine', process: 'wallpaper64.exe;wallpaper32.exe', action: 'pause', pauseArgs: '-control pause', resumeArgs: '-control play', restore: true, enabled: true }] },
     steam: { enabled: true, path: '', launchViaBigPicture: false, showBigPictureTile: true },
     stores: { epic: true, gog: true },
@@ -48,6 +49,8 @@
     runningPrograms: async () => [{ name: 'Google Chrome', process: 'chrome.exe', memMB: 1840 }, { name: 'Discord', process: 'Discord.exe', memMB: 520 }],
     scrape: async () => ({ total: 3, found: 2, missing: 1, finished: true }), cancelScrape: async () => true, mediaDir: async () => 'media',
     onScrapeProgress: noop, onLibraryChanged: noop,
+    haTest: async () => ({ message: 'API running.', players: [{ id: 'media_player.lg_tv', name: 'LG OLED Wohnzimmer', state: 'off', sources: ['HDMI 1', 'HDMI 2', 'HDMI 3', 'Netflix', 'YouTube'] }], scripts: [] }),
+    haTv: async () => ({ on: true, source: 'HDMI 2' }), toggleMouseMode: async () => true, onMouseMode: noop,
     pickFile: async () => null, pickFolder: async () => null, pickImage: async () => null,
     onGameStatus: noop, onConfigChanged: noop, onToast: noop, onWindowFocus: noop, onGamepadConnection: noop
   };

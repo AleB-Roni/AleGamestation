@@ -11,6 +11,9 @@ const { Updater } = require('./updater');
 const { Performance, RECOMMENDED, listRunning } = require('./performance');
 const { PsHidWatcher } = require('./ps-hid-watcher');
 const { Scraper } = require('./scraper');
+const { HomeAssistant } = require('./homeassistant');
+const { MouseMode } = require('./mouse-mode');
+const { Osd } = require('./osd');
 
 // Nur eine Instanz erlauben
 if (!app.requestSingleInstanceLock()) {
@@ -25,6 +28,10 @@ let updater = null;
 const perf = new Performance();
 let perfPromise = Promise.resolve([]);
 const psWatcher = new PsHidWatcher();
+const ha = new HomeAssistant({ fetch: (url, opts) => net.fetch(url, opts), getConfig: () => store.get(), log: (m) => send('toast', { type: 'info', text: m }) });
+const mouseMode = new MouseMode({ getConfig: () => store.get() });
+const osd = new Osd();
+let startupNotes = [];
 let win = null;
 let library = { systems: [], games: [] };
 let quitting = false;
@@ -73,7 +80,8 @@ function applyCombos() {
   const c = cfg().controller;
   watcher.setCombos([
     { name: 'closeGame', combo: c.closeGameCombo, holdMs: c.comboHoldMs },
-    { name: 'showLauncher', combo: c.showLauncherCombo, holdMs: c.comboHoldMs }
+    { name: 'showLauncher', combo: c.showLauncherCombo, holdMs: c.comboHoldMs },
+    { name: 'mouseMode', combo: c.mouseModeCombo, holdMs: Math.min(c.comboHoldMs, 600) }
   ]);
 }
 
@@ -85,6 +93,15 @@ function applyAutostart() {
 
 async function enterConsoleMode() {
   const d = cfg().display;
+  // Fernseher über Home Assistant einschalten und HDMI-Eingang wählen – bevor Windows das Bild umschaltet
+  if (ha.ready()) {
+    try {
+      const r = await ha.onStart();
+      if (r && !r.skipped) startupNotes.push({ type: 'ok', text: `📺 Fernseher ${r.on ? 'eingeschaltet' : 'angesteuert'}${r.source ? ' · ' + r.source : ''}` });
+    } catch (err) {
+      startupNotes.push({ type: 'error', text: err.message });
+    }
+  }
   await system.runCommands(d.customCommandsOnStart);
   if (!skipDisplaySwitch && d.onStart && d.onStart !== 'none') {
     const r = await system.setDisplayMode(d.onStart);
@@ -97,6 +114,7 @@ async function enterConsoleMode() {
 
 async function leaveConsoleMode(opts = {}) {
   const d = cfg().display;
+  mouseMode.setActive(false);
   await perfPromise;
   await perf.restore(!!opts.shutdown);
   if (displaySwitched && d.onExit && d.onExit !== 'none') {
@@ -104,6 +122,7 @@ async function leaveConsoleMode(opts = {}) {
     displaySwitched = false;
   }
   await system.runCommands(d.customCommandsOnExit);
+  if (!opts.restart) await ha.onExit({ shutdown: !!opts.shutdown }).catch(() => {});
 }
 
 function mediaDir() {
@@ -181,7 +200,10 @@ function createWindow() {
     bringToFront();
   });
   if (isDev) win.webContents.openDevTools({ mode: 'detach' });
-  win.on('closed', () => { win = null; });
+  win.on('closed', () => { win = null; osd.destroy(); });
+  win.webContents.on('did-finish-load', () => {
+    setTimeout(() => { for (const n of startupNotes.splice(0)) send('toast', n); }, 1500);
+  });
   win.on('focus', () => send('window:focus', true));
   win.on('blur', () => send('window:focus', false));
 }
@@ -210,9 +232,26 @@ watcher.on('combo', async ({ name }) => {
     await launcher.kill();
   } else if (name === 'showLauncher') {
     bringToFront();
+  } else if (name === 'mouseMode') {
+    mouseMode.toggle();
   }
 });
 watcher.on('connection', (c) => send('gamepad:connection', c));
+watcher.on('state', (s) => mouseMode.update(s));
+psWatcher.on('state', (s) => mouseMode.update(s));
+
+// ---------- Maus- & Tastatursteuerung ----------
+function comboText(combo, ps) {
+  const map = ps ? { BACK: 'Create', START: 'Options', A: '✕', B: '○', X: '□', Y: '△', LB: 'L1', RB: 'R1', LT: 'L2', RT: 'R2', GUIDE: 'PS' } : { BACK: 'View', START: 'Menu' };
+  return String(combo || '').split('+').map((k) => map[k] || k).join(' + ');
+}
+mouseMode.on('active', (on) => {
+  send('mousemode', on);
+  const ps = psWatcher.devices && psWatcher.devices.size > 0;
+  if (on) osd.show('🖱', 'Maus- & Tastatursteuerung aktiv', `${comboText(cfg().controller.mouseModeCombo, ps)} zum Beenden`, 0);
+  else osd.show('🎮', 'Controller-Steuerung', '', 1500);
+});
+mouseMode.on('keyboard', () => mouseMode.toggleKeyboard());
 
 function startPlayStationWatcher() {
   if (cfg().controller.playstationHid === false) return;
@@ -261,13 +300,20 @@ ipcMain.handle('system:power', async (_e, action) => {
     return true;
   }
   if (['shutdown', 'restart'].includes(action)) {
-    if (cfg().display.restoreBeforeShutdown) await leaveConsoleMode({ shutdown: true });
-    else await perf.restore(true);
+    const opts = { shutdown: action === 'shutdown', restart: action === 'restart' };
+    if (cfg().display.restoreBeforeShutdown) await leaveConsoleMode(opts);
+    else {
+      await perf.restore(true);
+      if (opts.shutdown) await ha.onExit({ shutdown: true }).catch(() => {});
+    }
   }
   return system.power(action);
 });
 ipcMain.handle('system:displayMode', (_e, mode) => system.setDisplayMode(mode));
 ipcMain.handle('system:displays', () => screen.getAllDisplays().map((d, i) => ({ index: i, label: d.label || `Bildschirm ${i + 1}`, width: d.size.width, height: d.size.height, primary: d.id === screen.getPrimaryDisplay().id })));
+ipcMain.handle('ha:test', () => ha.test());
+ipcMain.handle('ha:tv', async (_e, on) => (on ? ha.tvOn() : ha.tvOff()));
+ipcMain.handle('mouse:toggle', () => mouseMode.toggle());
 ipcMain.handle('scrape:start', (_e, opts = {}) => {
   let games = library.games.filter((g) => g.type === 'rom');
   if (opts.ids) games = games.filter((g) => opts.ids.includes(g.id));
@@ -338,7 +384,9 @@ app.whenReady().then(async () => {
 app.on('before-quit', async (e) => {
   watcher.stop();
   psWatcher.stop();
-  if (!quitting && (displaySwitched || perf.applied.length || perf.previousPlan)) {
+  mouseMode.stop();
+  osd.destroy();
+  if (!quitting && (displaySwitched || perf.applied.length || perf.previousPlan || ha.ready())) {
     e.preventDefault();
     quitting = true;
     await leaveConsoleMode();

@@ -165,3 +165,73 @@ test('ScreenScraper: Antwort auswerten, Region bevorzugen, Bild speichern', asyn
 test('Spielnamen: Artikel nach vorne', () => {
   assert.strictEqual(prettyName('Legend of Zelda, The - A Link to the Past (USA).sfc'), 'The Legend of Zelda - A Link to the Past');
 });
+
+test('Home Assistant: Fernseher einschalten, warten, HDMI-Eingang wählen', async () => {
+  const { HomeAssistant } = require('../src/main/homeassistant');
+  let tv = { state: 'off', attributes: { source: 'HDMI 1', source_list: ['HDMI 1', 'HDMI 2'] } };
+  const calls = [];
+  const fetch = async (url, opts) => {
+    const u = new URL(url);
+    calls.push(`${opts.method} ${u.pathname}${opts.body ? ' ' + opts.body : ''}`);
+    assert.strictEqual(opts.headers.Authorization, 'Bearer TOKEN');
+    let body = null;
+    if (u.pathname === '/api/states/media_player.tv') body = tv;
+    if (u.pathname === '/api/services/media_player/turn_on') { setTimeout(() => { tv = { ...tv, state: 'on' }; }, 50); body = []; }
+    if (u.pathname === '/api/services/media_player/select_source') { tv = { ...tv, attributes: { ...tv.attributes, source: JSON.parse(opts.body).source } }; body = []; }
+    if (u.pathname === '/api/services/scene/turn_on' || u.pathname === '/api/services/light/turn_off' || u.pathname === '/api/services/media_player/turn_off') body = [];
+    return { ok: body !== null, status: body !== null ? 200 : 404, text: async () => JSON.stringify(body) };
+  };
+  const cfg = { homeassistant: { enabled: true, url: 'http://ha.local:8123/', token: 'TOKEN', tvEntity: 'media_player.tv', source: 'HDMI 2', waitForTvSeconds: 5,
+    startServices: ['scene.gaming', 'light.turn_off:light.decke'], turnOffAtShutdown: true } };
+  const ha = new HomeAssistant({ fetch, getConfig: () => cfg });
+  const r = await ha.onStart();
+  assert.deepStrictEqual(r, { on: true, source: 'HDMI 2' });
+  assert.ok(calls.includes('POST /api/services/media_player/turn_on {"entity_id":"media_player.tv"}'));
+  assert.ok(calls.some((c) => c.startsWith('POST /api/services/media_player/select_source') && c.includes('HDMI 2')));
+  assert.ok(calls.includes('POST /api/services/scene/turn_on {"entity_id":"scene.gaming"}'));
+  assert.ok(calls.includes('POST /api/services/light/turn_off {"entity_id":"light.decke"}'));
+  // Einschalten passiert vor dem Umschalten des Eingangs
+  assert.ok(calls.findIndex((c) => c.includes('turn_on {"entity_id":"media_player.tv"}')) < calls.findIndex((c) => c.includes('select_source')));
+  await ha.onExit({ shutdown: true });
+  assert.ok(calls.includes('POST /api/services/media_player/turn_off {"entity_id":"media_player.tv"}'));
+  // Deaktiviert -> nichts passiert
+  cfg.homeassistant.enabled = false;
+  assert.strictEqual(await ha.onStart(), null);
+});
+
+test('Maussteuerung: Stick bewegt Maus, Tasten klicken, Kombination wird ignoriert', () => {
+  const { MouseMode, curve } = require('../src/main/mouse-mode');
+  assert.strictEqual(curve(0.1), 0); // Totzone
+  assert.ok(curve(1) === 1 && curve(-1) === -1 && curve(0.6) > 0 && curve(0.6) < 0.6);
+  const sent = [];
+  const mm = new MouseMode({ getConfig: () => ({ controller: { mouseSpeed: 1 } }), send: (l) => sent.push(l) });
+  // Beim Einschalten sind BACK+Y gedrückt -> Y darf kein Enter auslösen
+  mm.update({ id: 'p', mask: BUTTONS.BACK | BUTTONS.Y, axes: [0, 0, 0, 0] });
+  mm.setActive(true);
+  clearInterval(mm.timer);
+  mm.lastTick = Date.now() - 20; mm.tick();
+  assert.ok(!sent.some((l) => l.startsWith('k 13')));
+  mm.update({ id: 'p', mask: 0, axes: [1, 0.5, 0, -1] });
+  mm.lastTick = Date.now() - 20; mm.tick();
+  const move = sent.find((l) => l.startsWith('m '));
+  assert.ok(move, 'Maus bewegt');
+  const [, dx, dy] = move.split(' ').map(Number);
+  assert.ok(dx > 10 && dy > 0 && dy < dx);
+  mm.update({ id: 'p', mask: BUTTONS.A, axes: [0, 0, 0, 0] });
+  mm.lastTick = Date.now() - 20; mm.tick();
+  assert.ok(sent.includes('b L 1'));
+  mm.update({ id: 'p', mask: BUTTONS.Y, axes: [0, 0, 0, 0] });
+  mm.lastTick = Date.now() - 20; mm.tick();
+  assert.ok(sent.includes('b L 0') && sent.includes('k 13 1'));
+  mm.setActive(false);
+  assert.ok(sent.includes('k 13 0'), 'beim Ausschalten alles loslassen');
+});
+
+test('PlayStation: Analog-Sticks auslesen', () => {
+  const { parseAxes } = require('../src/main/ps-hid-watcher');
+  const ds = Buffer.alloc(64); ds[0] = 0x01; ds[1] = 255; ds[2] = 0; ds[3] = 128; ds[4] = 128;
+  const a = parseAxes(0x0ce6, ds);
+  assert.ok(a[0] === 1 && a[1] === -1 && a[2] === 0);
+  const bt = Buffer.alloc(78); bt[0] = 0x31; bt[2] = 1; bt[3] = 128; bt[4] = 128; bt[5] = 255;
+  assert.ok(parseAxes(0x0ce6, bt)[0] < -0.98 && parseAxes(0x0ce6, bt)[3] === 1);
+});
