@@ -97,6 +97,12 @@
         button('Kombination „Oberfläche zeigen“ aufnehmen …', () => recordCombo('showLauncherCombo')),
         select('Gedrückt halten für', () => C().controller, 'comboHoldMs', [0, 300, 500, 800, 1200, 2000].map((v) => ({ value: v, label: v ? v / 1000 + ' s' : 'sofort' }))),
         select('Spiel erst sanft schließen', () => C().controller, 'gracefulCloseMs', [0, 800, 1500, 3000].map((v) => ({ value: v, label: v ? `ja, ${v / 1000} s warten` : 'nein, sofort beenden' })), 'Gibt Emulatoren Zeit zum Speichern'),
+        group('Controller-Typ', `Erkannt: ${Glyphs.detected().label}${Glyphs.detected().name ? ' – ' + Glyphs.detected().name : ''}`),
+        select('Tastensymbole', () => C().controller, 'glyphStyle', [
+          { value: 'auto', label: 'Automatisch erkennen' }, { value: 'playstation', label: 'PlayStation  ✕ ○ □ △' },
+          { value: 'xbox', label: 'Xbox  A B X Y' }, { value: 'nintendo', label: 'Nintendo' }
+        ], 'Welche Symbole in der Oberfläche angezeigt werden'),
+        toggle('PlayStation-Controller direkt unterstützen', () => C().controller, 'playstationHid', 'DualSense / DualShock 4 per USB oder Bluetooth – Beenden-Kombination funktioniert ohne Steam Input oder DS4Windows'),
         group('Navigation'),
         toggle('Analog-Stick zur Navigation', () => C().controller, 'useAnalogStick'),
         toggle('A/B tauschen (Nintendo-Layout)', () => C().controller, 'swapAB')
@@ -187,6 +193,41 @@
       }
     },
     {
+      id: 'performance', title: 'Leistung', rows: () => {
+        const P = () => C().performance;
+        const programs = P().programs || [];
+        const rows = [
+          group('Leistungsmodus', 'Beim Start des Konsolenmodus'),
+          toggle('Hintergrundprogramme pausieren / beenden', P, 'enabled', 'Spart CPU, GPU und RAM für deine Spiele – beim Verlassen wird alles wiederhergestellt'),
+          toggle('Energieplan „Höchstleistung“', P, 'highPerformancePlan', 'Während des Konsolenmodus, danach wird der vorherige Plan wiederhergestellt'),
+          button('＋ Empfohlene Programme hinzufügen …', recommendedMenu),
+          button('＋ Aus laufenden Programmen wählen …', runningMenu),
+          button('＋ Programm (.exe) auswählen …', async () => {
+            const exe = await api.pickFile({ filters: [{ name: 'Programme', extensions: ['exe'] }] });
+            if (!exe) return;
+            const file = exe.split(/[\\/]/).pop();
+            programs.push({ name: file.replace(/\.exe$/i, ''), process: file, action: 'pause', restore: true, enabled: true });
+            commit(false);
+          })
+        ];
+        const ACTIONS = [
+          { value: 'pause', label: 'Pausieren (einfrieren)' },
+          { value: 'close', label: 'Schließen' },
+          { value: 'kill', label: 'Sofort beenden' }
+        ];
+        programs.forEach((p, i) => {
+          const o = () => P().programs[i];
+          rows.push(group(p.name, p.process));
+          rows.push(toggle('Aktiv', o, 'enabled'));
+          rows.push(select('Aktion', o, 'action', ACTIONS, p.pauseArgs ? 'Wird über die programmeigene Pause-Funktion pausiert' : 'Pausieren: Programm bleibt offen, verbraucht aber keine CPU mehr'));
+          rows.push(toggle('Beim Verlassen wiederherstellen', o, 'restore', 'Fortsetzen bzw. wieder starten'));
+          rows.push(text('Prozessname(n)', o, 'process', 'z.B. wallpaper64.exe – mehrere mit ; trennen'));
+          rows.push(button('Entfernen', () => { P().programs.splice(i, 1); commit(false); }, { danger: true }));
+        });
+        return rows;
+      }
+    },
+    {
       id: 'stores', title: 'Steam & Stores', rows: () => {
         const hidden = App.library.games.filter((g) => g.hidden);
         return [
@@ -237,6 +278,29 @@
     }
   ];
 
+  async function recommendedMenu() {
+    const list = await api.recommendedPrograms();
+    const have = new Set((C().performance.programs || []).map((p) => p.process.toLowerCase()));
+    const items = list.filter((r) => !have.has(r.process.toLowerCase())).map((r) => ({
+      label: r.name, hint: r.note, icon: r.action === 'pause' ? '⏸' : '✕',
+      action: () => { C().performance.programs.push({ ...r, enabled: true, note: undefined }); App.closeMenu(); commit(false); App.toast(`${r.name} hinzugefügt`, 'ok'); }
+    }));
+    if (!items.length) return App.toast('Alle Empfehlungen sind bereits hinzugefügt', 'info');
+    App.menu({ title: 'Empfohlene Programme', text: 'Programme, die im Hintergrund oft Leistung kosten. Sie werden nur behandelt, wenn sie gerade laufen.', items });
+  }
+
+  async function runningMenu() {
+    App.toast('Lese laufende Programme …', 'info', 1500);
+    const list = await api.runningPrograms();
+    const have = new Set((C().performance.programs || []).map((p) => p.process.toLowerCase()));
+    const items = list.filter((r) => !have.has(r.process.toLowerCase())).map((r) => ({
+      label: r.name, hint: `${r.memMB} MB`, icon: '▣',
+      action: () => { C().performance.programs.push({ name: r.name, process: r.process, action: 'pause', restore: true, enabled: true }); App.closeMenu(); commit(false); App.toast(`${r.name} hinzugefügt`, 'ok'); }
+    }));
+    if (!items.length) return App.toast('Keine passenden laufenden Programme gefunden', 'info');
+    App.menu({ title: 'Laufende Programme', text: 'Nach Arbeitsspeicher sortiert. Auswählen, um es beim Start des Konsolenmodus zu pausieren.', items });
+  }
+
   async function refreshUpdate() {
     try { S.update = await api.updateState(); } catch { S.update = {}; }
     if (SECTIONS[S.section].id === 'about') render();
@@ -244,7 +308,7 @@
 
   function comboOptions(current) {
     const list = COMBO_PRESETS.includes(current) ? COMBO_PRESETS : [current, ...COMBO_PRESETS];
-    return list.map((c) => ({ value: c, label: c.split('+').join(' + ') }));
+    return list.map((c) => ({ value: c, label: Glyphs.comboLabel(c) }));
   }
 
   async function commit(rescan) {
@@ -415,6 +479,7 @@
       }
     },
     refreshUpdate,
+    rerender: () => render(),
     hints(hint, glyph) {
       return hint(glyph('A'), 'Ändern') + hint('◀ ▶', 'Wert') + hint(glyph('X') + glyph('Y'), 'Bereich') + hint(glyph('B'), 'Zurück');
     }

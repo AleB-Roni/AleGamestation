@@ -1,7 +1,7 @@
 {
   "name": "alegamestation",
   "productName": "AleGamestation",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Konsolenmodus für Windows-PCs: alle Spiele & Emulatoren mit dem Controller vom Fernseher aus starten.",
   "main": "src/main/main.js",
   "author": "AleB-Roni",
@@ -61,13 +61,15 @@
         "repo": "AleGamestation",
         "releaseType": "release"
       }
-    ]
+    ],
+    "npmRebuild": false
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/AleB-Roni/AleGamestation.git"
   },
   "dependencies": {
-    "electron-updater": "^6.8.11"
+    "electron-updater": "^6.8.11",
+    "node-hid": "^3.4.0"
   }
 }

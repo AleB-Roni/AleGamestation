@@ -134,7 +134,7 @@ body.hide-cursor, body.hide-cursor * { cursor: none !important; }
 #settingsTabs { display: flex; gap: 0.4rem; padding: 0.35rem; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; }
 #settingsBody { flex: 1; min-height: 0; overflow-y: auto; padding: 1rem 0.4rem 6rem; scroll-behavior: smooth; scrollbar-width: none; }
 #settingsBody::-webkit-scrollbar { display: none; }
-.s-group { font-size: 0.8rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); margin: 1.8rem 0 0.6rem 0.4rem; display: flex; justify-content: space-between; }
+.s-group { max-width: 1200px; font-size: 0.8rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); margin: 1.8rem 0 0.6rem 0.4rem; display: flex; justify-content: space-between; }
 .s-row {
   display: flex; align-items: center; justify-content: space-between; gap: 2rem;
   padding: 0.95rem 1.3rem; margin: 0.35rem 0; border-radius: 14px;
@@ -209,3 +209,17 @@ body.hide-cursor, body.hide-cursor * { cursor: none !important; }
 .modal.details > p:empty { display: none; }
 .modal.details .menu { grid-column: 2; }
 .modal.details .menu-info:first-of-type { margin-top: 0.8rem; }
+
+/* PlayStation-/Nintendo-Symbole */
+.glyph.ps { background: #1d1d2b; border: 1.5px solid rgba(255,255,255,0.25); font-size: 0.85em; font-weight: 700; line-height: 1; }
+.glyph.ps-cross { color: #8fb4ff; }
+.glyph.ps-circle { color: #ff6f86; }
+.glyph.ps-square { color: #f59ad8; }
+.glyph.ps-triangle { color: #4fe0b6; }
+.glyph.ps-home { font-weight: 800; letter-spacing: 0.04em; }
+.glyph.nin { background: #2a2a36; color: #fff; border: 1.5px solid rgba(255,255,255,0.3); }
+.pad-status { font-size: 0.8rem; font-weight: 800; letter-spacing: 0.06em; }
+
+/* Lange Menüs scrollen */
+.modal { max-height: 88vh; overflow-y: auto; scrollbar-width: none; }
+.modal::-webkit-scrollbar { display: none; }

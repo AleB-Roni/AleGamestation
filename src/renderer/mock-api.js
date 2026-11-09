@@ -26,7 +26,8 @@
   const defaults = {
     general: { startFullscreen: true, targetDisplay: 'primary', autostartWithWindows: false, minimizeOnLaunch: true, refocusAfterGame: true, uiSounds: true, soundTheme: 'modern', soundVolume: 0.7, startupSound: true, autoUpdate: true, hideCursor: false, showClock: true, confirmPowerActions: true, accentColor: '#7c5cff', uiScale: 1 },
     display: { onStart: 'external', onExit: 'extend', restoreBeforeShutdown: true, switchDelayMs: 2500, customCommandsOnStart: [], customCommandsOnExit: [] },
-    controller: { closeGameCombo: 'BACK+START', showLauncherCombo: 'BACK+LB+RB', comboHoldMs: 800, gracefulCloseMs: 1500, useAnalogStick: true, swapAB: false },
+    controller: { closeGameCombo: 'BACK+START', showLauncherCombo: 'BACK+LB+RB', comboHoldMs: 800, gracefulCloseMs: 1500, useAnalogStick: true, swapAB: false, glyphStyle: 'auto', playstationHid: true },
+    performance: { enabled: true, highPerformancePlan: false, programs: [{ name: 'Wallpaper Engine', process: 'wallpaper64.exe;wallpaper32.exe', action: 'pause', pauseArgs: '-control pause', resumeArgs: '-control play', restore: true, enabled: true }] },
     steam: { enabled: true, path: '', launchViaBigPicture: false, showBigPictureTile: true },
     stores: { epic: true, gog: true },
     emulators: emulators.map((e) => ({ id: e.id, name: e.name, exe: 'C:\\Emulatoren\\' + e.name + '.exe', args: '-f "{rom}"' })),
@@ -42,6 +43,8 @@
     launch: async () => ({ running: false }), kill: async () => true, gameStatus: async () => ({ running: false }),
     power: async () => {}, setDisplayMode: async () => {}, displays: async () => [{ index: 0, label: 'TV', width: 3840, height: 2160 }], info: async () => ({}),
     updateState: async () => ({ status: 'latest', version: '1.0.0' }), checkUpdate: async () => null, installUpdate: async () => false, onUpdateState: noop,
+    recommendedPrograms: async () => [{ name: 'OneDrive', process: 'OneDrive.exe', action: 'close', note: 'Synchronisation' }, { name: 'Microsoft Teams', process: 'ms-teams.exe', action: 'close', note: 'Viel RAM' }],
+    runningPrograms: async () => [{ name: 'Google Chrome', process: 'chrome.exe', memMB: 1840 }, { name: 'Discord', process: 'Discord.exe', memMB: 520 }],
     pickFile: async () => null, pickFolder: async () => null, pickImage: async () => null,
     onGameStatus: noop, onConfigChanged: noop, onToast: noop, onWindowFocus: noop, onGamepadConnection: noop
   };

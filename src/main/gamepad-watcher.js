@@ -13,9 +13,9 @@ const BUTTONS = {
   START: 0x0010, BACK: 0x0020, LS: 0x0040, RS: 0x0080,
   LB: 0x0100, RB: 0x0200, GUIDE: 0x0400,
   A: 0x1000, B: 0x2000, X: 0x4000, Y: 0x8000,
-  LT: 0x10000, RT: 0x20000
+  LT: 0x10000, RT: 0x20000, TOUCHPAD: 0x40000
 };
-const ALIASES = { SELECT: 'BACK', VIEW: 'BACK', MENU: 'START', OPTIONS: 'START', SHARE: 'BACK', HOME: 'GUIDE', PS: 'GUIDE', XBOX: 'GUIDE', L1: 'LB', R1: 'RB', L2: 'LT', R2: 'RT', L3: 'LS', R3: 'RS' };
+const ALIASES = { SELECT: 'BACK', VIEW: 'BACK', MENU: 'START', OPTIONS: 'START', SHARE: 'BACK', CREATE: 'BACK', HOME: 'GUIDE', PS: 'GUIDE', XBOX: 'GUIDE', CROSS: 'A', CIRCLE: 'B', SQUARE: 'X', TRIANGLE: 'Y', TOUCH: 'TOUCHPAD', L1: 'LB', R1: 'RB', L2: 'LT', R2: 'RT', L3: 'LS', R3: 'RS' };
 
 /** "BACK+START" -> Bitmaske (0 = ungültig) */
 function parseCombo(str) {

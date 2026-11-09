@@ -64,7 +64,22 @@ const DEFAULT_CONFIG = {
     // Analog-Stick zur Navigation verwenden
     useAnalogStick: true,
     // Tasten tauschen (Nintendo-Layout: A/B vertauscht)
-    swapAB: false
+    swapAB: false,
+    // Tastensymbole in der Oberfläche: "auto" (erkennt den Controller) | "xbox" | "playstation" | "nintendo"
+    glyphStyle: 'auto',
+    // PlayStation-Controller (DualSense/DualShock 4) direkt auslesen – Beenden-Kombination ohne Steam Input/DS4Windows
+    playstationHid: true
+  },
+
+  // Leistungsmodus: Programme beim Start pausieren/schließen und beim Beenden wiederherstellen
+  // action: "pause" (einfrieren bzw. pauseArgs) | "close" (sanft schließen) | "kill" (sofort beenden)
+  performance: {
+    enabled: true,
+    // Energieplan "Höchstleistung" im Konsolenmodus, danach vorherigen Plan wiederherstellen
+    highPerformancePlan: false,
+    programs: [
+      { name: 'Wallpaper Engine', process: 'wallpaper64.exe;wallpaper32.exe', action: 'pause', pauseArgs: '-control pause', resumeArgs: '-control play', restore: true, enabled: true }
+    ]
   },
 
   steam: {

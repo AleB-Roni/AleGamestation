@@ -9,7 +9,7 @@
     return e;
   };
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const glyph = (k) => `<span class="glyph ${k.toLowerCase()}">${k}</span>`;
+  const glyph = (k) => Glyphs.html(k);
 
   const App = {
     cfg: null,
@@ -86,6 +86,8 @@
     Sounds.setTheme(g.uiSounds === false ? 'off' : g.soundTheme || 'modern');
     Sounds.setVolume(g.soundVolume ?? 0.7);
     Input.configure({ swapAB: App.cfg.controller.swapAB, analog: App.cfg.controller.useAnalogStick });
+    Glyphs.configure({ style: App.cfg.controller.glyphStyle || 'auto', swapAB: App.cfg.controller.swapAB });
+    refreshGlyphs();
     $('#clock').classList.toggle('hidden', !g.showClock);
   }
 
@@ -459,6 +461,8 @@
       list.appendChild(b);
     });
     box.appendChild(list);
+    const f = list.querySelector('.btn.focused');
+    if (f) f.scrollIntoView({ block: 'nearest' });
   }
 
   function modalAction(a) {
@@ -612,7 +616,7 @@
   function showRunning(st) {
     App.running = st;
     $('#runningTitle').textContent = st.game.name;
-    const combo = App.cfg.controller.closeGameCombo.split('+').map((k) => `<span class="glyph pill">${esc(k)}</span>`).join(' + ');
+    const combo = Glyphs.comboHtml(App.cfg.controller.closeGameCombo);
     $('#runningHint').innerHTML = `Zum Beenden am Controller ${combo} gedrückt halten`;
     $('#running').classList.remove('hidden');
     renderHints();
@@ -637,8 +641,8 @@
       if (item && item.kind === 'game') html += hint(glyph('A'), 'Spielen') + hint(glyph('X'), 'Favorit') + hint(glyph('Y'), 'Details');
       else if (item && item.kind === 'system') html += hint(glyph('A'), 'Spiele') + hint(glyph('Y'), 'Emulator wählen');
       else if (item) html += hint(glyph('A'), 'Öffnen');
-      if (App.sections[App.focus.s] && App.sections[App.focus.s].letterJump) html += hint('<span class="glyph pill">LT</span><span class="glyph pill">RT</span>', 'Buchstabe');
-      html += hint('<span class="glyph pill">LB</span><span class="glyph pill">RB</span>', 'Kategorie') + hint('<span class="glyph pill">☰</span>', 'Menü');
+      if (App.sections[App.focus.s] && App.sections[App.focus.s].letterJump) html += hint(glyph('LT') + glyph('RT'), 'Buchstabe');
+      html += hint(glyph('LB') + glyph('RB'), 'Kategorie') + hint(glyph('START'), 'Menü');
     }
     h.innerHTML = html;
   }
@@ -677,6 +681,24 @@
     }
   });
 
+  // ---------------- Controller-Symbole ----------------
+  function refreshGlyphs() {
+    $('#tabL').outerHTML = Glyphs.html('LB').replace('class="glyph', 'id="tabL" class="glyph bumper');
+    $('#tabR').outerHTML = Glyphs.html('RB').replace('class="glyph', 'id="tabR" class="glyph bumper');
+    $('#killGlyph').outerHTML = Glyphs.html('A').replace('class="glyph', 'id="killGlyph" class="glyph');
+    $('#emptyMenuGlyph').outerHTML = Glyphs.html('START').replace('class="glyph', 'id="emptyMenuGlyph" class="glyph');
+    const pad = $('#padStatus');
+    pad.textContent = Glyphs.style() === 'playstation' ? 'PS' : Glyphs.style() === 'nintendo' ? 'NS' : '🎮';
+    pad.title = Glyphs.detected().name || 'Controller';
+    if (App.running) showRunning(App.running);
+    renderHints();
+    if (App.view === 'settings' && SettingsView.rerender) SettingsView.rerender();
+  }
+  Glyphs.onChange(() => {
+    refreshGlyphs();
+    App.toast(`${Glyphs.NAMES[Glyphs.style()]}-Controller erkannt`, 'info', 1800);
+  });
+
   // ---------------- Start ----------------
   function tickClock() {
     $('#clock').textContent = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
@@ -707,6 +729,10 @@
     api.onGameStatus((s) => (s.running ? showRunning(s) : hideRunning()));
     api.onConfigChanged((c) => { App.cfg = c; if (App.view === 'home') { const f = { ...App.focus }; renderHome(); setFocus(Math.min(f.s, Math.max(0, App.sections.length - 1)), 0, true); } });
     api.onToast((t) => App.toast(t.text, t.type));
+    api.onGamepadConnection((c) => {
+      if (c.connected && c.type && c.source === 'hid' && !Input.connected()) Glyphs.setDetected('playstation', c.type === 'dualsense' ? 'DualSense' : 'DualShock 4');
+      if (c.connected && c.source === 'hid') $('#padStatus').classList.add('on');
+    });
 
     // Updates
     App.update = await api.updateState();

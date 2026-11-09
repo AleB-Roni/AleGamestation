@@ -92,3 +92,31 @@ test('ROM-Scan, Cover-Erkennung und Emulator pro Spiel', () => {
   assert.strictEqual(rom2.name, 'Umbenannt');
   assert.strictEqual(resolveEmulator(cfg, rom2).emulator.id, 'e2');
 });
+
+test('PlayStation-HID-Reports werden korrekt gelesen', () => {
+  const { parseReport } = require('../src/main/ps-hid-watcher');
+  // DualSense USB: Report 0x01, Buttons ab Byte 8
+  const ds = Buffer.alloc(64); ds[0] = 0x01; ds[8] = 0x08 | 0x20; // kein Steuerkreuz, ✕
+  ds[9] = 0x10 | 0x20; // Create + Options
+  assert.strictEqual(parseReport(0x0ce6, ds), BUTTONS.A | BUTTONS.BACK | BUTTONS.START);
+  // DualSense Bluetooth: Report 0x31, eins weiter
+  const bt = Buffer.alloc(78); bt[0] = 0x31; bt[9] = 0x00 | 0x80; bt[11] = 0x01; // Steuerkreuz hoch, △, PS
+  assert.strictEqual(parseReport(0x0ce6, bt), BUTTONS.UP | BUTTONS.Y | BUTTONS.GUIDE);
+  // DualShock 4 USB: Buttons ab Byte 5, R2 analog
+  const ds4 = Buffer.alloc(64); ds4[0] = 0x01; ds4[5] = 0x08 | 0x40; ds4[6] = 0x01; ds4[9] = 200;
+  assert.strictEqual(parseReport(0x09cc, ds4), BUTTONS.B | BUTTONS.LB | BUTTONS.RT);
+  // DualShock 4 Bluetooth: Report 0x11
+  const ds4bt = Buffer.alloc(78); ds4bt[0] = 0x11; ds4bt[7] = 0x08 | 0x10; ds4bt[9] = 0x02;
+  assert.strictEqual(parseReport(0x05c4, ds4bt), BUTTONS.X | BUTTONS.TOUCHPAD);
+  assert.strictEqual(parseReport(0x0ce6, Buffer.from([0x05, 1, 2])), null);
+  // Kombination mit PlayStation-Namen
+  assert.strictEqual(parseCombo('CREATE+OPTIONS'), BUTTONS.BACK | BUTTONS.START);
+});
+
+test('Leistungsmodus: Empfehlungen und Prozessnamen', () => {
+  const { RECOMMENDED, names } = require('../src/main/performance');
+  const we = RECOMMENDED.find((r) => r.name === 'Wallpaper Engine');
+  assert.deepStrictEqual(names(we), ['wallpaper64', 'wallpaper32']);
+  assert.ok(RECOMMENDED.every((r) => r.process && ['pause', 'close', 'kill'].includes(r.action)));
+  assert.strictEqual(DEFAULT_CONFIG.performance.programs[0].name, 'Wallpaper Engine');
+});

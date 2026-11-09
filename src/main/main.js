@@ -7,6 +7,8 @@ const { Launcher } = require('./launcher');
 const { GamepadWatcher } = require('./gamepad-watcher');
 const system = require('./system');
 const { Updater } = require('./updater');
+const { Performance, RECOMMENDED, listRunning } = require('./performance');
+const { PsHidWatcher } = require('./ps-hid-watcher');
 
 // Nur eine Instanz erlauben
 if (!app.requestSingleInstanceLock()) {
@@ -18,6 +20,9 @@ const store = new ConfigStore(app.getPath('userData'));
 const launcher = new Launcher(() => store.get());
 const watcher = new GamepadWatcher();
 let updater = null;
+const perf = new Performance();
+let perfPromise = Promise.resolve([]);
+const psWatcher = new PsHidWatcher();
 let win = null;
 let library = { systems: [], games: [] };
 let quitting = false;
@@ -88,8 +93,10 @@ async function enterConsoleMode() {
   }
 }
 
-async function leaveConsoleMode() {
+async function leaveConsoleMode(opts = {}) {
   const d = cfg().display;
+  await perfPromise;
+  await perf.restore(!!opts.shutdown);
   if (displaySwitched && d.onExit && d.onExit !== 'none') {
     await system.setDisplayMode(d.onExit);
     displaySwitched = false;
@@ -160,12 +167,20 @@ watcher.on('combo', async ({ name }) => {
 });
 watcher.on('connection', (c) => send('gamepad:connection', c));
 
+function startPlayStationWatcher() {
+  if (cfg().controller.playstationHid === false) return;
+  psWatcher.start();
+}
+psWatcher.on('buttons', ({ id, mask }) => watcher._update('ps:' + id, mask));
+psWatcher.on('connection', (c) => send('gamepad:connection', { ...c, source: 'hid' }));
+
 // ---------- IPC ----------
 ipcMain.handle('config:get', () => store.get());
 ipcMain.handle('config:defaults', () => DEFAULT_CONFIG);
 ipcMain.handle('config:save', (_e, data) => {
   const saved = store.save(data);
   applyCombos();
+  if (saved.controller.playstationHid === false) psWatcher.stop(); else psWatcher.start();
   applyAutostart();
   placeWindow();
   return saved;
@@ -198,11 +213,16 @@ ipcMain.handle('system:power', async (_e, action) => {
     app.quit();
     return true;
   }
-  if (['shutdown', 'restart'].includes(action) && cfg().display.restoreBeforeShutdown) await leaveConsoleMode();
+  if (['shutdown', 'restart'].includes(action)) {
+    if (cfg().display.restoreBeforeShutdown) await leaveConsoleMode({ shutdown: true });
+    else await perf.restore(true);
+  }
   return system.power(action);
 });
 ipcMain.handle('system:displayMode', (_e, mode) => system.setDisplayMode(mode));
 ipcMain.handle('system:displays', () => screen.getAllDisplays().map((d, i) => ({ index: i, label: d.label || `Bildschirm ${i + 1}`, width: d.size.width, height: d.size.height, primary: d.id === screen.getPrimaryDisplay().id })));
+ipcMain.handle('performance:recommended', () => RECOMMENDED);
+ipcMain.handle('performance:running', () => listRunning());
 ipcMain.handle('system:info', () => ({ platform: process.platform, version: app.getVersion(), watcher: process.platform === 'win32' }));
 
 ipcMain.handle('update:get', () => (updater ? updater.get() : { status: 'idle', version: app.getVersion() }));
@@ -212,6 +232,7 @@ ipcMain.handle('update:install', async () => {
   // Anzeige vorher wiederherstellen, dann Installer starten (App startet danach automatisch neu)
   quitting = true;
   watcher.stop();
+  psWatcher.stop();
   await leaveConsoleMode();
   return updater.install();
 });
@@ -241,6 +262,12 @@ app.whenReady().then(async () => {
   refreshLibrary();
   createWindow();
   watcher.start();
+  startPlayStationWatcher();
+  // Hintergrundprogramme pausieren/schließen (läuft parallel, blockiert den Start nicht)
+  perfPromise = perf.apply(cfg()).then((list) => {
+    if (list.length) send('toast', { type: 'info', text: `Leistungsmodus: ${list.join(', ')} pausiert/beendet` });
+    return list;
+  }).catch(() => []);
   updater = new Updater();
   updater.on('state', (s) => send('update:state', s));
   if (cfg().general.autoUpdate !== false) setTimeout(() => updater.check(), 5000);
@@ -252,7 +279,8 @@ app.whenReady().then(async () => {
 
 app.on('before-quit', async (e) => {
   watcher.stop();
-  if (!quitting && displaySwitched) {
+  psWatcher.stop();
+  if (!quitting && (displaySwitched || perf.applied.length || perf.previousPlan)) {
     e.preventDefault();
     quitting = true;
     await leaveConsoleMode();

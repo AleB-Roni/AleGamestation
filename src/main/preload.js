@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld('api', {
   setDisplayMode: (mode) => ipcRenderer.invoke('system:displayMode', mode),
   displays: () => ipcRenderer.invoke('system:displays'),
   info: () => ipcRenderer.invoke('system:info'),
+  recommendedPrograms: () => ipcRenderer.invoke('performance:recommended'),
+  runningPrograms: () => ipcRenderer.invoke('performance:running'),
 
   updateState: () => ipcRenderer.invoke('update:get'),
   checkUpdate: () => ipcRenderer.invoke('update:check'),
