@@ -1,0 +1,106 @@
+# AleGamestation 🎮
+
+Verwandelt deinen Windows-PC in eine **Konsole für den Fernseher** – ähnlich wie Steam Big Picture oder EmulationStation:
+Alle Spiele (Steam, Epic, GOG, eigene) und Emulator-Spiele in einer modernen Oberfläche, komplett mit dem Controller bedienbar.
+
+![Startseite](docs/start.png)
+
+## Funktionen
+
+**Bibliothek**
+- **Automatische Erkennung** von Steam-, Epic- und GOG-Spielen (inkl. Steam-Coverbildern)
+- **Emulatoren-Ansicht**: oben die Emulatoren/Systeme (mit Status *gefunden / nicht gefunden*), darunter deren Spiele
+- Auf jeder Spielkachel und in den Details siehst du, **mit welchem Emulator** das Spiel startet – und kannst es **pro Spiel ändern**
+- **Eigene Spiele/Programme hinzufügen** (z. B. Kodi, Spiele ohne Launcher) direkt in der Oberfläche
+- ROM-Ordner werden durchsucht (inkl. Unterordner), Covers werden automatisch erkannt (`Spielname.png` im Ordner, in `covers/` oder `media/covers/`)
+- Startseite mit Regalen: *Zuletzt gespielt*, *Favoriten*, je Store/System eine Reihe
+- Favoriten, **Spielzeit-Statistik**, „zuletzt gespielt“, eigene Cover, Spiele ausblenden
+- „Alle Spiele“ mit Buchstaben-Sprung (LT/RT)
+- Kachel „Steam Big Picture öffnen“
+
+**Konsolenmodus**
+- Beim Start **Bildschirm umschalten** (nur TV / nur PC-Monitor / duplizieren / erweitern – wie Win + P), beim Beenden wiederherstellen
+- Eigene Befehle beim Start/Beenden (z. B. Tonausgabe auf den TV umstellen)
+- **Herunterfahren, Neustart, Energiesparen, zurück zum Desktop** direkt per Controller
+- Autostart mit Windows, Vollbild auf wählbarem Bildschirm, Mauszeiger wird ausgeblendet
+
+**Controller**
+- **Tastenkombination zum Beenden von Spielen/Emulatoren** (Standard: `BACK + START` 0,8 s halten) – funktioniert **auch, während das Spiel im Vordergrund ist**
+- Zweite Kombination, um die Oberfläche hervorzuholen, ohne das Spiel zu beenden (Standard: `BACK + LB + RB`)
+- Kombinationen frei wählbar oder **direkt am Controller aufnehmen**
+- Sanftes Beenden (Emulatoren können noch speichern), danach hartes Beenden inkl. aller Unterprozesse
+- Nintendo-Layout (A/B tauschen), Analog-Stick-Navigation
+
+| Emulatoren | Spiel-Details | Einstellungen |
+|---|---|---|
+| ![](docs/emulatoren.png) | ![](docs/details.png) | ![](docs/einstellungen.png) |
+
+## Installation
+
+Voraussetzung: [Node.js](https://nodejs.org) (LTS) auf Windows 10/11.
+
+```bash
+npm install
+npm start          # Konsolenmodus starten
+npm run dev        # Fenster-Modus zum Testen (ohne Bildschirmumschaltung)
+npm run dist       # Installer + portable .exe erstellen (Ordner dist/)
+```
+
+Danach am besten in den Einstellungen **„Mit Windows starten“** aktivieren oder die erstellte `.exe` benutzen.
+
+## Bedienung
+
+| Taste | Bibliothek | Einstellungen |
+|---|---|---|
+| Steuerkreuz / Stick | Navigieren | Navigieren |
+| **A** | Spiel starten | Ändern / Auswählen |
+| **B** | Zurück | Zurück |
+| **X** | Favorit an/aus | Vorheriger Bereich |
+| **Y** | Details (Emulator wählen, Cover, ausblenden …) | Nächster Bereich |
+| **LB / RB** | Kategorie wechseln | Kategorie wechseln |
+| **LT / RT** | Buchstaben-Sprung | |
+| **☰ Start** | Menü (Herunterfahren, Bildschirm, …) | |
+| **⧉ Back** | Einstellungen | Zurück |
+| **BACK + START halten** | Laufendes Spiel beenden | |
+
+Tastatur: Pfeiltasten, Enter, Esc, `F` = Favorit, `Tab` = Details, `Q`/`E` = Kategorie, `M` = Menü, `S` = Einstellungen.
+
+## Einrichtung der Emulatoren
+
+1. **Einstellungen → Emulatoren → „Installierte Emulatoren automatisch suchen“** (findet RetroArch, Dolphin, PCSX2, DuckStation, PPSSPP, melonDS an typischen Orten)
+2. Sonst Pfad zur `.exe` manuell eintragen. Start-Argumente nutzen Platzhalter: `{rom}`, `{romName}`, `{romDir}`, `{emuDir}`
+3. **Einstellungen → Systeme & ROMs**: ROM-Ordner, Dateiendungen und Standard-Emulator je System festlegen
+4. Einzelnes Spiel mit anderem Emulator starten: Spiel auswählen → **Y** → „Starten mit“
+
+Vorbelegte Beispiele (anpassbar):
+
+| System | Emulator | Argumente |
+|---|---|---|
+| NES / SNES / N64 / GBA / Mega Drive | RetroArch + Core | `-f -L cores\snes9x_libretro.dll "{rom}"` |
+| GameCube / Wii | Dolphin | `-b -e "{rom}"` |
+| PS1 | DuckStation | `-batch -fullscreen -- "{rom}"` |
+| PS2 | PCSX2 | `-batch -fullscreen -- "{rom}"` |
+| PSP | PPSSPP | `--fullscreen "{rom}"` |
+| NDS | melonDS | `-f "{rom}"` |
+
+## Gut zu wissen
+
+- **Controller**: Die globale Beenden-Kombination nutzt XInput (Xbox-Controller). PlayStation-/Switch-Controller funktionieren über **Steam Input** oder **DS4Windows**. In der Oberfläche selbst funktionieren alle Controller, die der Browser erkennt.
+- **Bildschirm „nur TV“** setzt voraus, dass Windows den TV als zweiten Bildschirm erkennt. Klappt es nicht, im Menü → „Bildschirm umschalten“ testen und die Wartezeit in Einstellungen → Anzeige erhöhen.
+- **Ton auf den TV**: z. B. mit [NirCmd](https://www.nirsoft.net/utils/nircmd.html): Einstellungen → Anzeige → Befehle beim Start: `nircmd setdefaultsounddevice "LG TV"`.
+- Spiel lässt sich nicht per Controller beenden? Bei eigenen Spielen „Beenden per Controller“ auf *Alle Prozesse aus dem Spielordner* oder *Nach Prozessname* stellen.
+- Alle Einstellungen liegen in `%APPDATA%\AleGamestation\config.json` (Menü → Einstellungen → Allgemein → „Konfigurationsdatei öffnen“).
+
+## Projektstruktur
+
+```
+src/main/        Electron-Hauptprozess
+  main.js          Fenster, Konsolenmodus, IPC
+  library.js       Steam/Epic/GOG/ROM-Erkennung, Emulator-Autoerkennung
+  launcher.js      Spiele starten, überwachen, beenden
+  gamepad-watcher.js + xinput-watcher.ps1   globale Controller-Kombinationen
+  system.js        Bildschirm umschalten, Herunterfahren
+  config.js        Konfiguration mit Standardwerten
+src/renderer/    Oberfläche (HTML/CSS/JS, Controller-Navigation)
+test/            Tests (npm test)
+```

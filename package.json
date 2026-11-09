@@ -1,0 +1,37 @@
+{
+  "name": "alegamestation",
+  "productName": "AleGamestation",
+  "version": "1.0.0",
+  "description": "Konsolenmodus für Windows-PCs: alle Spiele & Emulatoren mit dem Controller vom Fernseher aus starten.",
+  "main": "src/main/main.js",
+  "author": "AleB-Roni",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev --no-display-switch",
+    "test": "node --test \"test/**/*.test.js\"",
+    "dist": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^44.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "de.alegamestation.app",
+    "productName": "AleGamestation",
+    "files": ["src/**/*", "package.json"],
+    "asarUnpack": ["src/main/xinput-watcher.ps1"],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "AleGamestation"
+    }
+  }
+}

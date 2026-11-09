@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file: data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; media-src 'self' file:" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AleGamestation</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="bg">
+    <div class="bg-image" id="bgImage"></div>
+    <div class="bg-orb orb-a"></div>
+    <div class="bg-orb orb-b"></div>
+    <div class="bg-shade"></div>
+  </div>
+
+  <div id="app">
+    <header id="topbar">
+      <div class="brand"><span class="brand-mark">◆</span> Ale<b>Gamestation</b></div>
+      <nav id="tabs">
+        <span class="glyph bumper">LB</span>
+        <div id="tabList"></div>
+        <span class="glyph bumper">RB</span>
+      </nav>
+      <div class="status">
+        <span id="padStatus" class="pad-status" title="Controller">🎮</span>
+        <span id="clock"></span>
+      </div>
+    </header>
+
+    <!-- Bibliothek -->
+    <main id="home" class="view active">
+      <section id="hero">
+        <div class="hero-system" id="heroSystem"></div>
+        <h1 id="heroTitle">Bibliothek wird geladen …</h1>
+        <div class="hero-meta" id="heroMeta"></div>
+      </section>
+      <section id="gridWrap">
+        <div id="grid"></div>
+        <div id="empty" class="empty hidden">
+          <h2>Noch keine Spiele gefunden</h2>
+          <p>Öffne mit <span class="glyph pill">☰</span> das Menü → <b>Einstellungen</b> und trage deine ROM-Ordner, Emulatoren oder PC-Spiele ein.<br>Steam-, Epic- und GOG-Spiele werden automatisch erkannt. Tipp: Einstellungen → Emulatoren → „automatisch suchen“.</p>
+        </div>
+      </section>
+    </main>
+
+    <!-- Einstellungen -->
+    <main id="settings" class="view">
+      <div class="settings-head">
+        <h1>Einstellungen</h1>
+        <div id="settingsTabs"></div>
+      </div>
+      <div id="settingsBody"></div>
+    </main>
+
+    <footer id="hints"></footer>
+  </div>
+
+  <!-- Overlays -->
+  <div id="overlay" class="overlay hidden">
+    <div class="modal" id="modal"></div>
+  </div>
+
+  <div id="running" class="running hidden">
+    <div class="running-card">
+      <div class="pulse"></div>
+      <div class="running-label">Läuft gerade</div>
+      <h2 id="runningTitle"></h2>
+      <p id="runningHint"></p>
+      <div class="running-actions">
+        <button class="btn danger focused" id="btnKill"><span class="glyph a">A</span> Spiel beenden</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toasts"></div>
+
+  <script src="mock-api.js"></script>
+  <script src="sounds.js"></script>
+  <script src="input.js"></script>
+  <script src="settings.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
