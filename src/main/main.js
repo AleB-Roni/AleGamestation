@@ -81,14 +81,25 @@ let knownDisplays = []; // letzte Liste aus listDisplays() (für die Fensterplat
 let tvOnlyState = null; // { prevPrimary } solange "Nur Fernseher" aktiv ist
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** Pixel-Position/-Größe eines Electron-Bildschirms */
-function physical(d) {
-  const sf = d.scaleFactor || 1;
-  const o = d.nativeOrigin || { x: Math.round(d.bounds.x * sf), y: Math.round(d.bounds.y * sf) };
-  return { x: o.x, y: o.y, w: Math.round(d.size.width * sf), h: Math.round(d.size.height * sf) };
+/** Pixel-Rechteck (Windows) in Electron-Koordinaten umrechnen */
+function toDip(r) {
+  try { return screen.screenToDipRect(null, r); } catch { return r; }
 }
 
-/** Alle Bildschirme mit echtem Namen (z.B. "LG TV"), Auflösung und Windows-Gerätename */
+/** Electron-Bildschirm zu einem Windows-Bildschirm finden: Mittelpunkt liegt darin, sonst gleicher Name */
+function matchElectron(w, all) {
+  if (w.active && w.w > 0) {
+    const r = toDip({ x: w.x, y: w.y, width: w.w, height: w.h });
+    const cx = r.x + r.width / 2; const cy = r.y + r.height / 2;
+    const hit = all.find((d) => cx >= d.bounds.x && cx < d.bounds.x + d.bounds.width && cy >= d.bounds.y && cy < d.bounds.y + d.bounds.height);
+    if (hit) return hit;
+  }
+  return w.active && w.name ? all.find((d) => d.label && d.label === w.name) || null : null;
+}
+
+const b64 = (s) => Buffer.from(String(s), 'utf8').toString('base64');
+
+/** Alle angeschlossenen Bildschirme mit echtem Namen (z.B. "LG TV"), auch ausgeschaltete */
 async function listDisplays() {
   const el = screen.getAllDisplays();
   const primaryId = screen.getPrimaryDisplay().id;
@@ -97,12 +108,15 @@ async function listDisplays() {
   let list;
   if (win32.length) {
     list = win32.map((w, i) => {
-      const e = el.find((d) => { const p = physical(d); return p.x === w.x && p.y === w.y && p.w === w.w && p.h === w.h; });
-      const monitor = w.monitor && !/pnp|plug and play/i.test(w.monitor) ? w.monitor : '';
-      return { key: w.device, device: w.device, name: (e && e.label) || monitor || `Bildschirm ${i + 1}`, width: w.w, height: w.h, hz: w.hz, primary: !!w.primary, electronId: e ? e.id : null };
+      const e = matchElectron(w, el);
+      const generic = !w.name || /pnp|plug and play|generic/i.test(w.name);
+      return {
+        key: w.key, device: w.device, name: (!generic && w.name) || (e && e.label) || `Bildschirm ${i + 1}`,
+        width: w.w, height: w.h, hz: w.hz, primary: !!w.primary, active: w.active !== false, electronId: e ? e.id : null
+      };
     });
   } else {
-    list = el.map((d, i) => { const p = physical(d); return { key: 'e:' + d.id, device: '', name: d.label || `Bildschirm ${i + 1}`, width: p.w, height: p.h, primary: d.id === primaryId, electronId: d.id }; });
+    list = el.map((d, i) => ({ key: 'e:' + d.id, device: '', name: d.label || `Bildschirm ${i + 1}`, width: Math.round(d.size.width * d.scaleFactor), height: Math.round(d.size.height * d.scaleFactor), primary: d.id === primaryId, active: true, electronId: d.id }));
   }
   knownDisplays = list;
   return list;
@@ -141,8 +155,7 @@ async function applyTvOnly(manual = false, mode = 'only') {
   let list = await listDisplays();
   let entry = findTv(list);
   if (!entry) {
-    // Fernseher evtl. gerade abgeschaltet: alle Bildschirme einschalten und warten (z.B. nach dem Einschalten per Home Assistant)
-    await system.setDisplayMode('extend');
+    // Fernseher noch nicht angeschlossen/erkannt (z.B. gerade per Home Assistant eingeschaltet): warten
     const deadline = Date.now() + (d.tvWaitSeconds || 15) * 1000;
     while (!entry && Date.now() < deadline) {
       await sleep(1500);
@@ -150,19 +163,16 @@ async function applyTvOnly(manual = false, mode = 'only') {
       entry = findTv(list);
     }
   }
-  if (!entry) return { ok: false, error: `Fernseher „${tv.name}“ wurde nicht gefunden – Bildschirme bleiben unverändert` };
-  if (!entry.device) return { ok: false, error: '„Nur Fernseher“ ist nur unter Windows möglich' };
-  const prev = list.find((x) => x.primary);
-  if (!tvOnlyState) tvOnlyState = { mode, prevPrimary: prev && prev.device !== entry.device ? prev.device : '' };
+  if (!entry) return { ok: false, error: `Fernseher „${tv.name}“ wurde nicht gefunden – ist er eingeschaltet und angeschlossen?` };
+  if (/^e:/.test(entry.key)) return { ok: false, error: 'Umschalten auf den Fernseher ist nur unter Windows möglich' };
+  if (!tvOnlyState) {
+    const prev = list.find((x) => x.primary && x.active);
+    tvOnlyState = { mode, saved: await nativeHelper.request('save', 10000), prevPrimary: prev && prev.key !== entry.key ? prev.key : '' };
+  }
   tvOnlyState.mode = mode;
-  if (mode === 'primary') {
-    if (!entry.primary) {
-      const r = await nativeHelper.request(`primary ${entry.device}`, 10000);
-      if (r !== '0') return { ok: false, error: `Windows konnte den Hauptbildschirm nicht ändern (Code ${r || 'keine Antwort'})` };
-    }
-  } else if (list.length > 1 || !entry.primary) {
-    const r = await nativeHelper.request(`tvonly ${entry.device}`, 10000);
-    if (r !== '0') return { ok: false, error: `Windows konnte den Bildschirm nicht umschalten (Code ${r || 'keine Antwort'})` };
+  if (mode === 'only' ? !(entry.primary && list.filter((x) => x.active).length === 1) : !entry.primary) {
+    const r = await nativeHelper.request(`${mode === 'only' ? 'tvonly' : 'primary'} ${b64(entry.key)}`, 15000);
+    if (r !== '0') return { ok: false, error: `Windows konnte nicht auf den Fernseher umschalten (Code ${r || 'keine Antwort'})` };
   }
   displaySwitched = true;
   if (!manual) await sleep(d.switchDelayMs || 2500);
@@ -174,23 +184,29 @@ async function applyTvOnly(manual = false, mode = 'only') {
 async function restoreDisplays(onExit = 'extend') {
   const state = tvOnlyState;
   tvOnlyState = null;
-  if (!state || state.mode !== 'primary') {
-    await system.setDisplayMode('extend');
-    await sleep(2500);
+  // Am liebsten exakt die vorherige Anordnung wiederherstellen
+  let ok = false;
+  if (state && state.saved) ok = (await nativeHelper.request(`restore ${state.saved}`, 15000)) === '0';
+  if (!ok) {
+    if ((await nativeHelper.request('extend', 15000)) !== '0') await system.setDisplayMode('extend');
+    await sleep(2000);
+    if (state && state.prevPrimary) await nativeHelper.request(`primary ${b64(state.prevPrimary)}`, 15000);
   }
-  if (state && state.prevPrimary) await nativeHelper.request(`primary ${state.prevPrimary}`, 10000);
   if (onExit && !['extend', 'none', 'tvOnly', 'tvPrimary'].includes(onExit)) { await sleep(1000); await system.setDisplayMode(onExit); }
   displaySwitched = false;
-  setTimeout(() => listDisplays().catch(() => {}), 1500);
+  setTimeout(() => listDisplays().then(placeWindow).catch(() => {}), 1500);
 }
 
 /** Auf jedem Bildschirm groß Nummer und Name einblenden (wie bei Windows "Identifizieren") */
 async function identifyDisplays() {
   const list = await listDisplays();
   const all = screen.getAllDisplays();
+  const used = new Set();
   list.forEach((entry, i) => {
+    if (!entry.active) return;
     const d = all.find((x) => x.id === entry.electronId);
-    if (!d) return;
+    if (!d || used.has(d.id)) return; // Duplizieren: beide zeigen dasselbe Bild
+    used.add(d.id);
     const w = 520; const h = 300;
     const idw = new BrowserWindow({ x: Math.round(d.bounds.x + (d.bounds.width - w) / 2), y: Math.round(d.bounds.y + (d.bounds.height - h) / 2), width: w, height: h,
       frame: false, transparent: true, alwaysOnTop: true, skipTaskbar: true, focusable: false, resizable: false, show: false, webPreferences: { sandbox: true } });

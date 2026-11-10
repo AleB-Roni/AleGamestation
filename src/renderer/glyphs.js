@@ -28,7 +28,7 @@
   // Tastatur: Bedien-Tasten -> Tastenkappen
   STYLES.keyboard = {
     A: ['Leertaste', 'key'], B: ['Esc', 'key'], X: ['F', 'key'], Y: ['R', 'key'],
-    LB: ['Q', 'key'], RB: ['E', 'key'], LT: ['Z', 'key'], RT: ['C', 'key'],
+    LB: ['Z', 'key'], RB: ['C', 'key'], LT: ['Q', 'key'], RT: ['E', 'key'],
     START: ['M', 'key'], BACK: ['O', 'key'], GUIDE: ['M', 'key'], LS: ['', 'key'], RS: ['', 'key'], TOUCHPAD: ['', 'key']
   };
   const NAMES = { xbox: 'Xbox', playstation: 'PlayStation', nintendo: 'Nintendo', keyboard: 'Tastatur' };

@@ -869,8 +869,8 @@
       if (item && item.kind === 'game') html += hint(glyph('A'), 'Spielen') + hint(glyph('X'), 'Favorit') + hint(glyph('Y'), 'Details');
       else if (item && item.kind === 'system') html += hint(glyph('A'), item.system.count ? 'Spiele' : 'Öffnen') + hint(glyph('Y'), 'Konsole');
       else if (item) html += hint(glyph('A'), 'Öffnen');
-      if (App.sections[App.focus.s] && App.sections[App.focus.s].letterJump) html += hint(glyph('LT') + glyph('RT'), 'Buchstabe');
-      html += hint(glyph('LB') + glyph('RB'), 'Kategorie') + hint(glyph('START'), 'Menü');
+      html += hint(glyph('LB') + glyph('RB'), App.sections[App.focus.s] && App.sections[App.focus.s].letterJump ? 'Buchstabe' : 'Bereich');
+      html += hint(glyph('LT') + glyph('RT'), 'Kategorie') + hint(glyph('START'), 'Menü');
     }
     h.innerHTML = html;
   }
@@ -884,7 +884,8 @@
       return;
     }
     if (App.modalStack.length) return modalAction(a);
-    if (a === 'lb' || a === 'rb') return switchTab(App.tabIndex + (a === 'rb' ? 1 : -1));
+    // L2/R2: große Tabs wechseln (überall, auch in den Einstellungen)
+    if (a === 'lt' || a === 'rt') return switchTab(App.tabIndex + (a === 'rt' ? 1 : -1));
     if (App.view === 'settings') return SettingsView.handle(a);
     if (a === 'start' || a === 'guide') return powerMenu();
     if (a === 'select') return openSettings();
@@ -904,15 +905,20 @@
         if (item && item.kind === 'game') gameDetails(item.game);
         else if (item && item.kind === 'system') systemDetails(item.system);
         break;
-      case 'lt': letterJump(-1); break;
-      case 'rt': letterJump(1); break;
+      // L1/R1: in langen Listen nach Anfangsbuchstaben springen, sonst zum vorherigen/nächsten Bereich
+      case 'lb': case 'rb': {
+        const sec = App.sections[App.focus.s];
+        if (sec && sec.letterJump) letterJump(a === 'rb' ? 1 : -1);
+        else if (moveVertical(a === 'rb' ? 1 : -1) !== false) Sounds.play('move');
+        break;
+      }
     }
   });
 
   // ---------------- Controller-Symbole ----------------
   function refreshGlyphs() {
-    $('#tabL').outerHTML = Glyphs.html('LB').replace('class="glyph', 'id="tabL" class="glyph bumper');
-    $('#tabR').outerHTML = Glyphs.html('RB').replace('class="glyph', 'id="tabR" class="glyph bumper');
+    $('#tabL').outerHTML = Glyphs.html('LT').replace('class="glyph', 'id="tabL" class="glyph bumper');
+    $('#tabR').outerHTML = Glyphs.html('RT').replace('class="glyph', 'id="tabR" class="glyph bumper');
     $('#killGlyph').outerHTML = Glyphs.html('A').replace('class="glyph', 'id="killGlyph" class="glyph');
     $('#emptyMenuGlyph').outerHTML = Glyphs.html('START').replace('class="glyph', 'id="emptyMenuGlyph" class="glyph');
     const pad = $('#padStatus');

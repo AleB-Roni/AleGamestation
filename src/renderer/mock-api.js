@@ -52,8 +52,9 @@
     launch: async () => ({ running: false }), kill: async () => true, gameStatus: async () => ({ running: false }),
     power: async () => {}, setDisplayMode: async () => {}, displays: async () => [{ index: 0, label: 'TV', width: 3840, height: 2160 }],
     listDisplays: async () => [
-      { key: '\\\\.\\DISPLAY1', name: 'DELL U2720Q', width: 2560, height: 1440, hz: 144, primary: true, electronId: 1 },
-      { key: '\\\\.\\DISPLAY2', name: 'LG TV SSCR2', width: 3840, height: 2160, hz: 60, primary: false, electronId: 2 }
+      { key: 'mon-dell', name: 'DELL U2720Q', width: 2560, height: 1440, hz: 144, primary: true, active: true, electronId: 1 },
+      { key: 'mon-lg', name: 'LG TV SSCR2', width: 3840, height: 2160, hz: 60, primary: false, active: true, electronId: 2 },
+      { key: 'mon-old', name: 'BenQ GW2480', width: 0, height: 0, hz: 0, primary: false, active: false, electronId: null }
     ],
     spotifyStatus: async () => ({ connected: true, user: 'Ale', product: 'premium', redirect: 'http://127.0.0.1:43821/callback' }),
     spotifyConnect: async () => ({ user: 'Ale', product: 'premium' }), spotifyDisconnect: async () => true, spotifyDashboard: async () => true,

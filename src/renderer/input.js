@@ -6,7 +6,7 @@
   // Standard-Mapping der Gamepad API (Xbox-Layout)
   const MAP = { 0: 'accept', 1: 'back', 2: 'x', 3: 'y', 4: 'lb', 5: 'rb', 6: 'lt', 7: 'rt', 8: 'select', 9: 'start', 10: 'ls', 11: 'rs', 12: 'up', 13: 'down', 14: 'left', 15: 'right', 16: 'guide' }; // 17 = Touchpad-Klick: wird als Mausklick verwendet
   const COMBO_NAMES = { 0: 'A', 1: 'B', 2: 'X', 3: 'Y', 4: 'LB', 5: 'RB', 6: 'LT', 7: 'RT', 8: 'BACK', 9: 'START', 10: 'LS', 11: 'RS', 12: 'UP', 13: 'DOWN', 14: 'LEFT', 15: 'RIGHT', 16: 'GUIDE', 17: 'TOUCHPAD' };
-  const REPEATABLE = new Set(['up', 'down', 'left', 'right', 'lb', 'rb']);
+  const REPEATABLE = new Set(['up', 'down', 'left', 'right', 'lb', 'rb', 'lt', 'rt']);
   const held = new Map(); // action -> { since, last }
   let connected = 0;
 
@@ -35,8 +35,9 @@
     w: 'up', s: 'down', a: 'left', d: 'right',
     enter: 'accept', ' ': 'accept', escape: 'back', backspace: 'back',
     f: 'x', r: 'y', tab: 'y',
-    q: 'lb', e: 'rb', pageup: 'lb', pagedown: 'rb',
-    z: 'lt', c: 'rt',
+    // Q/E (Bild auf/ab): große Tabs wie L2/R2 · Z/C: Bereiche wie L1/R1
+    q: 'lt', e: 'rt', pageup: 'lt', pagedown: 'rt',
+    z: 'lb', c: 'rb',
     m: 'start', f1: 'start', o: 'select', f2: 'select'
   };
   window.addEventListener('keydown', (ev) => {
@@ -52,7 +53,7 @@
     ev.preventDefault();
     if (window.Glyphs) Glyphs.setInputMethod('keyboard');
     // Gehaltene Pfeiltasten/WASD wiederholen (Browser-Wiederholung), andere Tasten nicht
-    if (ev.repeat && !['up', 'down', 'left', 'right', 'lb', 'rb'].includes(a)) return;
+    if (ev.repeat && !['up', 'down', 'left', 'right', 'lb', 'rb', 'lt', 'rt'].includes(a)) return;
     emit(a, 'keyboard');
   });
 

@@ -24,7 +24,9 @@
   const S = { section: 0, focus: 0, rows: [], displays: [] };
 
   function displayLabel(d) {
-    return `${d.name} – ${d.width}×${d.height}${d.hz ? ' · ' + d.hz + ' Hz' : ''}${d.primary ? ' · Hauptbildschirm' : ''}`;
+    const n = S.displays.indexOf(d);
+    const info = d.active === false ? 'gerade aus' : `${d.width}×${d.height}${d.hz ? ' · ' + d.hz + ' Hz' : ''}${d.primary ? ' · Hauptbildschirm' : ''}`;
+    return `${n >= 0 ? n + 1 + '. ' : ''}${d.name} – ${info}`;
   }
   /** Auswahl des Fernsehers; ein gespeicherter, gerade nicht aktiver TV bleibt sichtbar */
   function tvSelect() {
@@ -91,7 +93,7 @@
         group('Start'),
         toggle('Mit Windows starten', () => C().general, 'autostartWithWindows', 'Konsolenmodus startet automatisch nach der Anmeldung'),
         toggle('Vollbild', () => C().general, 'startFullscreen'),
-        select('Oberfläche anzeigen auf', () => C().general, 'targetDisplay', [{ value: 'primary', label: 'Hauptbildschirm' }, { value: 'tv', label: 'Fernseher (Einstellungen → Anzeige)' }].concat(S.displays.filter((d) => d.electronId != null).map((d) => ({ value: 'id:' + d.electronId, label: displayLabel(d) }))), 'Bei „Nur Fernseher“ ist der TV automatisch der Hauptbildschirm'),
+        select('Oberfläche anzeigen auf', () => C().general, 'targetDisplay', [{ value: 'primary', label: 'Hauptbildschirm' }, { value: 'tv', label: 'Fernseher (Einstellungen → Anzeige)' }].concat(S.displays.filter((d) => d.electronId != null && d.active !== false).map((d) => ({ value: 'id:' + d.electronId, label: displayLabel(d) }))), 'Bei „Nur Fernseher“ ist der TV automatisch der Hauptbildschirm'),
         group('Beim Spielen'),
         toggle('Oberfläche minimieren, während ein Spiel läuft', () => C().general, 'minimizeOnLaunch'),
         toggle('Nach Spielende zurück in die Oberfläche', () => C().general, 'refocusAfterGame'),
@@ -824,8 +826,9 @@
       switch (a) {
         case 'up': if (S.focus > 0) { S.focus--; updateFocus(); Sounds.play('move'); } break;
         case 'down': if (S.focus < S.focusables.length - 1) { S.focus++; updateFocus(); Sounds.play('move'); } break;
-        case 'x': S.detail = null; S.section = (S.section + SECTIONS.length - 1) % SECTIONS.length; S.focus = 0; render(); Sounds.play('tab'); break;
-        case 'y': S.detail = null; S.section = (S.section + 1) % SECTIONS.length; S.focus = 0; render(); Sounds.play('tab'); break;
+        // L1/R1: Bereiche der Einstellungen wechseln
+        case 'lb': S.detail = null; S.section = (S.section + SECTIONS.length - 1) % SECTIONS.length; S.focus = 0; render(); Sounds.play('tab'); break;
+        case 'rb': S.detail = null; S.section = (S.section + 1) % SECTIONS.length; S.focus = 0; render(); Sounds.play('tab'); break;
         case 'back': Sounds.play('back'); if (!closeDetail()) App.backToLibrary(); break;
         case 'select': Sounds.play('back'); S.detail = null; App.backToLibrary(); break;
         default: act(a);
@@ -834,7 +837,7 @@
     refreshUpdate,
     rerender: () => render(),
     hints(hint, glyph) {
-      return hint(glyph('A'), S.detail ? 'Ändern' : 'Öffnen / Ändern') + hint('◀ ▶', 'Wert') + hint(glyph('X') + glyph('Y'), 'Bereich') + hint(glyph('B'), S.detail ? 'Übersicht' : 'Zurück');
+      return hint(glyph('A'), S.detail ? 'Ändern' : 'Öffnen / Ändern') + hint('◀ ▶', 'Wert') + hint(glyph('LB') + glyph('RB'), 'Bereich') + hint(glyph('LT') + glyph('RT'), 'Kategorie') + hint(glyph('B'), S.detail ? 'Übersicht' : 'Zurück');
     }
   };
 })();

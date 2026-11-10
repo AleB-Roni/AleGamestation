@@ -90,10 +90,10 @@ Die Änderungsliste im Update-Fenster wird automatisch aus den Commit-Nachrichte
 | Steuerkreuz / Stick | Navigieren | Navigieren |
 | **A** | Spiel starten | Ändern / Auswählen |
 | **B** | Zurück | Zurück |
-| **X** | Favorit an/aus | Vorheriger Bereich |
-| **Y** | Details (Emulator wählen, Cover, ausblenden …) | Nächster Bereich |
-| **LB / RB** | Kategorie wechseln | Kategorie wechseln |
-| **LT / RT** | Buchstaben-Sprung | |
+| **X** | Favorit an/aus | |
+| **Y** | Details (Emulator wählen, Cover, ausblenden …) | |
+| **L1 / R1** (LB / RB) | Bereich wechseln, in „Alle Spiele“: Buchstaben-Sprung | Bereich wechseln |
+| **L2 / R2** (LT / RT) | Kategorie (große Tabs) wechseln | Kategorie wechseln |
 | **☰ Start** | Menü (Herunterfahren, Bildschirm, …) | |
 | **⧉ Back** | Einstellungen | Zurück |
 | **BACK + START halten** | Laufendes Spiel beenden | |
@@ -106,10 +106,10 @@ Die Änderungsliste im Update-Fenster wird automatisch aus den Commit-Nachrichte
 | WASD / Pfeiltasten | Navigieren |
 | Leertaste / Enter | Auswählen / Starten |
 | Esc / Rücktaste | Zurück |
-| Q / E | Kategorie wechseln |
+| Q / E | Kategorie (große Tabs) wechseln |
 | F | Favorit |
 | R / Tab | Details |
-| Z / C | Buchstaben-Sprung |
+| Z / C | Bereich wechseln / Buchstaben-Sprung |
 | M | Menü |
 | O | Einstellungen |
 

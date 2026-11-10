@@ -8,9 +8,12 @@
 #   front <hwnd> <1|0>  Fenster in den Vordergrund holen (trotz Windows-Fokus-Sperre), 1 = ganz oben fixieren
 #   top <hwnd>       Fenster ganz nach oben legen, ohne Fokus (für Einblendungen)
 #   q <id> fg        Anfrage: aktuelles Vordergrundfenster -> Antwort "a <id> <hwnd>"
-#   q <id> displays  Anfrage: aktive Bildschirme als JSON
-#   q <id> tvonly <\\.\DISPLAYn>   Nur diesen Bildschirm verwenden (als Hauptbildschirm) -> Ergebniscode
-#   q <id> primary <\\.\DISPLAYn>  Diesen Bildschirm zum Hauptbildschirm machen -> Ergebniscode
+#   q <id> displays        Anfrage: alle angeschlossenen Bildschirme als JSON (Windows-Anzeigekonfiguration)
+#   q <id> tvonly <b64>    Nur diesen Bildschirm verwenden (Kennung Base64) -> Ergebniscode (0 = ok)
+#   q <id> primary <b64>   Diesen Bildschirm zum Hauptbildschirm machen, andere bleiben an -> Ergebniscode
+#   q <id> save            Aktuelle Anordnung sichern -> Base64
+#   q <id> restore <b64>   Gesicherte Anordnung wiederherstellen -> Ergebniscode
+#   q <id> extend          Alle Bildschirme erweitern -> Ergebniscode
 $ErrorActionPreference = 'Stop'
 
 Add-Type -TypeDefinition @"
@@ -79,99 +82,207 @@ public static class AgsInput {
     return ok;
   }
 
-  // ---------- Bildschirme (Fernseher auswählen, "Nur Fernseher") ----------
-  [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-  public struct DISPLAY_DEVICE {
-    public int cb;
-    [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string DeviceName;
-    [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceString;
-    public int StateFlags;
-    [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceID;
-    [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string DeviceKey;
+  // ---------- Bildschirme über die Windows-Anzeigekonfiguration (wie Win + P) ----------
+  // Kennt den echten Monitornamen (z.B. "LG TV SSCR2") und eine feste Geräte-ID, auch für gerade ausgeschaltete Bildschirme.
+  [StructLayout(LayoutKind.Sequential)] public struct LUID { public uint Low; public int High; }
+  [StructLayout(LayoutKind.Sequential)] public struct PATH_SOURCE { public LUID adapterId; public uint id; public uint modeInfoIdx; public uint statusFlags; }
+  [StructLayout(LayoutKind.Sequential)] public struct PATH_TARGET {
+    public LUID adapterId; public uint id; public uint modeInfoIdx; public uint outputTechnology; public uint rotation; public uint scaling;
+    public uint refreshNum; public uint refreshDen; public uint scanLineOrdering; public int targetAvailable; public uint statusFlags;
   }
-  [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-  public struct DEVMODE {
-    [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmDeviceName;
-    public short dmSpecVersion; public short dmDriverVersion; public short dmSize; public short dmDriverExtra;
-    public int dmFields; public int dmPositionX; public int dmPositionY; public int dmDisplayOrientation; public int dmDisplayFixedOutput;
-    public short dmColor; public short dmDuplex; public short dmYResolution; public short dmTTOption; public short dmCollate;
-    [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string dmFormName;
-    public short dmLogPixels; public int dmBitsPerPel; public int dmPelsWidth; public int dmPelsHeight;
-    public int dmDisplayFlags; public int dmDisplayFrequency; public int dmICMMethod; public int dmICMIntent;
-    public int dmMediaType; public int dmDitherType; public int dmReserved1; public int dmReserved2;
-    public int dmPanningWidth; public int dmPanningHeight;
+  [StructLayout(LayoutKind.Sequential)] public struct PATH_INFO { public PATH_SOURCE source; public PATH_TARGET target; public uint flags; }
+  [StructLayout(LayoutKind.Explicit, Size = 64)] public struct MODE_INFO {
+    [FieldOffset(0)] public uint infoType; [FieldOffset(4)] public uint id; [FieldOffset(8)] public LUID adapterId;
+    // Quell-Modus (infoType 1): Größe und Position auf dem Desktop
+    [FieldOffset(16)] public uint width; [FieldOffset(20)] public uint height; [FieldOffset(24)] public uint pixelFormat;
+    [FieldOffset(28)] public int x; [FieldOffset(32)] public int y;
   }
-  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern bool EnumDisplayDevices(string dev, uint i, ref DISPLAY_DEVICE dd, uint flags);
-  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern bool EnumDisplaySettings(string dev, int mode, ref DEVMODE dm);
-  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int ChangeDisplaySettingsEx(string dev, ref DEVMODE dm, IntPtr hwnd, uint flags, IntPtr p);
-  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int ChangeDisplaySettingsEx(string dev, IntPtr dm, IntPtr hwnd, uint flags, IntPtr p);
+  [StructLayout(LayoutKind.Sequential)] public struct DI_HEADER { public uint type; public uint size; public LUID adapterId; public uint id; }
+  [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)] public struct SOURCE_NAME {
+    public DI_HEADER header; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string viewGdiDeviceName;
+  }
+  [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)] public struct TARGET_NAME {
+    public DI_HEADER header; public uint flags; public uint outputTechnology; public ushort edidManufactureId; public ushort edidProductCodeId; public uint connectorInstance;
+    [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)] public string monitorFriendlyDeviceName;
+    [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string monitorDevicePath;
+  }
+  [DllImport("user32.dll")] static extern int GetDisplayConfigBufferSizes(uint flags, out uint numPaths, out uint numModes);
+  [DllImport("user32.dll")] static extern int QueryDisplayConfig(uint flags, ref uint numPaths, [Out] PATH_INFO[] paths, ref uint numModes, [Out] MODE_INFO[] modes, IntPtr topology);
+  [DllImport("user32.dll")] static extern int DisplayConfigGetDeviceInfo(ref SOURCE_NAME req);
+  [DllImport("user32.dll")] static extern int DisplayConfigGetDeviceInfo(ref TARGET_NAME req);
+  [DllImport("user32.dll")] static extern int SetDisplayConfig(uint numPaths, PATH_INFO[] paths, uint numModes, MODE_INFO[] modes, uint flags);
 
-  const int ATTACHED = 0x1, PRIMARY = 0x4;
-  const int DM_POSITION = 0x20, DM_PELSWIDTH = 0x80000, DM_PELSHEIGHT = 0x100000;
-  const uint CDS_UPDATEREGISTRY = 0x1, CDS_SET_PRIMARY = 0x10, CDS_NORESET = 0x10000000;
+  const uint QDC_ALL = 1, QDC_ACTIVE = 2, PATH_ACTIVE = 1, INVALID = 0xFFFFFFFF;
+  const uint SDC_APPLY = 0x80, SDC_SUPPLIED = 0x20, SDC_SAVE = 0x200, SDC_ALLOW_CHANGES = 0x400, SDC_EXTEND = 0x4;
+  const uint SET_FLAGS = SDC_APPLY | SDC_SUPPLIED | SDC_SAVE | SDC_ALLOW_CHANGES;
 
-  static DEVMODE NewMode() { DEVMODE m = new DEVMODE(); m.dmSize = (short)Marshal.SizeOf(typeof(DEVMODE)); return m; }
   static string Esc(string s) { return (s ?? "").Replace("\\", "\\\\").Replace("\"", "\\\""); }
 
-  /** Aktive Bildschirme: Gerätename, Monitorname, Position und Größe in Pixeln */
+  static bool Query(uint flags, out PATH_INFO[] paths, out MODE_INFO[] modes) {
+    paths = new PATH_INFO[0]; modes = new MODE_INFO[0];
+    for (int tries = 0; tries < 5; tries++) {
+      uint np, nm;
+      if (GetDisplayConfigBufferSizes(flags, out np, out nm) != 0) return false;
+      paths = new PATH_INFO[np]; modes = new MODE_INFO[nm];
+      int r = QueryDisplayConfig(flags, ref np, paths, ref nm, modes, IntPtr.Zero);
+      if (r == 0) { Array.Resize(ref paths, (int)np); Array.Resize(ref modes, (int)nm); return true; }
+      if (r != 122) return false; // ERROR_INSUFFICIENT_BUFFER: Konfiguration hat sich gerade geändert
+    }
+    return false;
+  }
+
+  static TARGET_NAME TargetName(PATH_TARGET t) {
+    TARGET_NAME n = new TARGET_NAME();
+    n.header.type = 2; n.header.size = (uint)Marshal.SizeOf(typeof(TARGET_NAME)); n.header.adapterId = t.adapterId; n.header.id = t.id;
+    if (DisplayConfigGetDeviceInfo(ref n) != 0) { n.monitorFriendlyDeviceName = ""; n.monitorDevicePath = ""; }
+    return n;
+  }
+  static string SourceName(PATH_SOURCE s) {
+    SOURCE_NAME n = new SOURCE_NAME();
+    n.header.type = 1; n.header.size = (uint)Marshal.SizeOf(typeof(SOURCE_NAME)); n.header.adapterId = s.adapterId; n.header.id = s.id;
+    return DisplayConfigGetDeviceInfo(ref n) == 0 ? n.viewGdiDeviceName : "";
+  }
+  /** Feste Kennung eines Bildschirms (Gerätepfad des Monitors), notfalls Adapter + Anschluss */
+  static string KeyOf(PATH_TARGET t) {
+    string p = TargetName(t).monitorDevicePath;
+    return string.IsNullOrEmpty(p) ? ("t:" + t.adapterId.Low + ":" + t.adapterId.High + ":" + t.id) : p;
+  }
+  static int Find(PATH_INFO[] paths, string key) {
+    for (int i = 0; i < paths.Length; i++) if (string.Equals(KeyOf(paths[i].target), key, StringComparison.OrdinalIgnoreCase)) return i;
+    return -1;
+  }
+
+  /** Alle angeschlossenen Bildschirme (auch ausgeschaltete) als JSON */
   public static string Displays() {
+    PATH_INFO[] all, act; MODE_INFO[] allModes, modes;
+    if (!Query(QDC_ACTIVE, out act, out modes)) return "[]";
+    if (!Query(QDC_ALL, out all, out allModes)) all = new PATH_INFO[0];
+    var keys = new System.Collections.Generic.List<string>();
     var sb = new System.Text.StringBuilder("[");
-    bool first = true;
-    for (uint i = 0; i < 32; i++) {
-      DISPLAY_DEVICE ad = new DISPLAY_DEVICE(); ad.cb = Marshal.SizeOf(typeof(DISPLAY_DEVICE));
-      if (!EnumDisplayDevices(null, i, ref ad, 0)) break;
-      if ((ad.StateFlags & ATTACHED) == 0) continue;
-      DISPLAY_DEVICE mon = new DISPLAY_DEVICE(); mon.cb = Marshal.SizeOf(typeof(DISPLAY_DEVICE));
-      string monName = EnumDisplayDevices(ad.DeviceName, 0, ref mon, 0) ? mon.DeviceString : "";
-      DEVMODE dm = NewMode();
-      if (!EnumDisplaySettings(ad.DeviceName, -1, ref dm)) continue;
-      if (!first) sb.Append(",");
-      first = false;
-      sb.AppendFormat("{{\"device\":\"{0}\",\"monitor\":\"{1}\",\"adapter\":\"{2}\",\"x\":{3},\"y\":{4},\"w\":{5},\"h\":{6},\"hz\":{7},\"primary\":{8}}}",
-        Esc(ad.DeviceName), Esc(monName), Esc(ad.DeviceString), dm.dmPositionX, dm.dmPositionY, dm.dmPelsWidth, dm.dmPelsHeight, dm.dmDisplayFrequency,
-        (ad.StateFlags & PRIMARY) != 0 ? "true" : "false");
+    foreach (PATH_INFO p in act) {
+      string key = KeyOf(p.target);
+      if (keys.Contains(key)) continue;
+      keys.Add(key);
+      TARGET_NAME tn = TargetName(p.target);
+      int x = 0, y = 0; uint w = 0, h = 0;
+      if (p.source.modeInfoIdx != INVALID && p.source.modeInfoIdx < modes.Length && modes[p.source.modeInfoIdx].infoType == 1) {
+        MODE_INFO m = modes[p.source.modeInfoIdx]; x = m.x; y = m.y; w = m.width; h = m.height;
+      }
+      uint hz = p.target.refreshDen > 0 ? (uint)Math.Round((double)p.target.refreshNum / p.target.refreshDen) : 0;
+      if (sb.Length > 1) sb.Append(",");
+      sb.AppendFormat("{{\"key\":\"{0}\",\"name\":\"{1}\",\"device\":\"{2}\",\"active\":true,\"x\":{3},\"y\":{4},\"w\":{5},\"h\":{6},\"hz\":{7},\"primary\":{8},\"tech\":{9}}}",
+        Esc(key), Esc(tn.monitorFriendlyDeviceName), Esc(SourceName(p.source)), x, y, w, h, hz, (x == 0 && y == 0) ? "true" : "false", p.target.outputTechnology);
+    }
+    foreach (PATH_INFO p in all) {
+      if (p.target.targetAvailable == 0) continue;
+      string key = KeyOf(p.target);
+      if (keys.Contains(key)) continue;
+      keys.Add(key);
+      TARGET_NAME tn = TargetName(p.target);
+      if (sb.Length > 1) sb.Append(",");
+      sb.AppendFormat("{{\"key\":\"{0}\",\"name\":\"{1}\",\"device\":\"\",\"active\":false,\"x\":0,\"y\":0,\"w\":0,\"h\":0,\"hz\":0,\"primary\":false,\"tech\":{2}}}",
+        Esc(key), Esc(tn.monitorFriendlyDeviceName), p.target.outputTechnology);
     }
     return sb.Append("]").ToString();
   }
 
-  /** Bildschirm zum Hauptbildschirm machen (alle anderen werden passend verschoben) */
-  public static int SetPrimary(string device) {
-    DEVMODE target = NewMode();
-    if (!EnumDisplaySettings(device, -1, ref target)) return -100;
-    int dx = target.dmPositionX, dy = target.dmPositionY;
-    for (uint i = 0; i < 32; i++) {
-      DISPLAY_DEVICE ad = new DISPLAY_DEVICE(); ad.cb = Marshal.SizeOf(typeof(DISPLAY_DEVICE));
-      if (!EnumDisplayDevices(null, i, ref ad, 0)) break;
-      if ((ad.StateFlags & ATTACHED) == 0) continue;
-      DEVMODE dm = NewMode();
-      if (!EnumDisplaySettings(ad.DeviceName, -1, ref dm)) continue;
-      dm.dmFields = DM_POSITION;
-      dm.dmPositionX -= dx; dm.dmPositionY -= dy;
-      bool isTarget = string.Equals(ad.DeviceName, device, StringComparison.OrdinalIgnoreCase);
-      int r = ChangeDisplaySettingsEx(ad.DeviceName, ref dm, IntPtr.Zero, CDS_UPDATEREGISTRY | CDS_NORESET | (isTarget ? CDS_SET_PRIMARY : 0u), IntPtr.Zero);
-      if (r != 0) return r;
+  /** Ausgeschalteten Bildschirm zusätzlich einschalten (erweitern); Windows wählt Auflösung und Position */
+  static int Activate(string key) {
+    PATH_INFO[] act, all; MODE_INFO[] modes, allModes;
+    if (!Query(QDC_ACTIVE, out act, out modes) || !Query(QDC_ALL, out all, out allModes)) return -102;
+    if (Find(act, key) >= 0) return 0;
+    for (int i = 0; i < all.Length; i++) {
+      PATH_INFO p = all[i];
+      if (p.target.targetAvailable == 0 || !string.Equals(KeyOf(p.target), key, StringComparison.OrdinalIgnoreCase)) continue;
+      bool used = false; // jede Quelle darf nur von einem aktiven Pfad genutzt werden
+      foreach (PATH_INFO a in act) if (a.source.id == p.source.id && a.source.adapterId.Low == p.source.adapterId.Low && a.source.adapterId.High == p.source.adapterId.High) used = true;
+      if (used) continue;
+      p.flags = PATH_ACTIVE; p.source.modeInfoIdx = INVALID; p.target.modeInfoIdx = INVALID;
+      PATH_INFO[] next = new PATH_INFO[act.Length + 1];
+      Array.Copy(act, next, act.Length);
+      next[act.Length] = p;
+      int r = SetDisplayConfig((uint)next.Length, next, (uint)modes.Length, modes, SET_FLAGS);
+      if (r == 0) return 0;
     }
-    return ChangeDisplaySettingsEx(null, IntPtr.Zero, IntPtr.Zero, 0, IntPtr.Zero);
+    return -100;
   }
 
-  /** Nur diesen Bildschirm verwenden: zum Hauptbildschirm machen, alle anderen abschalten */
-  public static int TvOnly(string device) {
-    DEVMODE tv = NewMode();
-    if (!EnumDisplaySettings(device, -1, ref tv)) return -100;
-    tv.dmFields = DM_POSITION; tv.dmPositionX = 0; tv.dmPositionY = 0;
-    int r = ChangeDisplaySettingsEx(device, ref tv, IntPtr.Zero, CDS_UPDATEREGISTRY | CDS_NORESET | CDS_SET_PRIMARY, IntPtr.Zero);
-    if (r != 0) return r;
-    for (uint i = 0; i < 32; i++) {
-      DISPLAY_DEVICE ad = new DISPLAY_DEVICE(); ad.cb = Marshal.SizeOf(typeof(DISPLAY_DEVICE));
-      if (!EnumDisplayDevices(null, i, ref ad, 0)) break;
-      if ((ad.StateFlags & ATTACHED) == 0) continue;
-      if (string.Equals(ad.DeviceName, device, StringComparison.OrdinalIgnoreCase)) continue;
-      DEVMODE off = NewMode();
-      off.dmFields = DM_POSITION | DM_PELSWIDTH | DM_PELSHEIGHT; // Breite/Höhe 0 = Bildschirm abschalten
-      r = ChangeDisplaySettingsEx(ad.DeviceName, ref off, IntPtr.Zero, CDS_UPDATEREGISTRY | CDS_NORESET, IntPtr.Zero);
+  /** Nur diesen Bildschirm verwenden (alle anderen aus); er wird damit automatisch Hauptbildschirm */
+  public static int TvOnly(string key) {
+    PATH_INFO[] act; MODE_INFO[] modes;
+    if (!Query(QDC_ACTIVE, out act, out modes)) return -102;
+    int ti = Find(act, key);
+    if (ti < 0) {
+      int r = Activate(key);
       if (r != 0) return r;
+      if (!Query(QDC_ACTIVE, out act, out modes)) return -102;
+      ti = Find(act, key);
+      if (ti < 0) return -100;
     }
-    return ChangeDisplaySettingsEx(null, IntPtr.Zero, IntPtr.Zero, 0, IntPtr.Zero);
+    PATH_INFO p = act[ti];
+    var list = new System.Collections.Generic.List<MODE_INFO>();
+    if (p.source.modeInfoIdx != INVALID && p.source.modeInfoIdx < modes.Length) {
+      MODE_INFO m = modes[p.source.modeInfoIdx]; m.x = 0; m.y = 0; list.Add(m); p.source.modeInfoIdx = 0;
+    }
+    if (p.target.modeInfoIdx != INVALID && p.target.modeInfoIdx < modes.Length) {
+      list.Add(modes[p.target.modeInfoIdx]); p.target.modeInfoIdx = (uint)(list.Count - 1);
+    }
+    return SetDisplayConfig(1, new PATH_INFO[] { p }, (uint)list.Count, list.ToArray(), SET_FLAGS);
+  }
+
+  /** Bildschirm zum Hauptbildschirm machen, alle anderen bleiben an (ausgeschalteter TV wird dazugeschaltet) */
+  public static int SetPrimary(string key) {
+    int r = Activate(key);
+    if (r != 0) return r;
+    PATH_INFO[] act; MODE_INFO[] modes;
+    if (!Query(QDC_ACTIVE, out act, out modes)) return -102;
+    int ti = Find(act, key);
+    if (ti < 0) return -100;
+    uint si = act[ti].source.modeInfoIdx;
+    if (si == INVALID || si >= modes.Length) return -103;
+    int dx = modes[si].x, dy = modes[si].y;
+    if (dx == 0 && dy == 0) return 0;
+    for (int i = 0; i < modes.Length; i++) if (modes[i].infoType == 1) { modes[i].x -= dx; modes[i].y -= dy; }
+    return SetDisplayConfig((uint)act.Length, act, (uint)modes.Length, modes, SET_FLAGS);
+  }
+
+  /** Alle Bildschirme erweitern (wie Win + P → Erweitern) */
+  public static int Extend() { return SetDisplayConfig(0, null, 0, null, SDC_APPLY | SDC_EXTEND); }
+
+  static byte[] ToBytes<T>(T[] arr) where T : struct {
+    int sz = Marshal.SizeOf(typeof(T));
+    byte[] b = new byte[sz * arr.Length];
+    IntPtr ptr = Marshal.AllocHGlobal(sz);
+    try { for (int i = 0; i < arr.Length; i++) { Marshal.StructureToPtr(arr[i], ptr, false); Marshal.Copy(ptr, b, i * sz, sz); } }
+    finally { Marshal.FreeHGlobal(ptr); }
+    return b;
+  }
+  static T[] FromBytes<T>(byte[] b, int offset, int count) where T : struct {
+    int sz = Marshal.SizeOf(typeof(T));
+    T[] arr = new T[count];
+    IntPtr ptr = Marshal.AllocHGlobal(sz);
+    try { for (int i = 0; i < count; i++) { Marshal.Copy(b, offset + i * sz, ptr, sz); arr[i] = (T)Marshal.PtrToStructure(ptr, typeof(T)); } }
+    finally { Marshal.FreeHGlobal(ptr); }
+    return arr;
+  }
+
+  /** Aktuelle Anordnung sichern (Base64), um sie beim Beenden exakt wiederherzustellen */
+  public static string Save() {
+    PATH_INFO[] act; MODE_INFO[] modes;
+    if (!Query(QDC_ACTIVE, out act, out modes)) return "";
+    byte[] p = ToBytes(act), m = ToBytes(modes);
+    byte[] all = new byte[8 + p.Length + m.Length];
+    BitConverter.GetBytes(act.Length).CopyTo(all, 0);
+    BitConverter.GetBytes(modes.Length).CopyTo(all, 4);
+    p.CopyTo(all, 8); m.CopyTo(all, 8 + p.Length);
+    return Convert.ToBase64String(all);
+  }
+  public static int Restore(string b64) {
+    byte[] all = Convert.FromBase64String(b64);
+    int np = BitConverter.ToInt32(all, 0), nm = BitConverter.ToInt32(all, 4);
+    PATH_INFO[] paths = FromBytes<PATH_INFO>(all, 8, np);
+    MODE_INFO[] modes = FromBytes<MODE_INFO>(all, 8 + np * Marshal.SizeOf(typeof(PATH_INFO)), nm);
+    return SetDisplayConfig((uint)np, paths, (uint)nm, modes, SET_FLAGS);
   }
 
   public static void Top(long hwnd) {
@@ -200,8 +311,11 @@ while ($true) {
         $v = ''
         if ($p[2] -eq 'fg') { $v = [AgsInput]::Fg() }
         elseif ($p[2] -eq 'displays') { $v = [AgsInput]::Displays() }
-        elseif ($p[2] -eq 'tvonly') { $v = [AgsInput]::TvOnly($p[3]) }
-        elseif ($p[2] -eq 'primary') { $v = [AgsInput]::SetPrimary($p[3]) }
+        elseif ($p[2] -eq 'tvonly') { $v = [AgsInput]::TvOnly([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($p[3]))) }
+        elseif ($p[2] -eq 'primary') { $v = [AgsInput]::SetPrimary([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($p[3]))) }
+        elseif ($p[2] -eq 'save') { $v = [AgsInput]::Save() }
+        elseif ($p[2] -eq 'restore') { $v = [AgsInput]::Restore($p[3]) }
+        elseif ($p[2] -eq 'extend') { $v = [AgsInput]::Extend() }
         [Console]::Out.WriteLine("a $($p[1]) $v"); [Console]::Out.Flush()
       }
     }
