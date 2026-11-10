@@ -444,3 +444,39 @@ test('Updates: verständliche Meldung, wenn das Repository privat ist (404)', as
   assert.strictEqual(s.status, 'error');
   assert.match(s.error, /privat/);
 });
+
+test('ROMs ausblenden: Update-/DLC-Dateien automatisch und eigene Regeln', () => {
+  const { isUpdateFile, romHideReason } = require('../src/main/library');
+  // Switch: Basisspiel [v0]/…000 sichtbar, Update [v65536]/…800 und DLC ausgeblendet
+  assert.strictEqual(isUpdateFile('Zelda [01007EF00011E000][v0].nsp'), false);
+  assert.strictEqual(isUpdateFile('Zelda [01007EF00011E800][v65536].nsp'), true);
+  assert.strictEqual(isUpdateFile('Zelda DLC [01007EF00011F001][v0].nsp'), true);
+  assert.strictEqual(isUpdateFile('Game (Update 1.2).nsp'), true);
+  assert.strictEqual(isUpdateFile('Game [UPD].xci'), true);
+  assert.strictEqual(isUpdateFile('Updates/Game.nsp'), true);
+  assert.strictEqual(isUpdateFile('Cabbage Patch Kids (USA).nes'), false);
+  assert.strictEqual(romHideReason({ hideUpdates: false }, 'Game [UPD].xci'), '');
+  assert.strictEqual(romHideReason({ hidePatterns: ['demo'] }, 'Game (Demo).iso'), 'rule');
+  assert.strictEqual(romHideReason({ hidePatterns: ['*(Beta)'] }, 'Game (Beta).iso'), 'rule');
+  assert.strictEqual(romHideReason({ hidePatterns: ['*(Beta)'] }, 'Game (Beta) X.iso'), '');
+  assert.strictEqual(romHideReason({ hidePatterns: ['Bonus'] }, 'Bonus/Extra.iso'), 'rule');
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ags-hide-'));
+  fs.mkdirSync(path.join(dir, 'Updates'));
+  fs.writeFileSync(path.join(dir, 'Game [0100AAAA0000B000][v0].nsp'), '');
+  fs.writeFileSync(path.join(dir, 'Updates', 'Game [0100AAAA0000B800][v131072].nsp'), '');
+  fs.writeFileSync(path.join(dir, 'Game (Demo).nsp'), '');
+  const cfg = mergeDefaults(DEFAULT_CONFIG, {
+    steam: { enabled: false }, stores: { epic: false, gog: false },
+    emulators: [], systems: [{ id: 'switch', name: 'Switch', extensions: ['.nsp'], romDirs: [dir], hidePatterns: ['demo'] }]
+  });
+  let lib = scanLibrary(cfg);
+  const sys = lib.systems.find((s) => s.id === 'switch');
+  assert.strictEqual(sys.count, 1);
+  assert.strictEqual(sys.hiddenCount, 2);
+  const demo = lib.games.find((g) => /Demo/.test(g.rom));
+  assert.strictEqual(demo.hiddenBy, 'rule');
+  cfg.gameOverrides[demo.id] = { hidden: false }; // trotz Regel anzeigen
+  lib = scanLibrary(cfg);
+  assert.strictEqual(lib.systems.find((s) => s.id === 'switch').count, 2);
+});

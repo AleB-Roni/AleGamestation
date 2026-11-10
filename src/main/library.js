@@ -172,13 +172,52 @@ function walk(dir, exts, depth, out) {
   }
 }
 
+/**
+ * Update-, DLC- und Patch-Dateien erkennen (z.B. Switch-Updates mit [v65536] oder Titel-ID …800,
+ * "(Update)", "[DLC]", Ordner "Updates"). Basisspiele haben bei Switch die Version [v0].
+ */
+const UPDATE_TAG_RE = /[[(][^\])]*\b(?:upd|update|patch|dlc|add-?on)\b[^\])]*[\])]/i;
+const UPDATE_DIR_RE = /^(?:upd|updates?|patch(?:es)?|dlcs?|add-?ons?)$/i;
+function isUpdateFile(rel) {
+  const parts = String(rel).split(/[\\/]/);
+  const file = parts.pop();
+  if (parts.some((d) => UPDATE_DIR_RE.test(d))) return true;
+  if (UPDATE_TAG_RE.test(file)) return true;
+  if (/\[v[1-9]\d*\]/i.test(file)) return true; // Switch: Basisspiel = [v0]
+  const id = file.match(/\[(0100[0-9a-f]{12})\]/i); // Switch-Titel-ID: Basisspiel endet auf 000
+  return !!(id && !/000$/.test(id[1]));
+}
+
+/** Eigene Regel: Teil des Datei-/Ordnernamens, * und ? als Platzhalter, ohne Groß-/Kleinschreibung */
+function patternToRe(p) {
+  const src = String(p).trim().replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.');
+  return new RegExp(/[*?]/.test(p) ? `^${src}$` : src, 'i');
+}
+
+/** Warum eine ROM ausgeblendet wird ('' = sichtbar). rel = Pfad relativ zum ROM-Ordner */
+function romHideReason(sys, rel) {
+  const name = path.basename(rel);
+  if (sys.hideUpdates !== false && isUpdateFile(rel)) return 'update';
+  for (const p of sys.hidePatterns || []) {
+    if (!String(p).trim()) continue;
+    const re = patternToRe(p);
+    if (re.test(name) || re.test(path.basename(rel, path.extname(rel))) || rel.split(/[\\/]/).slice(0, -1).some((d) => re.test(d))) return 'rule';
+  }
+  return '';
+}
+
 function scanRoms(cfg, mediaDir) {
   const games = [];
   for (const sys of cfg.systems) {
     if (sys.enabled === false) continue;
     const exts = (sys.extensions || []).map((e) => (e.startsWith('.') ? e : '.' + e).toLowerCase());
     const files = [];
-    for (const d of sys.romDirs || []) walk(d, exts, 2, files);
+    const roots = new Map(); // Datei -> ROM-Ordner (für relative Pfade bei den Ausblende-Regeln)
+    for (const d of sys.romDirs || []) {
+      const before = files.length;
+      walk(d, exts, 2, files);
+      for (let k = before; k < files.length; k++) roots.set(files[k], d);
+    }
     let titles = {};
     if (mediaDir) { try { titles = JSON.parse(fs.readFileSync(path.join(mediaDir, sys.id, 'names.json'), 'utf8')); } catch { /* keine */ } }
     // .cue/.bin Duplikate vermeiden: wenn .cue/.m3u existiert, zugehörige .bin ignorieren
@@ -189,6 +228,7 @@ function scanRoms(cfg, mediaDir) {
         const stem = f.slice(0, -4).toLowerCase();
         if (set.has(stem + '.cue')) continue;
       }
+      const hideReason = romHideReason(sys, path.relative(roots.get(f) || path.dirname(f), f));
       games.push({
         id: `rom-${sys.id}-${Buffer.from(f).toString('base64url').slice(-40)}`,
         type: 'rom',
@@ -196,7 +236,8 @@ function scanRoms(cfg, mediaDir) {
         name: fixArticle(titles[path.basename(f, path.extname(f))] || prettyName(f)),
         rom: f,
         cover: findRomCover(f, sys.id, mediaDir),
-        hero: findRomSnap(f, sys.id, mediaDir)
+        hero: findRomSnap(f, sys.id, mediaDir),
+        ...(hideReason ? { hidden: true, hiddenBy: hideReason } : {})
       });
     }
   }
@@ -327,7 +368,8 @@ function applyOverrides(cfg, games) {
     if (!o) continue;
     if (o.name) g.name = o.name;
     if (o.cover) g.cover = toImageUrl(o.cover);
-    if (o.hidden) g.hidden = true;
+    if (o.hidden) { g.hidden = true; g.hiddenBy = 'manual'; }
+    else if (o.hidden === false) { g.hidden = false; delete g.hiddenBy; } // trotz Regel anzeigen
   }
   return games;
 }
@@ -356,6 +398,7 @@ function scanLibrary(cfg, opts = {}) {
   for (const g of steam) g.source = 'Steam';
 
   const emulators = cfg.emulators.map((e) => ({ id: e.id, name: e.name, exe: e.exe, found: !!e.exe && exists(e.exe) }));
+  applyOverrides(cfg, roms); // damit die Anzahl ausgeblendete ROMs nicht mitzählt
   const systems = [];
   if (steam.length) systems.push({ id: 'steam', kind: 'store', name: 'Steam', short: 'Steam', color: '#1b2838' });
   if (epic.length) systems.push({ id: 'epic', kind: 'store', name: 'Epic Games', short: 'Epic', color: '#2a2a2a' });
@@ -368,7 +411,8 @@ function scanLibrary(cfg, opts = {}) {
       id: s.id, kind: 'emulator', name: s.name, short: s.short || s.name, color: s.color || '#444',
       emulatorId: emu ? emu.id : '', emulatorName: emu ? emu.name : 'Kein Emulator',
       emulatorFound: !!emu && exists(emu.exe),
-      count: roms.filter((g) => g.system === s.id).length,
+      count: roms.filter((g) => g.system === s.id && !g.hidden).length,
+      hiddenCount: roms.filter((g) => g.system === s.id && g.hidden).length,
       logo: s.logo ? toImageUrl(s.logo) : '',
       tileImage: s.tileImage ? toImageUrl(s.tileImage) : '',
       romDirs: s.romDirs || []
@@ -395,4 +439,4 @@ function scanLibrary(cfg, opts = {}) {
   return { systems, games, emulators, steamFound: !!findSteamPath(cfg.steam.path) };
 }
 
-module.exports = { scanLibrary, parseVdf, prettyName, findSteamPath, detectEmulators, resolveEmulator };
+module.exports = { romHideReason, isUpdateFile, scanLibrary, parseVdf, prettyName, findSteamPath, detectEmulators, resolveEmulator };

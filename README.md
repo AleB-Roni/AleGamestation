@@ -13,6 +13,7 @@ Alle Spiele (Steam, Epic, GOG, eigene) und Emulator-Spiele in einer modernen Obe
 - Auf jeder Spielkachel und in den Details siehst du, **mit welchem Emulator** das Spiel startet – und kannst es **pro Spiel ändern**
 - **Eigene Spiele/Programme hinzufügen** (z. B. Kodi, Spiele ohne Launcher) direkt in der Oberfläche
 - ROM-Ordner werden durchsucht (inkl. Unterordner), Covers werden automatisch erkannt (`Spielname.png` im Ordner, in `covers/` oder `media/covers/`)
+- **Dateien ausblenden**: Update-, DLC- und Patch-Dateien (z. B. Switch-Updates `[v65536]`, `(Update)`, `[DLC]`, Ordner `Updates`) werden automatisch versteckt; eigene Regeln wie `Demo ; (Beta) ; Bonus` pro Konsole unter Einstellungen → Systeme & ROMs. Dort lassen sich einzelne Dateien auch wieder einblenden
 - **Konsolen-Sounds**: sanfte, glockenartige Menüklänge mit Hall (Thema „Modern“), alternativ „Retro (8-Bit)“, Lautstärke einstellbar, Start-Klang
 - **Automatische Updates** direkt von GitHub
 - **Home Assistant**: Fernseher beim Start einschalten und auf den richtigen HDMI-Eingang schalten

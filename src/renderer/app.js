@@ -582,9 +582,9 @@
     } });
     if (ov.cover) items.push({ label: 'Standard-Cover verwenden', icon: 'undo', action: async () => { delete ov.cover; cleanup(); App.closeMenu(); await App.save({ immediate: true, rescan: true }); } });
     items.push({ label: game.hidden ? 'Wieder anzeigen' : 'Aus Bibliothek ausblenden', icon: 'eye', action: async () => {
-      if (game.hidden) delete ov.hidden; else ov.hidden = true;
+      if (game.hidden) { if (game.hiddenBy === 'manual') delete ov.hidden; else ov.hidden = false; } else ov.hidden = true;
       cleanup(); App.closeMenu(); await App.save({ immediate: true, rescan: true });
-      App.toast(game.hidden ? 'Spiel wird wieder angezeigt' : 'Ausgeblendet – wieder einblenden unter Einstellungen → Bibliothek', 'info', 4000);
+      App.toast(game.hidden ? 'Spiel wird wieder angezeigt' : (game.type === 'rom' ? 'Ausgeblendet – wieder einblenden unter Einstellungen → Systeme & ROMs → Konsole' : 'Ausgeblendet – wieder einblenden unter Einstellungen → Steam & Stores'), 'info', 4000);
     } });
     if (game.type === 'pc' && game.system === 'pc') {
       items.push({ label: 'Spiel entfernen', icon: 'trash', danger: true, action: async () => {

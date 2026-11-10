@@ -380,7 +380,7 @@
     },
     {
       id: 'stores', title: 'Steam & Stores', rows: () => {
-        const hidden = App.library.games.filter((g) => g.hidden);
+        const hidden = App.library.games.filter((g) => g.hidden && g.hiddenBy === 'manual');
         return [
           group('Steam', App.library.steamFound ? 'Steam gefunden' : 'Steam nicht gefunden'),
           toggle('Steam-Spiele anzeigen', () => C().steam, 'enabled', 'Installierte Spiele werden automatisch erkannt', { rescan: true }),
@@ -391,6 +391,7 @@
           toggle('GOG', () => C().stores, 'gog', 'Installierte GOG-Spiele automatisch erkennen', { rescan: true }),
           group('Bibliothek', `${App.library.games.length} Spiele`),
           button('↻ Bibliothek jetzt neu einlesen', async () => { await App.refreshLibrary(); App.toast(`${App.library.games.length} Spiele gefunden`, 'ok'); render(); }),
+          ...(hidden.length ? [group('Ausgeblendete Spiele', 'Update-/DLC-Dateien: Einstellungen → Systeme & ROMs → Konsole')] : []),
           ...hidden.map((g) => button(`Wieder einblenden: ${g.name}`, async () => {
             delete (C().gameOverrides[g.id] || {}).hidden;
             await commit(true);
@@ -477,6 +478,7 @@
             if (d) { o().romDirs = [...(o().romDirs || []), d]; await commit(true); }
           }),
           listText('Dateiendungen', o, 'extensions', 'z.B. .sfc ; .smc ; .zip', { rescan: true }),
+          ...hideRows(id, o),
           group('Aussehen'),
           text('Name', o, 'name', '', { rescan: true }),
           text('Kurzname', o, 'short', 'Auf der Kachel', { rescan: true }),
@@ -493,6 +495,27 @@
         ]
       };
     });
+  }
+
+  /** ROMs ausblenden: Update-/DLC-Dateien, eigene Regeln und Liste der ausgeblendeten Dateien */
+  function hideRows(id, o) {
+    const hidden = App.library.games.filter((g) => g.system === id && g.hidden);
+    const why = { update: 'Update/DLC', rule: 'Regel', manual: 'manuell' };
+    const unhide = async (g) => {
+      const ov = (C().gameOverrides[g.id] = C().gameOverrides[g.id] || {});
+      if (g.hiddenBy === 'manual') delete ov.hidden; else ov.hidden = false; // Regel für diese Datei aufheben
+      if (!Object.keys(ov).length) delete C().gameOverrides[g.id];
+      await commit(true);
+      App.toast(`„${g.name}“ wird wieder angezeigt`, 'ok');
+    };
+    const shown = hidden.slice(0, 40);
+    return [
+      group('Dateien ausblenden', hidden.length ? `${hidden.length} ausgeblendet` : ''),
+      { ...toggle('Update-, DLC- und Patch-Dateien ausblenden', o, 'hideUpdates', 'z.B. Switch-Updates [v65536], „(Update)“, „[DLC]“ oder Ordner „Updates“/„DLC“', { rescan: true }), get: () => o().hideUpdates !== false },
+      listText('Eigene Regeln', o, 'hidePatterns', 'Teil des Datei- oder Ordnernamens, * als Platzhalter, mehrere mit ; trennen – z.B. Demo ; (Beta) ; Bonus', { rescan: true }),
+      ...shown.map((g) => button(`Einblenden: ${g.name}`, () => unhide(g), { desc: `${why[g.hiddenBy] || 'ausgeblendet'} · ${g.rom ? g.rom.split(/[\\/]/).slice(-2).join('/') : ''}` })),
+      ...(hidden.length > shown.length ? [{ type: 'group', label: `… und ${hidden.length - shown.length} weitere` }] : [])
+    ];
   }
 
   function openGame(id) {
