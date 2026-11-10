@@ -15,6 +15,8 @@ const { HomeAssistant } = require('./homeassistant');
 const { MouseMode } = require('./mouse-mode');
 const { Osd } = require('./osd');
 const { TouchpadMouse } = require('./touchpad');
+const { Overlay } = require('./overlay');
+const media = require('./media');
 
 // Nur eine Instanz erlauben
 if (!app.requestSingleInstanceLock()) {
@@ -36,6 +38,7 @@ const psWatcher = new PsHidWatcher();
 const ha = new HomeAssistant({ fetch: (url, opts) => net.fetch(url, opts), getConfig: () => store.get(), log: (m) => send('toast', { type: 'info', text: m }) });
 const mouseMode = new MouseMode({ getConfig: () => store.get() });
 const osd = new Osd();
+const overlay = new Overlay({ preload: path.join(__dirname, 'preload.js') });
 // Touchpad als Maus: außerhalb von Spielen (oder nur in der Maussteuerung)
 const touchpad = new TouchpadMouse({
   send: (line) => mouseMode.send(line),
@@ -98,7 +101,6 @@ function applyCombos() {
     { name: 'closeGame', combo: c.closeGameCombo, holdMs: c.comboHoldMs },
     { name: 'showLauncher', combo: c.showLauncherCombo, holdMs: c.comboHoldMs },
     { name: 'mouseMode', combo: c.mouseModeCombo, holdMs: Math.min(c.comboHoldMs, 600) },
-    ...(c.guideButton === 'off' ? [] : [{ name: 'guideMenu', combo: 'GUIDE', holdMs: 0 }])
   ]);
 }
 
@@ -217,7 +219,7 @@ function createWindow() {
     bringToFront();
   });
   if (isDev) win.webContents.openDevTools({ mode: 'detach' });
-  win.on('closed', () => { win = null; osd.destroy(); });
+  win.on('closed', () => { win = null; osd.destroy(); overlay.destroy(); });
   win.webContents.on('did-finish-load', () => {
     setTimeout(() => { for (const n of startupNotes.splice(0)) send('toast', n); }, 1500);
   });
@@ -228,6 +230,7 @@ function createWindow() {
 // ---------- Launcher-Events ----------
 launcher.on('started', (status) => {
   send('game:status', status);
+  overlay.send('overlay:refresh');
   touchpad.reset();
   if (cfg().general.minimizeOnLaunch && win) setTimeout(() => win && !win.isDestroyed() && launcher.isRunning() && win.minimize(), 1200);
 });
@@ -282,20 +285,99 @@ function closeQuickMenu() {
   quickMenuClosedAt = Date.now();
   osd.hide();
 }
+// PS-/Xbox-Taste: kurz = Schnellmenü (im Spiel), gedrückt halten = Konsolen-Overlay
+let guideTimer = null;
+let guideHeld = false;
 watcher.on('pressed', ({ id, pressed }) => {
   lastPadIsPlayStation = String(id).startsWith('ps:');
+  if (pressed & BUTTONS.GUIDE) {
+    clearTimeout(guideTimer);
+    guideHeld = false;
+    if (overlay.isVisible()) { guideHeld = true; closeOverlay(); return; }
+    if (cfg().controller.overlayEnabled !== false) {
+      guideTimer = setTimeout(() => { guideHeld = true; openOverlay(); }, cfg().controller.overlayHoldMs || 600);
+    }
+    return;
+  }
   if (!quickMenu || Date.now() - quickMenu.openedAt < 250) return;
   if (pressed & BUTTONS.A) { closeQuickMenu(); closeCurrentGame(); }
   else if (pressed & BUTTONS.Y) { closeQuickMenu(); bringToFront(); }
-  else if (pressed & (BUTTONS.B | BUTTONS.GUIDE)) closeQuickMenu();
+  else if (pressed & BUTTONS.B) closeQuickMenu();
 });
+watcher.on('released', ({ released }) => {
+  if (!(released & BUTTONS.GUIDE)) return;
+  clearTimeout(guideTimer);
+  if (guideHeld) { guideHeld = false; return; }
+  // Kurz gedrückt: Schnellmenü während eines Spiels
+  if (launcher.isRunning() && cfg().controller.guideButton !== 'off' && !overlay.isVisible()) {
+    if (quickMenu) closeQuickMenu(); else openQuickMenu();
+  }
+});
+
+// ---------- Konsolen-Overlay ----------
+const sessionStart = { at: 0 };
+function openOverlay() {
+  mouseMode.setActive(false);
+  closeQuickMenu();
+  osd.hide();
+  if (padForwarded) { send('pad:state', { mask: 0, axes: [0, 0, 0, 0] }); padForwarded = false; }
+  const display = win && !win.isDestroyed() ? screen.getDisplayMatching(win.getBounds()) : undefined;
+  overlay.show(display).catch(() => {});
+}
+function closeOverlay() {
+  overlay.hide();
+}
+
+function overlayData() {
+  const c = cfg();
+  const st = launcher.status();
+  const recent = (c.recent || []).map((id) => library.games.find((g) => g.id === id)).filter(Boolean)
+    .filter((g) => !(st.running && st.game.id === g.id)).slice(0, 8)
+    .map((g) => ({ id: g.id, name: g.name, cover: g.cover || '', system: g.system }));
+  // Wenig zuletzt gespielt? Mit Favoriten auffüllen
+  for (const id of c.favorites || []) {
+    if (recent.length >= 8) break;
+    const g = library.games.find((x) => x.id === id);
+    if (g && !recent.some((r) => r.id === g.id) && !(st.running && st.game.id === g.id)) recent.push({ id: g.id, name: g.name, cover: g.cover || '', system: g.system });
+  }
+  const running = st.running ? { ...st.game, startedAt: st.startedAt, cover: (library.games.find((g) => g.id === st.game.id) || {}).cover || '' } : null;
+  return { running, recent, systems: library.systems.map((s) => ({ id: s.id, short: s.short, color: s.color })), mouseMode: mouseMode.active, ps: lastPadIsPlayStation };
+}
+
+async function overlayAction(a) {
+  switch (a.type) {
+    case 'resume': closeOverlay(); return true;
+    case 'home': closeOverlay(); bringToFront(); return true;
+    case 'quit': closeOverlay(); return closeCurrentGame();
+    case 'launch': {
+      const game = library.games.find((g) => g.id === a.id);
+      if (!game) throw new Error('Spiel nicht gefunden');
+      closeOverlay();
+      if (launcher.isRunning()) {
+        await closeCurrentGame();
+        // Sicherstellen, dass das alte Spiel wirklich weg ist (max. 8 s)
+        for (let i = 0; i < 40 && launcher.isRunning(); i++) await new Promise((r) => setTimeout(r, 200));
+        if (launcher.isRunning()) throw new Error('Das laufende Spiel ließ sich nicht beenden');
+      }
+      osd.show('▶', `${escHtml(game.name)} wird gestartet …`, '', 2500);
+      return launcher.launch(game, (url) => shell.openExternal(url));
+    }
+    case 'spotify':
+      if (a.cmd === 'open') { await shell.openExternal('spotify:'); return true; }
+      return media.mediaKey((l) => mouseMode.send(l), a.cmd);
+    case 'volume': return media.mediaKey((l) => mouseMode.send(l), a.cmd);
+    case 'mouse': closeOverlay(); mouseMode.toggle(); return mouseMode.active;
+    default: return false;
+  }
+}
+ipcMain.handle('overlay:data', () => overlayData());
+ipcMain.handle('overlay:spotify', () => media.spotifyInfo());
+ipcMain.handle('overlay:action', (_e, a) => overlayAction(a || {}));
+
 
 watcher.on('combo', async ({ name }) => {
   if (name === 'closeGame') {
     await closeCurrentGame();
-  } else if (name === 'guideMenu') {
-    // Nur während ein Spiel läuft – sonst öffnet die PS-Taste in der Oberfläche das normale Menü
-    if (launcher.isRunning()) openQuickMenu();
   } else if (name === 'showLauncher') {
     bringToFront();
   } else if (name === 'mouseMode') {
@@ -303,17 +385,22 @@ watcher.on('combo', async ({ name }) => {
   }
 });
 watcher.on('connection', (c) => send('gamepad:connection', c));
-watcher.on('state', (s) => mouseMode.update(s));
+watcher.on('state', (s) => {
+  mouseMode.update(s);
+  // Xbox-Controller (XInput) steuern das Overlay ebenfalls direkt
+  if (overlay.isVisible() && String(s.id).startsWith('xinput:')) overlay.send('pad:state', { mask: s.mask, axes: s.axes });
+});
 // PlayStation-Controller direkt an die Oberfläche weitergeben (Chromium kann DualSense per Bluetooth
 // im erweiterten Modus nicht lesen). Nur wenn die Oberfläche bedient werden darf – nie während eines Spiels im Hintergrund.
 let padForwarded = false;
 function uiAcceptsController() {
-  if (!win || win.isDestroyed() || mouseMode.active) return false;
+  if (!win || win.isDestroyed() || mouseMode.active || overlay.isVisible()) return false;
   if (win.isFocused()) return true;
   return win.isVisible() && !win.isMinimized() && !launcher.isRunning();
 }
 psWatcher.on('state', (s) => {
   mouseMode.update(s);
+  if (overlay.isVisible()) overlay.send('pad:state', { mask: s.mask, axes: s.axes });
   if (uiAcceptsController()) {
     // Windows gibt der Oberfläche beim Autostart nicht immer den Fokus – beim ersten Tastendruck holen
     if (s.mask > 0 && !win.isFocused()) bringToFront();
@@ -470,7 +557,7 @@ ipcMain.handle('dialog:pickImage', async () => {
 
 // ---------- App-Lebenszyklus ----------
 // Nur für automatische Tests (AGS_TEST=1): Zugriff auf interne Objekte
-if (process.env.AGS_TEST === '1') global.__ags = { watcher, launcher, osd };
+if (process.env.AGS_TEST === '1') global.__ags = { watcher, launcher, osd, overlay, psWatcher };
 
 app.on('second-instance', () => bringToFront());
 
@@ -513,6 +600,7 @@ app.on('before-quit', async (e) => {
   psWatcher.stop();
   mouseMode.stop();
   osd.destroy();
+  overlay.destroy();
   if (!quitting && (displaySwitched || perf.applied.length || perf.previousPlan || ha.ready())) {
     e.preventDefault();
     quitting = true;

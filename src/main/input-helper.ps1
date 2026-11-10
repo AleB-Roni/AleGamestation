@@ -32,7 +32,7 @@ public static class AgsInput {
     i.u.ki.wScan = (ushort)MapVirtualKey(vk, 0);
     uint flags = down ? 0u : 2u;
     // Pfeiltasten u.ä. sind "erweiterte" Tasten
-    if ((vk >= 0x21 && vk <= 0x28) || vk == 0x2D || vk == 0x2E || vk == 0x5B) flags |= 1u;
+    if ((vk >= 0x21 && vk <= 0x28) || vk == 0x2D || vk == 0x2E || vk == 0x5B || (vk >= 0xA6 && vk <= 0xB7)) flags |= 1u; // inkl. Medien-/Lautstärketasten
     i.u.ki.dwFlags = flags;
     Send(i);
   }

@@ -69,7 +69,8 @@
     if (!pads.length) state.typeSet = false;
     const hidActive = new Set();
     // Solange die App den PlayStation-Controller direkt liest, dessen Chromium-Version ignorieren (sonst doppelte Eingaben)
-    const usePads = hid.connected ? pads.filter((p) => !/054c|dualsense|dualshock|wireless controller/i.test(p.id)) : pads;
+    // Overlay: Eingaben kommen ausschließlich von der App (state.chromiumPads === false)
+    const usePads = state.chromiumPads === false ? [] : hid.connected ? pads.filter((p) => !/054c|dualsense|dualshock|wireless controller/i.test(p.id)) : pads;
     if (hid.connected && hid.at) {
       for (const [bit, a, name] of HID_BITS) {
         if (!(hid.mask & bit)) continue;

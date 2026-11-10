@@ -25,6 +25,9 @@ const DEFAULT_CONFIG = {
     soundVolume: 0.7,
     // Start-Klang beim Öffnen
     startupSound: true,
+    // Kurzes Logo-Intro beim Start und Animation beim Spielstart
+    bootAnimation: true,
+    launchAnimation: true,
     // Beim Start automatisch auf GitHub nach Updates suchen
     autoUpdate: true,
     // Gefundene Updates sofort im Hintergrund herunterladen (sonst erst nachfragen)
@@ -73,6 +76,9 @@ const DEFAULT_CONFIG = {
     playstationHid: true,
     // PS-/Xbox-Taste während eines Spiels: Schnellmenü (Spiel beenden mit Rückfrage) | "off"
     guideButton: 'quickMenu',
+    // PS-/Xbox-Taste gedrückt halten: Konsolen-Overlay (Spiel beenden, Schnellstart, Spotify, Lautstärke)
+    overlayEnabled: true,
+    overlayHoldMs: 600,
     // Maus- & Tastatursteuerung per Controller ein/aus (funktioniert überall in Windows)
     mouseModeCombo: 'BACK+Y',
     // Mausgeschwindigkeit (1 = normal)

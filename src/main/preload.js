@@ -57,5 +57,12 @@ contextBridge.exposeInMainWorld('api', {
   onWindowFocus: on('window:focus'),
   onGamepadConnection: on('gamepad:connection'),
   onPadState: on('pad:state'),
+  // Konsolen-Overlay
+  overlayData: () => ipcRenderer.invoke('overlay:data'),
+  overlaySpotify: () => ipcRenderer.invoke('overlay:spotify'),
+  overlayAction: (a) => ipcRenderer.invoke('overlay:action', a),
+  onOverlayOpen: on('overlay:open'),
+  onOverlayClose: on('overlay:close'),
+  onOverlayRefresh: on('overlay:refresh'),
   hidControllers: () => ipcRenderer.invoke('pad:hidCount')
 });

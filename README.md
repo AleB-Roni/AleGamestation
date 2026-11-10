@@ -34,6 +34,8 @@ Alle Spiele (Steam, Epic, GOG, eigene) und Emulator-Spiele in einer modernen Obe
 **Controller**
 - **PlayStation-Controller werden erkannt** (DualSense, DualSense Edge, DualShock 4): Oberfläche zeigt ✕ ○ □ △, L1/R1, Options, PS. Xbox- und Nintendo-Symbole ebenfalls – automatisch oder fest einstellbar
 - PlayStation-Controller werden per USB/Bluetooth **direkt ausgelesen** – die Beenden-Kombination (*Create + Options*) funktioniert ohne Steam Input oder DS4Windows
+- **Boot-Animation** und **Spielstart-Animation**
+- **Konsolen-Overlay** (PS-Taste halten): Spiel beenden, Spiel wechseln, Spotify, Lautstärke
 - **PS-Taste im Spiel öffnet ein Schnellmenü** über dem Spiel: ✕ Spiel beenden (mit Rückfrage), △ zur Oberfläche, ○ weiterspielen
 - **Tastenkombination zum Beenden von Spielen/Emulatoren** (Standard: `BACK + START` 0,8 s halten) – funktioniert **auch, während das Spiel im Vordergrund ist**
 - Zweite Kombination, um die Oberfläche hervorzuholen, ohne das Spiel zu beenden (Standard: `BACK + LB + RB`)
@@ -108,6 +110,18 @@ Die Änderungsliste im Update-Fenster wird automatisch aus den Commit-Nachrichte
 | Z / C | Buchstaben-Sprung |
 | M | Menü |
 | O | Einstellungen |
+
+## Konsolen-Overlay (PS-/Xbox-Taste gedrückt halten)
+
+Während eines Spiels die **PS-Taste** (Xbox: Guide-Taste) **gedrückt halten** öffnet ein Menü über dem Spiel:
+
+- **Zurück zum Spiel**, **Zur Oberfläche**, **Spiel beenden** (mit Rückfrage)
+- **Schnellstart**: zuletzt gespielte Spiele – das laufende Spiel wird beendet und das gewählte gestartet
+- **Musik**: aktueller Spotify-Titel, ⏮ ⏯ ⏭ (über die Windows-Medientasten – funktioniert auch mit anderen Playern)
+- **System**: Lautstärke leiser/lauter/stumm, Maussteuerung
+
+**Kurz drücken** öffnet das kleine Schnellmenü (✕ beenden · △ Oberfläche · ○ weiterspielen). Beides unter **Einstellungen → Controller** anpassbar.
+Hinweis: Läuft Steam, kann die PS-Taste zusätzlich Steam öffnen – in Steam unter *Einstellungen → Controller → Guide-Tasten-Verknüpfungen* abschalten.
 
 ## Home Assistant – Fernseher automatisch einschalten
 

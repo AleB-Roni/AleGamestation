@@ -286,7 +286,8 @@ class Launcher extends EventEmitter {
 
     if (!IS_WIN) {
       try { process.kill(-cur.pid, 'SIGTERM'); } catch { try { cur.child && cur.child.kill('SIGTERM'); } catch { /* ignore */ } }
-      setTimeout(() => this._finish(), 500);
+      await new Promise((r) => setTimeout(r, 500));
+      if (this.current === cur) this._finish();
       return true;
     }
 

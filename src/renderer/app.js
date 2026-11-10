@@ -384,17 +384,46 @@
   }
 
   // ---------- Aktionen ----------
+  /** Spielstart-Animation: Cover zoomt heran, Hintergrund, Ladebalken (ca. 1,6 s) */
+  function playLaunchAnimation(game) {
+    if (App.cfg.general.launchAnimation === false) return Promise.resolve();
+    const el = $('#launchAnim');
+    const sys = systemOf(game.system || '');
+    $('#laTitle').textContent = game.name;
+    $('#laBg').style.backgroundImage = game.hero || game.cover ? `url("${String(game.hero || game.cover).replace(/"/g, '%22')}")` : 'none';
+    $('#laCard').innerHTML = game.cover
+      ? `<img src="${esc(game.cover)}" alt="">`
+      : `<div class="placeholder" style="--c:${esc(sys.color || '#444')}"><div class="ph-sys">${esc(sys.short || '')}</div><div class="ph-name">${esc(game.name)}</div></div>`;
+    el.classList.remove('hidden', 'out');
+    void el.offsetWidth; // Animation neu starten
+    el.classList.add('play');
+    App.launchAnimating = true;
+    return new Promise((resolve) => setTimeout(resolve, 1600));
+  }
+  function endLaunchAnimation() {
+    const el = $('#launchAnim');
+    App.launchAnimating = false;
+    el.classList.add('out');
+    setTimeout(() => el.classList.add('hidden'), 400);
+    if (App.pendingRunning) { const st = App.pendingRunning; App.pendingRunning = null; showRunning(st); }
+  }
+
   async function launch(game) {
     if (App.running) return App.toast('Es läuft bereits ein Spiel.', 'error');
+    if (App.launchAnimating) return;
     Sounds.play('launch');
+    const anim = playLaunchAnimation(game);
     try {
       const st = await api.launch(game.id);
-      if (st && st.running) showRunning(st);
+      await anim;
+      if (st && st.running) App.pendingRunning = st;
       else App.toast(`${game.name} wird geöffnet …`);
     } catch (err) {
+      await anim;
       Sounds.play('error');
       App.toast(String(err.message || err).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''), 'error', 6000);
     }
+    endLaunchAnimation();
   }
 
   async function addGameFlow() {
@@ -806,16 +835,20 @@
 
   // ---------- Läuft-Anzeige ----------
   function showRunning(st) {
+    // Während der Startanimation erst danach anzeigen
+    if (App.launchAnimating) { App.pendingRunning = st; return; }
     App.running = st;
     $('#runningTitle').textContent = st.game.name;
     const combo = Glyphs.comboHtml(App.cfg.controller.closeGameCombo);
-    const guide = App.cfg.controller.guideButton !== 'off' ? ` oder ${Glyphs.html('GUIDE', { raw: true, pad: true })} drücken` : '';
+    const g = Glyphs.html('GUIDE', { raw: true, pad: true });
+    const guide = (App.cfg.controller.guideButton !== 'off' ? ` oder ${g} drücken` : '') + (App.cfg.controller.overlayEnabled !== false ? ` · ${g} halten: Konsolen-Menü` : '');
     $('#runningHint').innerHTML = `Zum Beenden am Controller ${combo} gedrückt halten${guide}`;
     $('#running').classList.remove('hidden');
     renderHints();
   }
   function hideRunning() {
     App.running = null;
+    App.pendingRunning = null; // Spiel schon beendet, während die Startanimation lief
     $('#running').classList.add('hidden');
     renderHints();
   }
@@ -971,7 +1004,31 @@
       if (App.view === 'settings') SettingsView.refreshUpdate && SettingsView.refreshUpdate();
     });
     $('#updateBadge').onclick = () => App.updateDialog(false);
-    if (App.cfg.general.startupSound !== false) setTimeout(() => Sounds.play('startup'), 300);
+    playBootAnimation();
+  }
+
+  // ---------- Boot-Animation ----------
+  function playBootAnimation() {
+    const boot = $('#boot');
+    if (App.cfg.general.bootAnimation === false) {
+      boot.remove();
+      if (App.cfg.general.startupSound !== false) setTimeout(() => Sounds.play('startup'), 300);
+      return;
+    }
+    boot.classList.add('play');
+    if (App.cfg.general.startupSound !== false) setTimeout(() => Sounds.play('startup'), 250);
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      boot.classList.add('out');
+      setTimeout(() => boot.remove(), 600);
+    };
+    setTimeout(finish, 2300);
+    // Mit jeder Taste überspringen
+    const skip = () => { finish(); window.removeEventListener('keydown', skip, true); };
+    window.addEventListener('keydown', skip, true);
+    Input.on(() => finish());
   }
 
   // ---------- Cover-Download ----------

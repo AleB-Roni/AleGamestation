@@ -87,6 +87,8 @@
         },
         select('Lautstärke', () => C().general, 'soundVolume', [0.2, 0.35, 0.5, 0.7, 0.85, 1].map((v) => ({ value: v, label: Math.round(v * 100) + ' %' })), '', { after: () => setTimeout(() => Sounds.play('accept'), 50) }),
         toggle('Start-Klang', () => C().general, 'startupSound', 'Kurzer Klang beim Öffnen von AleGamestation'),
+        toggle('Boot-Animation', () => C().general, 'bootAnimation', 'Kurzes Logo-Intro beim Start'),
+        toggle('Spielstart-Animation', () => C().general, 'launchAnimation', 'Cover zoomt heran, bevor das Spiel startet'),
         toggle('Uhr anzeigen', () => C().general, 'showClock'),
         toggle('Mauszeiger ausblenden', () => C().general, 'hideCursor'),
         toggle('Herunterfahren usw. bestätigen', () => C().general, 'confirmPowerActions'),
@@ -113,7 +115,9 @@
         group('Spiel beenden'),
         select('Tastenkombination „Spiel beenden“', () => C().controller, 'closeGameCombo', comboOptions(C().controller.closeGameCombo), 'Funktioniert auch, während das Spiel im Vordergrund ist'),
         button('Kombination „Spiel beenden“ aufnehmen …', () => recordCombo('closeGameCombo')),
-        select('PS- / Xbox-Taste im Spiel', () => C().controller, 'guideButton', [
+        toggle('Konsolen-Overlay (PS-/Xbox-Taste gedrückt halten)', () => C().controller, 'overlayEnabled', 'Über dem Spiel: beenden, Spiel wechseln, Spotify, Lautstärke'),
+        select('Gedrückt halten für', () => C().controller, 'overlayHoldMs', [400, 600, 800, 1000].map((v) => ({ value: v, label: (v / 1000).toString().replace('.', ',') + ' s' })), 'Bis das Overlay erscheint'),
+        select('PS- / Xbox-Taste kurz drücken (im Spiel)', () => C().controller, 'guideButton', [
           { value: 'quickMenu', label: 'Schnellmenü (Beenden mit Rückfrage)' },
           { value: 'off', label: 'Nichts tun' }
         ], 'Blendet über dem Spiel ein: ✕ Beenden · △ Zur Oberfläche · ○ Weiterspielen'),

@@ -419,3 +419,20 @@ test('PC-Spiele: Bilder über Steam-CDN, Steam-Suche und SteamGridDB', async () 
   assert.match(g.cover, /pc\/covers\/pc-2\.png$/);
   assert.match(g.hero, /pc\/snaps\/pc-2\.png$/);
 });
+
+test('Spotify-Titel aus dem Fenstertitel lesen', () => {
+  const { parseSpotifyTitle } = require('../src/main/media');
+  assert.deepStrictEqual(parseSpotifyTitle('Daft Punk - Get Lucky (feat. Pharrell)'), { running: true, playing: true, artist: 'Daft Punk', title: 'Get Lucky (feat. Pharrell)' });
+  assert.deepStrictEqual(parseSpotifyTitle('Spotify Premium'), { running: true, playing: false });
+  assert.deepStrictEqual(parseSpotifyTitle(''), { running: false, playing: false });
+});
+
+test('Tasten loslassen wird gemeldet (PS-Taste halten vs. kurz drücken)', () => {
+  const w = new GamepadWatcher();
+  const ev = [];
+  w.on('pressed', (e) => ev.push('down:' + e.pressed));
+  w.on('released', (e) => ev.push('up:' + e.released));
+  w._update('ps:1', BUTTONS.GUIDE);
+  w._update('ps:1', 0);
+  assert.deepStrictEqual(ev, ['down:' + BUTTONS.GUIDE, 'up:' + BUTTONS.GUIDE]);
+});

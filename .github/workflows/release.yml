@@ -30,6 +30,9 @@ jobs:
       - name: Tests
         run: npm test
 
+      - name: Windows-Test – Spiele starten und beenden
+        run: node test/windows/kill.win.js
+
       - name: Versions-Tag anlegen (falls noch nicht vorhanden)
         shell: bash
         run: |

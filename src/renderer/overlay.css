@@ -1,0 +1,41 @@
+/* Konsolen-Overlay: Seitenleiste über dem laufenden Spiel */
+html, body.overlay-body { background: transparent !important; }
+#ovDim { position: fixed; inset: 0; background: linear-gradient(90deg, rgba(4,4,10,0.25) 0%, rgba(4,4,10,0.6) 55%, rgba(4,4,10,0.85) 100%); opacity: 0; transition: opacity 0.22s ease; }
+#ovPanel { position: fixed; top: 0; right: 0; bottom: 0; width: 38rem; max-width: 92vw; display: flex; flex-direction: column; padding: 1.6rem 1.8rem 1.2rem;
+  background: rgba(14,14,24,0.94); border-left: 1px solid rgba(255,255,255,0.08); box-shadow: -30px 0 80px rgba(0,0,0,0.6);
+  transform: translateX(105%); transition: transform 0.26s cubic-bezier(.2,.8,.2,1); }
+body.open #ovDim { opacity: 1; }
+body.open #ovPanel { transform: none; }
+.ov-head { display: flex; justify-content: space-between; align-items: center; font-size: 1.05rem; color: var(--muted); }
+.ov-head b { color: var(--text); }
+#ovClock { font-size: 1.3rem; color: var(--text); font-variant-numeric: tabular-nums; }
+.ov-now { display: flex; gap: 1.1rem; align-items: center; margin: 1.4rem 0 0.6rem; padding: 0.9rem; border-radius: 16px; background: rgba(255,255,255,0.05); border: 1px solid var(--line); }
+.ov-now .mini { width: 4.2rem; aspect-ratio: 2/3; border-radius: 10px; overflow: hidden; flex: none; background: #22222f; }
+.ov-now .mini img { width: 100%; height: 100%; object-fit: cover; }
+.ov-now .mini .placeholder { padding: 0.4rem; }
+.ov-now .mini .placeholder .ph-name { font-size: 0.6rem; }
+.ov-now small { color: var(--muted); letter-spacing: 0.14em; text-transform: uppercase; font-size: 0.72rem; }
+.ov-now h2 { margin: 0.15rem 0 0.2rem; font-size: 1.45rem; line-height: 1.15; }
+.ov-now .time { color: var(--muted); font-size: 0.9rem; }
+#ovRows { flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 0.2rem; }
+.ov-row-title { margin: 1rem 0 0.45rem 0.2rem; font-size: 0.72rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; }
+.ov-row { display: flex; gap: 0.7rem; overflow: hidden; padding: 0.7rem 0.5rem; margin: -0.4rem -0.3rem; scroll-padding: 0 2rem; }
+.ov-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.3rem; min-width: 0; padding: 0.85rem 0.6rem; border-radius: 14px;
+  background: rgba(255,255,255,0.06); border: 1px solid var(--line); color: var(--text); font-size: 0.92rem; text-align: center; transition: background 0.15s, transform 0.15s, box-shadow 0.15s; cursor: pointer; }
+.ov-btn .ico { font-size: 1.4rem; line-height: 1; }
+.ov-btn.focused { background: var(--text); color: #0b0b12; transform: scale(1.04); box-shadow: 0 8px 30px rgba(0,0,0,0.5); }
+.ov-btn.danger.focused { background: var(--danger); color: #fff; }
+.ov-btn.armed { background: var(--danger) !important; color: #fff !important; animation: armed 0.8s ease-in-out infinite alternate; }
+@keyframes armed { to { box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger) 40%, transparent); } }
+.ov-game { flex: 0 0 7.2rem; aspect-ratio: 2/3; border-radius: 12px; overflow: hidden; position: relative; background: #1d1d2a; outline: 3px solid transparent; outline-offset: 3px; transition: transform 0.15s, outline-color 0.15s; cursor: pointer; scroll-margin: 0 2rem; }
+.ov-game img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ov-game .placeholder { padding: 0.6rem; }
+.ov-game .placeholder .ph-name { font-size: 0.85rem; }
+.ov-game.focused { outline-color: var(--text); transform: scale(1.05); }
+.ov-game.armed { outline-color: var(--danger); }
+.ov-game .ov-armed-label { position: absolute; inset: auto 0 0 0; padding: 0.4rem; font-size: 0.72rem; font-weight: 700; text-align: center; background: var(--danger); color: #fff; }
+.ov-music { margin: 0 0.2rem 0.4rem; color: var(--muted); font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ov-music b { color: var(--text); }
+.ov-empty { color: var(--muted); font-size: 0.9rem; padding: 0.6rem 0.2rem; }
+#ovHints { display: flex; gap: 1.4rem; justify-content: flex-end; padding-top: 1rem; font-size: 0.9rem; color: var(--muted); border-top: 1px solid var(--line); margin-top: 0.6rem; }
+#ovHints .hint { display: inline-flex; gap: 0.45rem; align-items: center; }

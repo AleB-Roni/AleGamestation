@@ -312,3 +312,45 @@ body.hide-cursor, body.hide-cursor * { cursor: none !important; }
 /* Kacheln: Nachbarn beim Scrollen sichtbar halten */
 .card { scroll-margin: 3rem 6rem; }
 .shelf { scroll-margin-top: 0.4rem; }
+
+/* ---------- Boot-Animation ---------- */
+.boot { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.6rem;
+  background: radial-gradient(ellipse at center, #15122a 0%, #07070c 70%); transition: opacity 0.55s ease; }
+.boot.out { opacity: 0; pointer-events: none; }
+.boot-logo { width: 9rem; height: 9rem; filter: drop-shadow(0 0 30px color-mix(in srgb, var(--accent) 70%, transparent)); }
+.boot-logo svg { width: 100%; height: 100%; overflow: visible; }
+.boot .boot-outer { stroke-dasharray: 300; stroke-dashoffset: 300; }
+.boot .boot-inner { opacity: 0; transform-origin: 60px 60px; transform: scale(0.2) rotate(-90deg); }
+.boot .boot-dot { opacity: 0; transform-origin: 60px 60px; transform: scale(0); }
+.boot-name { font-size: 2rem; font-weight: 300; letter-spacing: 0.6em; opacity: 0; color: var(--text); }
+.boot-name b { font-weight: 700; }
+.boot.play .boot-outer { animation: bootDraw 0.9s cubic-bezier(.6,.1,.2,1) forwards; }
+.boot.play .boot-inner { animation: bootInner 0.6s 0.55s cubic-bezier(.2,1.4,.4,1) forwards; }
+.boot.play .boot-dot { animation: bootDot 0.4s 0.95s cubic-bezier(.2,1.6,.4,1) forwards; }
+.boot.play .boot-logo { animation: bootPulse 0.9s 1.2s ease-out; }
+.boot.play .boot-name { animation: bootName 0.9s 0.9s cubic-bezier(.2,.8,.2,1) forwards; }
+@keyframes bootDraw { to { stroke-dashoffset: 0; } }
+@keyframes bootInner { to { opacity: 1; transform: scale(1) rotate(0); } }
+@keyframes bootDot { to { opacity: 1; transform: scale(1); } }
+@keyframes bootPulse { 50% { filter: drop-shadow(0 0 60px var(--accent)) brightness(1.3); transform: scale(1.06); } }
+@keyframes bootName { from { opacity: 0; letter-spacing: 0.6em; } to { opacity: 1; letter-spacing: 0.04em; } }
+
+/* ---------- Spielstart-Animation ---------- */
+.launch-anim { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; gap: 4rem; background: #05050a; overflow: hidden; transition: opacity 0.4s ease; }
+.launch-anim.out { opacity: 0; }
+.la-bg { position: absolute; inset: -40px; background-size: cover; background-position: center; filter: blur(30px) brightness(0.45) saturate(1.3); transform: scale(1.15); opacity: 0; }
+.la-card { position: relative; width: 18rem; aspect-ratio: 2/3; border-radius: 18px; overflow: hidden; box-shadow: 0 30px 90px rgba(0,0,0,0.7), 0 0 60px color-mix(in srgb, var(--accent) 45%, transparent); opacity: 0; transform: scale(0.6) translateY(40px); }
+.la-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.la-info { position: relative; max-width: 40rem; opacity: 0; transform: translateX(-30px); }
+.la-label { letter-spacing: 0.3em; text-transform: uppercase; color: var(--muted); font-size: 0.85rem; }
+.la-info h2 { font-size: 3rem; margin: 0.4rem 0 1.4rem; line-height: 1.05; }
+.la-bar { width: 22rem; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.12); overflow: hidden; }
+.la-bar div { height: 100%; width: 40%; border-radius: 2px; background: linear-gradient(90deg, transparent, var(--accent), var(--accent-2), transparent); transform: translateX(-100%); }
+.launch-anim.play .la-bg { animation: laBg 1.6s ease-out forwards; }
+.launch-anim.play .la-card { animation: laCard 0.7s cubic-bezier(.2,1.2,.3,1) forwards; }
+.launch-anim.play .la-info { animation: laInfo 0.6s 0.25s cubic-bezier(.2,.8,.2,1) forwards; }
+.launch-anim.play .la-bar div { animation: laBar 1.1s 0.3s ease-in-out infinite; }
+@keyframes laBg { 0% { opacity: 0; transform: scale(1.3); } 100% { opacity: 1; transform: scale(1.1); } }
+@keyframes laCard { to { opacity: 1; transform: none; } }
+@keyframes laInfo { to { opacity: 1; transform: none; } }
+@keyframes laBar { to { transform: translateX(260%); } }
