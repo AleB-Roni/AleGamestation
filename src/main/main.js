@@ -71,11 +71,121 @@ function send(channel, payload) {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
 }
 
+// ---------- Bildschirme / Fernseher ----------
+let knownDisplays = []; // letzte Liste aus listDisplays() (für die Fensterplatzierung)
+let tvOnlyState = null; // { prevPrimary } solange "Nur Fernseher" aktiv ist
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** Pixel-Position/-Größe eines Electron-Bildschirms */
+function physical(d) {
+  const sf = d.scaleFactor || 1;
+  const o = d.nativeOrigin || { x: Math.round(d.bounds.x * sf), y: Math.round(d.bounds.y * sf) };
+  return { x: o.x, y: o.y, w: Math.round(d.size.width * sf), h: Math.round(d.size.height * sf) };
+}
+
+/** Alle Bildschirme mit echtem Namen (z.B. "LG TV"), Auflösung und Windows-Gerätename */
+async function listDisplays() {
+  const el = screen.getAllDisplays();
+  const primaryId = screen.getPrimaryDisplay().id;
+  let win32 = [];
+  try { const j = await nativeHelper.request('displays', 15000); win32 = j ? JSON.parse(j) : []; } catch { win32 = []; }
+  let list;
+  if (win32.length) {
+    list = win32.map((w, i) => {
+      const e = el.find((d) => { const p = physical(d); return p.x === w.x && p.y === w.y && p.w === w.w && p.h === w.h; });
+      const monitor = w.monitor && !/pnp|plug and play/i.test(w.monitor) ? w.monitor : '';
+      return { key: w.device, device: w.device, name: (e && e.label) || monitor || `Bildschirm ${i + 1}`, width: w.w, height: w.h, hz: w.hz, primary: !!w.primary, electronId: e ? e.id : null };
+    });
+  } else {
+    list = el.map((d, i) => { const p = physical(d); return { key: 'e:' + d.id, device: '', name: d.label || `Bildschirm ${i + 1}`, width: p.w, height: p.h, primary: d.id === primaryId, electronId: d.id }; });
+  }
+  knownDisplays = list;
+  return list;
+}
+
+/** Den gewählten Fernseher in einer Bildschirmliste finden (Gerätename, sonst Name) */
+function findTv(list) {
+  const tv = cfg().display.tv;
+  if (!tv) return null;
+  return list.find((x) => x.key === tv.key) || list.find((x) => tv.name && x.name === tv.name) || null;
+}
+
 function targetDisplay() {
   const displays = screen.getAllDisplays();
-  const t = cfg().general.targetDisplay;
-  if (t !== 'primary' && displays[Number(t)]) return displays[Number(t)];
+  const t = String(cfg().general.targetDisplay || 'primary');
+  if (t === 'tv') {
+    const tv = findTv(knownDisplays);
+    const d = tv && displays.find((x) => x.id === tv.electronId);
+    if (d) return d;
+  } else if (t.startsWith('id:')) {
+    const d = displays.find((x) => String(x.id) === t.slice(3));
+    if (d) return d;
+  } else if (t !== 'primary' && displays[Number(t)]) return displays[Number(t)];
   return screen.getPrimaryDisplay();
+}
+
+/** "Nur Fernseher": gewählten Bildschirm als einzigen und als Hauptbildschirm verwenden */
+async function applyTvOnly(manual = false) {
+  const d = cfg().display;
+  const tv = d.tv;
+  if (!tv) return { ok: false, error: 'Kein Fernseher ausgewählt (Einstellungen → Anzeige)' };
+  let list = await listDisplays();
+  let entry = findTv(list);
+  if (!entry) {
+    // Fernseher evtl. gerade abgeschaltet: alle Bildschirme einschalten und warten (z.B. nach dem Einschalten per Home Assistant)
+    await system.setDisplayMode('extend');
+    const deadline = Date.now() + (d.tvWaitSeconds || 15) * 1000;
+    while (!entry && Date.now() < deadline) {
+      await sleep(1500);
+      list = await listDisplays();
+      entry = findTv(list);
+    }
+  }
+  if (!entry) return { ok: false, error: `Fernseher „${tv.name}“ wurde nicht gefunden – Bildschirme bleiben unverändert` };
+  if (!entry.device) return { ok: false, error: '„Nur Fernseher“ ist nur unter Windows möglich' };
+  const prev = list.find((x) => x.primary);
+  if (!tvOnlyState) tvOnlyState = { prevPrimary: prev && prev.device !== entry.device ? prev.device : '' };
+  if (list.length > 1 || !entry.primary) {
+    const r = await nativeHelper.request(`tvonly ${entry.device}`, 10000);
+    if (r !== '0') return { ok: false, error: `Windows konnte den Bildschirm nicht umschalten (Code ${r || 'keine Antwort'})` };
+  }
+  displaySwitched = true;
+  if (!manual) await sleep(d.switchDelayMs || 2500);
+  setTimeout(() => listDisplays().then(placeWindow).catch(() => {}), 1500);
+  return { ok: true, name: entry.name };
+}
+
+/** Alle Bildschirme wieder einschalten und den vorherigen Hauptbildschirm zurücksetzen */
+async function restoreDisplays(onExit = 'extend') {
+  const state = tvOnlyState;
+  tvOnlyState = null;
+  await system.setDisplayMode('extend');
+  await sleep(2500);
+  if (state && state.prevPrimary) await nativeHelper.request(`primary ${state.prevPrimary}`, 10000);
+  if (onExit && !['extend', 'none', 'tvOnly'].includes(onExit)) { await sleep(1000); await system.setDisplayMode(onExit); }
+  displaySwitched = false;
+  setTimeout(() => listDisplays().catch(() => {}), 1500);
+}
+
+/** Auf jedem Bildschirm groß Nummer und Name einblenden (wie bei Windows "Identifizieren") */
+async function identifyDisplays() {
+  const list = await listDisplays();
+  const all = screen.getAllDisplays();
+  list.forEach((entry, i) => {
+    const d = all.find((x) => x.id === entry.electronId);
+    if (!d) return;
+    const w = 520; const h = 300;
+    const idw = new BrowserWindow({ x: Math.round(d.bounds.x + (d.bounds.width - w) / 2), y: Math.round(d.bounds.y + (d.bounds.height - h) / 2), width: w, height: h,
+      frame: false, transparent: true, alwaysOnTop: true, skipTaskbar: true, focusable: false, resizable: false, show: false, webPreferences: { sandbox: true } });
+    idw.setAlwaysOnTop(true, 'screen-saver');
+    const tvKey = (cfg().display.tv || {}).key;
+    const html = `<body style="margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:rgba(14,14,24,.92);color:#fff;font-family:Segoe UI,sans-serif;border-radius:24px;flex-direction:column">
+      <div style="font-size:150px;font-weight:800;line-height:1">${i + 1}</div><div style="font-size:26px;margin-top:8px">${String(entry.name).replace(/[<>&]/g, '')}</div>
+      <div style="font-size:18px;opacity:.7;margin-top:6px">${entry.width}×${entry.height}${entry.primary ? ' · Hauptbildschirm' : ''}${entry.key === tvKey ? ' · Fernseher' : ''}</div></body>`;
+    idw.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html)).then(() => { idw.showInactive(); nativeHelper.top(hwndOf(idw)); });
+    setTimeout(() => { if (!idw.isDestroyed()) idw.destroy(); }, 4000);
+  });
+  return list;
 }
 
 function placeWindow() {
@@ -127,7 +237,10 @@ async function enterConsoleMode() {
     }
   }
   await system.runCommands(d.customCommandsOnStart);
-  if (!skipDisplaySwitch && d.onStart && d.onStart !== 'none') {
+  if (!skipDisplaySwitch && d.onStart === 'tvOnly') {
+    const r = await applyTvOnly();
+    if (!r.ok) startupNotes.push({ type: 'error', text: r.error });
+  } else if (!skipDisplaySwitch && d.onStart && d.onStart !== 'none') {
     const r = await system.setDisplayMode(d.onStart);
     if (r.ok) {
       displaySwitched = true;
@@ -141,7 +254,9 @@ async function leaveConsoleMode(opts = {}) {
   mouseMode.setActive(false);
   await perfPromise;
   await perf.restore(!!opts.shutdown);
-  if (displaySwitched && d.onExit && d.onExit !== 'none') {
+  if (tvOnlyState) {
+    await restoreDisplays(d.onExit);
+  } else if (displaySwitched && d.onExit && d.onExit !== 'none') {
     await system.setDisplayMode(d.onExit);
     displaySwitched = false;
   }
@@ -501,6 +616,10 @@ ipcMain.handle('system:power', async (_e, action) => {
   return system.power(action);
 });
 ipcMain.handle('system:displayMode', (_e, mode) => system.setDisplayMode(mode));
+ipcMain.handle('displays:list', () => listDisplays());
+ipcMain.handle('displays:identify', () => identifyDisplays());
+ipcMain.handle('displays:tvOnly', () => applyTvOnly(true));
+ipcMain.handle('displays:restore', async () => { await restoreDisplays('extend'); return true; });
 ipcMain.handle('system:displays', () => screen.getAllDisplays().map((d, i) => ({ index: i, label: d.label || `Bildschirm ${i + 1}`, width: d.size.width, height: d.size.height, primary: d.id === screen.getPrimaryDisplay().id })));
 ipcMain.handle('pad:hidCount', () => psWatcher.devices.size);
 ipcMain.handle('ha:test', () => ha.test());
@@ -584,6 +703,9 @@ app.whenReady().then(async () => {
   applyAutostart();
   applyCombos();
   powerSaveBlocker.start('prevent-display-sleep');
+  // Bildschirmliste vorab laden, damit "Oberfläche auf dem Fernseher" den richtigen Monitor findet
+  const listing = listDisplays().catch(() => []);
+  if (cfg().general.targetDisplay === 'tv') await listing;
   await enterConsoleMode();
   refreshLibrary();
   createWindow();
@@ -608,8 +730,9 @@ app.whenReady().then(async () => {
     setInterval(() => { if (cfg().general.autoUpdate !== false && !launcher.isRunning()) updater.check(); }, 6 * 3600 * 1000);
   }
   // Wenn Windows die Bildschirme ändert (TV an/aus), Fenster neu platzieren
-  screen.on('display-added', () => setTimeout(placeWindow, 800));
-  screen.on('display-removed', () => setTimeout(placeWindow, 800));
+  const relist = () => setTimeout(() => listDisplays().catch(() => {}).then(placeWindow), 800);
+  screen.on('display-added', relist);
+  screen.on('display-removed', relist);
   screen.on('display-metrics-changed', () => setTimeout(placeWindow, 800));
 });
 

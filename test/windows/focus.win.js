@@ -30,6 +30,20 @@ function hwndOfPid(pid) {
   assert.ok(helper.proc, 'Hilfsprogramm läuft nach Tasten-/Mausbefehlen weiter');
   console.log('✔ Maus- und Tastaturbefehle werden angenommen');
 
+  // Bildschirme auflisten (für die Fernseher-Auswahl)
+  const raw = await helper.request('displays', 10000);
+  const displays = JSON.parse(raw || '[]');
+  assert.ok(Array.isArray(displays), 'Bildschirmliste ist kein Array: ' + raw);
+  if (!displays.length) console.log('⚠ Keine Bildschirme gemeldet (keine Desktop-Sitzung)');
+  else {
+    for (const d of displays) assert.ok(d.device && d.w > 0 && d.h > 0, 'Ungültiger Eintrag: ' + JSON.stringify(d));
+    console.log('✔ Bildschirme erkannt:', displays.map((d) => `${d.device} ${d.w}x${d.h}${d.primary ? ' (Haupt)' : ''}`).join(', '));
+    const prim = displays.find((d) => d.primary) || displays[0];
+    // Den aktuellen Hauptbildschirm erneut zum Hauptbildschirm machen = keine Änderung, muss aber gelingen
+    const r = await helper.request(`primary ${prim.device}`, 10000);
+    console.log(r === '0' ? '✔ Hauptbildschirm setzen funktioniert' : `⚠ Hauptbildschirm setzen meldet ${r} (VM ohne Grafiktreiber?)`);
+  }
+
   // 2) Zwei Fenster: A im Hintergrund, B im Vordergrund -> A per "front" nach vorne holen
   const notepad = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'notepad.exe');
   const a = spawn(notepad, [], { detached: true, stdio: 'ignore' });

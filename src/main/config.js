@@ -45,6 +45,11 @@ const DEFAULT_CONFIG = {
     // Was beim Start des Konsolenmodus passieren soll:
     // "none" | "external" (nur TV / zweiter Bildschirm) | "internal" (nur PC-Monitor) | "clone" (duplizieren) | "extend" (erweitern)
     onStart: 'external',
+    // "tvOnly" = nur der unten gewählte Fernseher (wird Hauptbildschirm, alle anderen aus)
+    // Gewählter Fernseher: { key: '\\\\.\\DISPLAY2', name: 'LG TV' } – in den Einstellungen auswählen
+    tv: null,
+    // So lange auf den Fernseher warten, falls er beim Start noch aus ist
+    tvWaitSeconds: 15,
     // Was beim Beenden (zurück zum Desktop) passieren soll
     onExit: 'extend',
     // Vor dem Herunterfahren / Neustart die Anzeige wiederherstellen (onExit-Modus)

@@ -7,7 +7,8 @@
 
   const DISPLAY_OPTS = [
     { value: 'none', label: 'Nichts ändern' },
-    { value: 'external', label: 'Nur TV / zweiter Bildschirm' },
+    { value: 'tvOnly', label: 'Nur Fernseher (ausgewählt)' },
+    { value: 'external', label: 'Nur zweiter Bildschirm (Windows)' },
     { value: 'internal', label: 'Nur PC-Bildschirm' },
     { value: 'clone', label: 'Duplizieren' },
     { value: 'extend', label: 'Erweitern' }
@@ -20,6 +21,28 @@
   ];
 
   const S = { section: 0, focus: 0, rows: [], displays: [] };
+
+  function displayLabel(d) {
+    return `${d.name} – ${d.width}×${d.height}${d.hz ? ' · ' + d.hz + ' Hz' : ''}${d.primary ? ' · Hauptbildschirm' : ''}`;
+  }
+  /** Auswahl des Fernsehers; ein gespeicherter, gerade nicht aktiver TV bleibt sichtbar */
+  function tvSelect() {
+    const tv = C().display.tv;
+    const opts = [{ value: '', label: 'Nicht festgelegt' }].concat(S.displays.map((d) => ({ value: d.key, label: displayLabel(d) })));
+    if (tv && !S.displays.some((d) => d.key === tv.key)) opts.push({ value: tv.key, label: `${tv.name} (gerade nicht aktiv)` });
+    return {
+      type: 'select', label: 'Mein Fernseher', options: opts,
+      desc: 'Wird für „Nur Fernseher“ und die Anzeige der Oberfläche verwendet',
+      get: () => (C().display.tv ? C().display.tv.key : ''),
+      set: (v) => {
+        if (!v) { C().display.tv = null; return; }
+        const d = S.displays.find((x) => x.key === v);
+        C().display.tv = d ? { key: d.key, name: d.name } : C().display.tv;
+        C().general.targetDisplay = 'tv';
+        if (C().display.onStart === 'external') C().display.onStart = 'tvOnly';
+      }
+    };
+  }
 
   // Hilfsfunktionen zum Lesen/Schreiben verschachtelter Werte
   const C = () => App.cfg;
@@ -67,7 +90,7 @@
         group('Start'),
         toggle('Mit Windows starten', () => C().general, 'autostartWithWindows', 'Konsolenmodus startet automatisch nach der Anmeldung'),
         toggle('Vollbild', () => C().general, 'startFullscreen'),
-        select('Oberfläche anzeigen auf', () => C().general, 'targetDisplay', [{ value: 'primary', label: 'Hauptbildschirm' }].concat(S.displays.map((d) => ({ value: String(d.index), label: `${d.label} (${d.width}×${d.height})` }))), 'Bei „Nur TV“ ist der TV automatisch der Hauptbildschirm'),
+        select('Oberfläche anzeigen auf', () => C().general, 'targetDisplay', [{ value: 'primary', label: 'Hauptbildschirm' }, { value: 'tv', label: 'Fernseher (Einstellungen → Anzeige)' }].concat(S.displays.filter((d) => d.electronId != null).map((d) => ({ value: 'id:' + d.electronId, label: displayLabel(d) }))), 'Bei „Nur Fernseher“ ist der TV automatisch der Hauptbildschirm'),
         group('Beim Spielen'),
         toggle('Oberfläche minimieren, während ein Spiel läuft', () => C().general, 'minimizeOnLaunch'),
         toggle('Nach Spielende zurück in die Oberfläche', () => C().general, 'refocusAfterGame'),
@@ -98,16 +121,26 @@
     },
     {
       id: 'display', title: 'Anzeige', rows: () => [
+        group('Fernseher', 'Welcher Bildschirm ist dein TV? „Identifizieren“ zeigt auf jedem Bildschirm eine Nummer'),
+        tvSelect(),
+        button('Bildschirme identifizieren', async () => { await api.identifyDisplays(); }, { desc: 'Zeigt 4 Sekunden lang Nummer und Name auf jedem Bildschirm' }),
+        button('↻ Bildschirmliste aktualisieren', async () => { S.displays = await api.listDisplays().catch(() => []); render(); App.toast(`${S.displays.length} Bildschirm(e) gefunden`, 'info'); }),
+        button('Jetzt nur den Fernseher verwenden', async () => {
+          App.toast('Schalte auf den Fernseher um …', 'info', 2500);
+          const r = await api.tvOnly().catch((e) => ({ ok: false, error: String(e.message || e) }));
+          App.toast(r && r.ok ? 'Nur noch der Fernseher ist aktiv' : (r && r.error) || 'Umschalten fehlgeschlagen', r && r.ok ? 'ok' : 'error', 6000);
+        }),
+        button('Alle Bildschirme wieder einschalten', async () => { await api.restoreDisplays(); App.toast('Bildschirme wiederhergestellt', 'ok'); }),
         group('Bildschirm umschalten (wie Win + P)'),
-        select('Beim Start des Konsolenmodus', () => C().display, 'onStart', DISPLAY_OPTS, 'z.B. PC-Monitor aus, nur noch TV'),
-        select('Beim Beenden (zurück zum Desktop)', () => C().display, 'onExit', DISPLAY_OPTS),
+        select('Beim Start des Konsolenmodus', () => C().display, 'onStart', DISPLAY_OPTS, '„Nur Fernseher“ nutzt den oben gewählten TV – „zweiter Bildschirm“ überlässt die Wahl Windows'),
+        select('Beim Beenden (zurück zum Desktop)', () => C().display, 'onExit', DISPLAY_OPTS.filter((o) => o.value !== 'tvOnly')),
         toggle('Vor Herunterfahren/Neustart wiederherstellen', () => C().display, 'restoreBeforeShutdown', 'Damit Windows beim nächsten Start wieder auf dem Monitor erscheint'),
         select('Wartezeit nach dem Umschalten', () => C().display, 'switchDelayMs', [1000, 1500, 2500, 4000, 6000].map((v) => ({ value: v, label: v / 1000 + ' s' }))),
         group('Eigene Befehle', 'z.B. Audio auf TV umstellen mit NirCmd'),
         listText('Befehle beim Start', () => C().display, 'customCommandsOnStart', 'Mehrere mit ; trennen. Beispiel: nircmd setdefaultsounddevice "TV"'),
         listText('Befehle beim Beenden', () => C().display, 'customCommandsOnExit'),
         group('Jetzt testen'),
-        ...DISPLAY_OPTS.filter((o) => o.value !== 'none').map((o) => button('Test: ' + o.label, () => api.setDisplayMode(o.value)))
+        ...DISPLAY_OPTS.filter((o) => !['none', 'tvOnly'].includes(o.value)).map((o) => button('Test: ' + o.label, () => api.setDisplayMode(o.value)))
       ]
     },
     {
@@ -721,7 +754,7 @@
   window.SettingsView = {
     async open(sectionId) {
       if (sectionId) { S.section = Math.max(0, SECTIONS.findIndex((s) => s.id === sectionId)); S.focus = 0; S.detail = null; }
-      try { S.displays = await api.displays(); } catch { S.displays = []; }
+      try { S.displays = await api.listDisplays(); } catch { S.displays = []; }
       try { S.update = await api.updateState(); } catch { S.update = {}; }
       render();
     },

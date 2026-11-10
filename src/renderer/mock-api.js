@@ -50,7 +50,12 @@
     getConfig: async () => cfg, getDefaults: async () => defaults, saveConfig: async (c) => (cfg = c), configPath: async () => 'config.json', openConfigFile: async () => {},
     getLibrary: async () => library, refreshLibrary: async () => library, detectEmulators: async () => ({ changes: [], config: cfg, library }),
     launch: async () => ({ running: false }), kill: async () => true, gameStatus: async () => ({ running: false }),
-    power: async () => {}, setDisplayMode: async () => {}, displays: async () => [{ index: 0, label: 'TV', width: 3840, height: 2160 }], info: async () => ({}),
+    power: async () => {}, setDisplayMode: async () => {}, displays: async () => [{ index: 0, label: 'TV', width: 3840, height: 2160 }],
+    listDisplays: async () => [
+      { key: '\\\\.\\DISPLAY1', name: 'DELL U2720Q', width: 2560, height: 1440, hz: 144, primary: true, electronId: 1 },
+      { key: '\\\\.\\DISPLAY2', name: 'LG TV SSCR2', width: 3840, height: 2160, hz: 60, primary: false, electronId: 2 }
+    ],
+    identifyDisplays: async () => true, tvOnly: async () => ({ ok: true }), restoreDisplays: async () => true, info: async () => ({}),
     updateState: async () => ({ status: 'latest', version: '1.0.0' }), checkUpdate: async () => null, installUpdate: async () => false, onUpdateState: noop,
     recommendedPrograms: async () => [{ name: 'OneDrive', process: 'OneDrive.exe', action: 'close', note: 'Synchronisation' }, { name: 'Microsoft Teams', process: 'ms-teams.exe', action: 'close', note: 'Viel RAM' }],
     runningPrograms: async () => [{ name: 'Google Chrome', process: 'chrome.exe', memMB: 1840 }, { name: 'Discord', process: 'Discord.exe', memMB: 520 }],
