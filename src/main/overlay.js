@@ -37,16 +37,23 @@ class Overlay {
     return this.visible && !!this.win && !this.win.isDestroyed();
   }
 
-  async show(display) {
+  /** @param {boolean} focus Fokus holen (Spiel bekommt keine Eingaben) oder nur oben drüberlegen */
+  async show(display, focus = false) {
     const win = await this._ensure();
     const d = display || screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
     win.setBounds(d.bounds);
     this.visible = true;
+    win.setFocusable(!!focus);
+    win.setAlwaysOnTop(true, 'screen-saver');
     win.webContents.send('overlay:open');
-    win.show();
-    // Fokus holen, damit das Spiel keine Eingaben bekommt (viele Spiele pausieren dann)
-    win.focus();
-    win.webContents.focus();
+    if (focus) {
+      win.show();
+      win.focus();
+      win.webContents.focus();
+    } else {
+      // Ohne Fokus anzeigen: das Spiel bleibt aktiv und im Vollbild, die Bedienung kommt vom Controller
+      win.showInactive();
+    }
   }
 
   hide() {

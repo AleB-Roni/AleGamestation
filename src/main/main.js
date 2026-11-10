@@ -18,6 +18,7 @@ const { TouchpadMouse } = require('./touchpad');
 const { Overlay } = require('./overlay');
 const { NativeHelper, hwndOf } = require('./native-helper');
 const media = require('./media');
+const { Spotify } = require('./spotify');
 
 // Nur eine Instanz erlauben
 if (!app.requestSingleInstanceLock()) {
@@ -36,6 +37,10 @@ let updater = null;
 const perf = new Performance();
 let perfPromise = Promise.resolve([]);
 const psWatcher = new PsHidWatcher();
+const spotify = new Spotify({
+  getConfig: () => store.get(), file: path.join(app.getPath('userData'), 'spotify.json'),
+  fetch: (u, o) => net.fetch(u, o), openUrl: (u) => shell.openExternal(u)
+});
 const ha = new HomeAssistant({ fetch: (url, opts) => net.fetch(url, opts), getConfig: () => store.get(), log: (m) => send('toast', { type: 'info', text: m }) });
 // Gemeinsames Windows-Hilfsprogramm: Maus/Tastatur, Medientasten, Fenster-Fokus
 const nativeHelper = new NativeHelper();
@@ -124,8 +129,12 @@ function targetDisplay() {
   return screen.getPrimaryDisplay();
 }
 
-/** "Nur Fernseher": gewählten Bildschirm als einzigen und als Hauptbildschirm verwenden */
-async function applyTvOnly(manual = false) {
+/**
+ * Gewählten Fernseher verwenden.
+ *  mode 'only'    = einziger Bildschirm und Hauptbildschirm (andere aus)
+ *  mode 'primary' = alle Bildschirme bleiben an, der TV wird Hauptbildschirm (Spiele starten dort)
+ */
+async function applyTvOnly(manual = false, mode = 'only') {
   const d = cfg().display;
   const tv = d.tv;
   if (!tv) return { ok: false, error: 'Kein Fernseher ausgewählt (Einstellungen → Anzeige)' };
@@ -144,8 +153,14 @@ async function applyTvOnly(manual = false) {
   if (!entry) return { ok: false, error: `Fernseher „${tv.name}“ wurde nicht gefunden – Bildschirme bleiben unverändert` };
   if (!entry.device) return { ok: false, error: '„Nur Fernseher“ ist nur unter Windows möglich' };
   const prev = list.find((x) => x.primary);
-  if (!tvOnlyState) tvOnlyState = { prevPrimary: prev && prev.device !== entry.device ? prev.device : '' };
-  if (list.length > 1 || !entry.primary) {
+  if (!tvOnlyState) tvOnlyState = { mode, prevPrimary: prev && prev.device !== entry.device ? prev.device : '' };
+  tvOnlyState.mode = mode;
+  if (mode === 'primary') {
+    if (!entry.primary) {
+      const r = await nativeHelper.request(`primary ${entry.device}`, 10000);
+      if (r !== '0') return { ok: false, error: `Windows konnte den Hauptbildschirm nicht ändern (Code ${r || 'keine Antwort'})` };
+    }
+  } else if (list.length > 1 || !entry.primary) {
     const r = await nativeHelper.request(`tvonly ${entry.device}`, 10000);
     if (r !== '0') return { ok: false, error: `Windows konnte den Bildschirm nicht umschalten (Code ${r || 'keine Antwort'})` };
   }
@@ -159,10 +174,12 @@ async function applyTvOnly(manual = false) {
 async function restoreDisplays(onExit = 'extend') {
   const state = tvOnlyState;
   tvOnlyState = null;
-  await system.setDisplayMode('extend');
-  await sleep(2500);
+  if (!state || state.mode !== 'primary') {
+    await system.setDisplayMode('extend');
+    await sleep(2500);
+  }
   if (state && state.prevPrimary) await nativeHelper.request(`primary ${state.prevPrimary}`, 10000);
-  if (onExit && !['extend', 'none', 'tvOnly'].includes(onExit)) { await sleep(1000); await system.setDisplayMode(onExit); }
+  if (onExit && !['extend', 'none', 'tvOnly', 'tvPrimary'].includes(onExit)) { await sleep(1000); await system.setDisplayMode(onExit); }
   displaySwitched = false;
   setTimeout(() => listDisplays().catch(() => {}), 1500);
 }
@@ -237,8 +254,8 @@ async function enterConsoleMode() {
     }
   }
   await system.runCommands(d.customCommandsOnStart);
-  if (!skipDisplaySwitch && d.onStart === 'tvOnly') {
-    const r = await applyTvOnly();
+  if (!skipDisplaySwitch && (d.onStart === 'tvOnly' || d.onStart === 'tvPrimary')) {
+    const r = await applyTvOnly(false, d.onStart === 'tvPrimary' ? 'primary' : 'only');
     if (!r.ok) startupNotes.push({ type: 'error', text: r.error });
   } else if (!skipDisplaySwitch && d.onStart && d.onStart !== 'none') {
     const r = await system.setDisplayMode(d.onStart);
@@ -437,6 +454,7 @@ watcher.on('released', ({ released }) => {
 // ---------- Konsolen-Overlay ----------
 const sessionStart = { at: 0 };
 let overlayGameHwnd = 0; // Spielfenster, das beim Schließen des Overlays wieder nach vorne kommt
+let overlayTookFocus = false;
 async function openOverlay() {
   mouseMode.setActive(false);
   closeQuickMenu();
@@ -447,15 +465,23 @@ async function openOverlay() {
   const own = [hwndOf(win), overlay.hwnd(), hwndOf(osd.win)];
   overlayGameHwnd = fg && !own.includes(fg) ? fg : (launcher.isRunning() ? overlayGameHwnd : 0);
   const display = win && !win.isDestroyed() ? screen.getDisplayMatching(win.getBounds()) : undefined;
-  await overlay.show(display).catch(() => {});
-  // Ganz nach vorne – auch über Vollbild-Spiele (exklusives Vollbild minimiert sich dabei)
-  nativeHelper.front(overlay.hwnd(), true);
-  setTimeout(() => { if (overlay.isVisible()) nativeHelper.front(overlay.hwnd(), true); }, 350);
+  const focus = !!cfg().controller.overlayFocus;
+  overlayTookFocus = focus;
+  await overlay.show(display, focus).catch(() => {});
+  if (focus) {
+    // Ganz nach vorne mit Fokus – auch über Vollbild-Spiele (exklusives Vollbild minimiert sich dabei)
+    nativeHelper.front(overlay.hwnd(), true);
+    setTimeout(() => { if (overlay.isVisible()) nativeHelper.front(overlay.hwnd(), true); }, 350);
+  } else {
+    // Nur oben drüberlegen: das Spiel behält den Fokus und bleibt im Vollbild
+    nativeHelper.top(overlay.hwnd());
+    setTimeout(() => { if (overlay.isVisible()) nativeHelper.top(overlay.hwnd()); }, 350);
+  }
 }
 /** @param {boolean} restoreGame Spiel danach wieder in den Vordergrund holen */
 function closeOverlay(restoreGame = true) {
   overlay.hide();
-  if (restoreGame && overlayGameHwnd && launcher.isRunning()) {
+  if (restoreGame && overlayTookFocus && overlayGameHwnd && launcher.isRunning()) {
     const h = overlayGameHwnd;
     setTimeout(() => nativeHelper.front(h, false), 260);
   }
@@ -496,7 +522,18 @@ async function overlayAction(a) {
       return launcher.launch(game, (url) => shell.openExternal(url));
     }
     case 'spotify':
-      if (a.cmd === 'open') { await shell.openExternal('spotify:'); return true; }
+      if (a.cmd === 'open') {
+        // Im Hintergrund starten (minimiert), nur notfalls normal öffnen
+        if (!spotify.startApp()) await shell.openExternal('spotify:');
+        return true;
+      }
+      if (a.cmd === 'play') { await spotify.play(a.uri); return true; }
+      if (spotify.isConnected()) {
+        try { await spotify.control(a.cmd); return true; } catch (err) {
+          // Ohne Premium/aktives Gerät: auf Medientasten ausweichen (funktioniert mit jeder Spotify-Version)
+          if (!['playpause', 'next', 'prev'].includes(a.cmd)) throw err;
+        }
+      }
       return media.mediaKey((l) => mouseMode.send(l), a.cmd);
     case 'volume': return media.mediaKey((l) => mouseMode.send(l), a.cmd);
     case 'mouse': closeOverlay(); mouseMode.toggle(); return mouseMode.active;
@@ -504,7 +541,20 @@ async function overlayAction(a) {
   }
 }
 ipcMain.handle('overlay:data', () => overlayData());
-ipcMain.handle('overlay:spotify', () => media.spotifyInfo());
+ipcMain.handle('overlay:spotify', async () => {
+  if (spotify.isConnected()) {
+    try { return { ...(await spotify.now()), api: true }; } catch (err) {
+      return { ...(await media.spotifyInfo()), api: true, error: err.message };
+    }
+  }
+  return media.spotifyInfo();
+});
+ipcMain.handle('overlay:playlists', async () => (spotify.isConnected() ? spotify.playlists() : []));
+ipcMain.handle('spotify:status', () => spotify.status());
+ipcMain.handle('spotify:connect', () => spotify.connect());
+ipcMain.handle('spotify:disconnect', () => { spotify.disconnect(); return true; });
+ipcMain.handle('spotify:test', () => spotify.now());
+ipcMain.handle('spotify:dashboard', () => shell.openExternal('https://developer.spotify.com/dashboard'));
 ipcMain.handle('overlay:action', (_e, a) => overlayAction(a || {}));
 
 
@@ -618,7 +668,7 @@ ipcMain.handle('system:power', async (_e, action) => {
 ipcMain.handle('system:displayMode', (_e, mode) => system.setDisplayMode(mode));
 ipcMain.handle('displays:list', () => listDisplays());
 ipcMain.handle('displays:identify', () => identifyDisplays());
-ipcMain.handle('displays:tvOnly', () => applyTvOnly(true));
+ipcMain.handle('displays:tvOnly', (_e, mode) => applyTvOnly(true, mode === 'primary' ? 'primary' : 'only'));
 ipcMain.handle('displays:restore', async () => { await restoreDisplays('extend'); return true; });
 ipcMain.handle('system:displays', () => screen.getAllDisplays().map((d, i) => ({ index: i, label: d.label || `Bildschirm ${i + 1}`, width: d.size.width, height: d.size.height, primary: d.id === screen.getPrimaryDisplay().id })));
 ipcMain.handle('pad:hidCount', () => psWatcher.devices.size);

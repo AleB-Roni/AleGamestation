@@ -8,6 +8,7 @@
   const DISPLAY_OPTS = [
     { value: 'none', label: 'Nichts ändern' },
     { value: 'tvOnly', label: 'Nur Fernseher (ausgewählt)' },
+    { value: 'tvPrimary', label: 'Fernseher als Hauptbildschirm (alle bleiben an)' },
     { value: 'external', label: 'Nur zweiter Bildschirm (Windows)' },
     { value: 'internal', label: 'Nur PC-Bildschirm' },
     { value: 'clone', label: 'Duplizieren' },
@@ -130,17 +131,21 @@
           const r = await api.tvOnly().catch((e) => ({ ok: false, error: String(e.message || e) }));
           App.toast(r && r.ok ? 'Nur noch der Fernseher ist aktiv' : (r && r.error) || 'Umschalten fehlgeschlagen', r && r.ok ? 'ok' : 'error', 6000);
         }),
+        button('Jetzt Fernseher als Hauptbildschirm (Monitore bleiben an)', async () => {
+          const r = await api.tvOnly('primary').catch((e) => ({ ok: false, error: String(e.message || e) }));
+          App.toast(r && r.ok ? 'Fernseher ist jetzt der Hauptbildschirm – Spiele starten dort' : (r && r.error) || 'Umschalten fehlgeschlagen', r && r.ok ? 'ok' : 'error', 6000);
+        }),
         button('Alle Bildschirme wieder einschalten', async () => { await api.restoreDisplays(); App.toast('Bildschirme wiederhergestellt', 'ok'); }),
         group('Bildschirm umschalten (wie Win + P)'),
-        select('Beim Start des Konsolenmodus', () => C().display, 'onStart', DISPLAY_OPTS, '„Nur Fernseher“ nutzt den oben gewählten TV – „zweiter Bildschirm“ überlässt die Wahl Windows'),
-        select('Beim Beenden (zurück zum Desktop)', () => C().display, 'onExit', DISPLAY_OPTS.filter((o) => o.value !== 'tvOnly')),
+        select('Beim Start des Konsolenmodus', () => C().display, 'onStart', DISPLAY_OPTS, '„Nur Fernseher“ schaltet die Monitore ab, „als Hauptbildschirm“ lässt sie an – Spiele starten auf dem Hauptbildschirm'),
+        select('Beim Beenden (zurück zum Desktop)', () => C().display, 'onExit', DISPLAY_OPTS.filter((o) => !['tvOnly', 'tvPrimary'].includes(o.value))),
         toggle('Vor Herunterfahren/Neustart wiederherstellen', () => C().display, 'restoreBeforeShutdown', 'Damit Windows beim nächsten Start wieder auf dem Monitor erscheint'),
         select('Wartezeit nach dem Umschalten', () => C().display, 'switchDelayMs', [1000, 1500, 2500, 4000, 6000].map((v) => ({ value: v, label: v / 1000 + ' s' }))),
         group('Eigene Befehle', 'z.B. Audio auf TV umstellen mit NirCmd'),
         listText('Befehle beim Start', () => C().display, 'customCommandsOnStart', 'Mehrere mit ; trennen. Beispiel: nircmd setdefaultsounddevice "TV"'),
         listText('Befehle beim Beenden', () => C().display, 'customCommandsOnExit'),
         group('Jetzt testen'),
-        ...DISPLAY_OPTS.filter((o) => !['none', 'tvOnly'].includes(o.value)).map((o) => button('Test: ' + o.label, () => api.setDisplayMode(o.value)))
+        ...DISPLAY_OPTS.filter((o) => !['none', 'tvOnly', 'tvPrimary'].includes(o.value)).map((o) => button('Test: ' + o.label, () => api.setDisplayMode(o.value)))
       ]
     },
     {
@@ -148,8 +153,12 @@
         group('Spiel beenden'),
         select('Tastenkombination „Spiel beenden“', () => C().controller, 'closeGameCombo', comboOptions(C().controller.closeGameCombo), 'Funktioniert auch, während das Spiel im Vordergrund ist'),
         button('Kombination „Spiel beenden“ aufnehmen …', () => recordCombo('closeGameCombo')),
-        toggle('Konsolen-Overlay (PS-/Xbox-Taste gedrückt halten)', () => C().controller, 'overlayEnabled', 'Erscheint auch über Vollbild-Spielen: beenden, Spiel wechseln, Spotify, Lautstärke. Bei exklusivem Vollbild minimiert sich das Spiel kurz und kommt danach zurück – „Randloses Vollbild“ im Spiel/Emulator ist am flüssigsten'),
-        select('Gedrückt halten für', () => C().controller, 'overlayHoldMs', [400, 600, 800, 1000].map((v) => ({ value: v, label: (v / 1000).toString().replace('.', ',') + ' s' })), 'Bis das Overlay erscheint'),
+        toggle('Konsolen-Overlay (PS-/Xbox-Taste gedrückt halten)', () => C().controller, 'overlayEnabled', 'Erscheint über dem Spiel: beenden, Spiel wechseln, Musik auswählen, Lautstärke'),
+        select('Overlay-Modus', () => C().controller, 'overlayFocus', [
+          { value: false, label: 'Über dem Spiel – Spiel bleibt im Vollbild' },
+          { value: true, label: 'Fokus holen – Spiel bekommt keine Eingaben' }
+        ], '„Über dem Spiel“: kein Minimieren, aber das Spiel sieht die Controller-Eingaben mit. Bei echtem exklusivem Vollbild im Spiel „Randloses Vollbild“ wählen'),
+                select('Gedrückt halten für', () => C().controller, 'overlayHoldMs', [400, 600, 800, 1000].map((v) => ({ value: v, label: (v / 1000).toString().replace('.', ',') + ' s' })), 'Bis das Overlay erscheint'),
         select('PS- / Xbox-Taste kurz drücken (im Spiel)', () => C().controller, 'guideButton', [
           { value: 'quickMenu', label: 'Schnellmenü (Beenden mit Rückfrage)' },
           { value: 'off', label: 'Nichts tun' }
@@ -295,6 +304,35 @@
           group('Weitere Aktionen', 'Szenen, Skripte, Licht …'),
           listText('Beim Start ausführen', H, 'startServices', 'z.B. scene.gaming ; script.licht_dimmen ; light.turn_off:light.decke'),
           listText('Beim Beenden ausführen', H, 'exitServices')
+        ];
+      }
+    },
+    {
+      id: 'spotify', title: 'Spotify', rows: () => {
+        const st = S.spotify || {};
+        if (!C().spotify) C().spotify = { clientId: '' };
+        const has = !!String(C().spotify.clientId || '').trim();
+        return [
+          group('Verbindung', st.connected ? `verbunden als ${st.user || 'Spotify-Konto'}${st.product && st.product !== 'premium' ? ' · kein Premium' : ''}` : 'Musik im Overlay auswählen'),
+          { type: 'button', label: 'So geht’s (einmalig, ca. 2 Minuten)', desc: `1. „Spotify-Entwicklerseite öffnen“ → mit deinem Spotify-Konto anmelden → „Create app“. 2. Redirect URI genau so eintragen: ${(st.redirect || 'http://127.0.0.1:43821/callback')} und „Web API“ anhaken. 3. Die „Client ID“ der App unten eintragen und „Mit Spotify verbinden“ wählen. Abspielen/Überspringen per App braucht Spotify Premium.`, action: () => {} },
+          button('Spotify-Entwicklerseite öffnen', () => api.spotifyDashboard()),
+          text('Client ID', () => C().spotify, 'clientId', 'Aus deiner Spotify-App (developer.spotify.com)'),
+          ...(has ? [button(st.connected ? 'Neu verbinden' : 'Mit Spotify verbinden', async () => {
+            App.toast('Browser öffnet sich – bei Spotify anmelden und zustimmen …', 'info', 6000);
+            try {
+              const r = await api.spotifyConnect();
+              App.toast(`✔ Verbunden als ${r.user}${r.product !== 'premium' ? ' – Hinweis: Steuern geht nur mit Premium' : ''}`, 'ok', 6000);
+            } catch (e) { App.toast(cleanErr(e), 'error', 8000); }
+            S.spotify = await api.spotifyStatus().catch(() => ({})); render();
+          })] : []),
+          ...(st.connected ? [
+            button('Verbindung testen', async () => {
+              try { const n = await api.spotifyTest(); App.toast(n.title ? `▶ ${n.title} – ${n.artist}${n.device ? ' · ' + n.device : ''}` : 'Verbunden – gerade läuft nichts', 'ok', 5000); } catch (e) { App.toast(cleanErr(e), 'error', 7000); }
+            }),
+            button('Verbindung trennen', async () => { await api.spotifyDisconnect(); S.spotify = await api.spotifyStatus(); render(); }, { danger: true })
+          ] : []),
+          group('Ohne Verbindung', 'funktioniert immer'),
+          { type: 'button', label: 'Medientasten', desc: 'Auch ohne Verbindung steuert das Overlay Spotify per Medientasten (Abspielen/Pause, Weiter, Zurück) – nur die Playlist-Auswahl braucht die Verbindung', action: () => {} }
         ];
       }
     },
@@ -778,6 +816,7 @@
     async open(sectionId) {
       if (sectionId) { S.section = Math.max(0, SECTIONS.findIndex((s) => s.id === sectionId)); S.focus = 0; S.detail = null; }
       try { S.displays = await api.listDisplays(); } catch { S.displays = []; }
+      try { S.spotify = await api.spotifyStatus(); } catch { S.spotify = {}; }
       try { S.update = await api.updateState(); } catch { S.update = {}; }
       render();
     },

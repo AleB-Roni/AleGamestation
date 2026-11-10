@@ -55,6 +55,10 @@
       { key: '\\\\.\\DISPLAY1', name: 'DELL U2720Q', width: 2560, height: 1440, hz: 144, primary: true, electronId: 1 },
       { key: '\\\\.\\DISPLAY2', name: 'LG TV SSCR2', width: 3840, height: 2160, hz: 60, primary: false, electronId: 2 }
     ],
+    spotifyStatus: async () => ({ connected: true, user: 'Ale', product: 'premium', redirect: 'http://127.0.0.1:43821/callback' }),
+    spotifyConnect: async () => ({ user: 'Ale', product: 'premium' }), spotifyDisconnect: async () => true, spotifyDashboard: async () => true,
+    spotifyTest: async () => ({ title: 'Get Lucky', artist: 'Daft Punk' }),
+    overlayPlaylists: async () => [{ id: 'liked', uri: 'liked', name: 'Lieblingssongs', liked: true }, { id: 'p1', uri: 'spotify:playlist:1', name: 'Gaming Mix' }, { id: 'p2', uri: 'spotify:playlist:2', name: 'Chill Lo-Fi Beats' }, { id: 'p3', uri: 'spotify:playlist:3', name: 'Synthwave' }],
     identifyDisplays: async () => true, tvOnly: async () => ({ ok: true }), restoreDisplays: async () => true, info: async () => ({}),
     updateState: async () => ({ status: 'latest', version: '1.0.0' }), checkUpdate: async () => null, installUpdate: async () => false, onUpdateState: noop,
     recommendedPrograms: async () => [{ name: 'OneDrive', process: 'OneDrive.exe', action: 'close', note: 'Synchronisation' }, { name: 'Microsoft Teams', process: 'ms-teams.exe', action: 'close', note: 'Viel RAM' }],
@@ -66,7 +70,7 @@
     haTv: async () => ({ on: true, source: 'HDMI 2' }), toggleMouseMode: async () => true, onMouseMode: noop,
     overlayData: async () => ({ running: { id: 'snes-1', name: 'Dungeon Quest', system: 'snes', startedAt: Date.now() - 23 * 60000, cover: '' },
       recent: games.slice(0, 6).map((g) => ({ id: g.id, name: g.name, cover: g.cover, system: g.system })), systems, ps: true }),
-    overlaySpotify: async () => ({ running: true, playing: true, artist: 'Daft Punk', title: 'Get Lucky' }),
+    overlaySpotify: async () => ({ api: true, active: true, running: true, playing: true, shuffle: true, artist: 'Daft Punk, Pharrell Williams', title: 'Get Lucky', progress: 95000, duration: 248000 }),
     overlayAction: async () => true, onOverlayOpen: (cb) => { setTimeout(cb, 100); return () => {}; }, onOverlayClose: noop, onOverlayRefresh: noop,
     pickFile: async () => null, pickFolder: async () => null, pickImage: async () => null,
     onGameStatus: noop, onConfigChanged: noop, onToast: noop, onWindowFocus: noop, onGamepadConnection: noop, onPadState: noop, hidControllers: async () => 0

@@ -28,7 +28,7 @@ Alle Spiele (Steam, Epic, GOG, eigene) und Emulator-Spiele in einer modernen Obe
 **Konsolenmodus**
 - **Leistungsmodus**: Hintergrundprogramme beim Start pausieren oder beenden und beim Verlassen wiederherstellen – z. B. Wallpaper Engine (voreingestellt), OneDrive, Teams, iCUE … Empfehlungen per Klick, oder aus den laufenden Programmen wählen. Optional Energieplan „Höchstleistung“
 - Beim Start **Bildschirm umschalten** (nur TV / nur PC-Monitor / duplizieren / erweitern – wie Win + P), beim Beenden wiederherstellen
-- **Fernseher festlegen**: Einstellungen → Anzeige → „Mein Fernseher“ (mit „Bildschirme identifizieren“). „Nur Fernseher“ schaltet genau diesen Bildschirm als einzigen ein – auch bei mehreren Monitoren
+- **Fernseher festlegen**: Einstellungen → Anzeige → „Mein Fernseher“ (mit „Bildschirme identifizieren“). „Nur Fernseher“ schaltet genau diesen Bildschirm als einzigen ein – auch bei mehreren Monitoren. „Fernseher als Hauptbildschirm“ lässt alle Monitore an und macht nur den TV zur Hauptanzeige, damit Spiele dort starten (beim Beenden wird der alte Hauptbildschirm zurückgesetzt)
 - Eigene Befehle beim Start/Beenden (z. B. Tonausgabe auf den TV umstellen)
 - **Herunterfahren, Neustart, Energiesparen, zurück zum Desktop** direkt per Controller
 - Autostart mit Windows, Vollbild auf wählbarem Bildschirm, Mauszeiger wird ausgeblendet
@@ -119,12 +119,13 @@ Während eines Spiels die **PS-Taste** (Xbox: Guide-Taste) **gedrückt halten** 
 
 - **Zurück zum Spiel**, **Zur Oberfläche**, **Spiel beenden** (mit Rückfrage)
 - **Schnellstart**: zuletzt gespielte Spiele – das laufende Spiel wird beendet und das gewählte gestartet
-- **Musik**: aktueller Spotify-Titel, ⏮ ⏯ ⏭ (über die Windows-Medientasten – funktioniert auch mit anderen Playern)
+- **Musik**: aktueller Spotify-Titel mit Cover und Fortschritt, ⏮ ⏯ ⏭, Zufallswiedergabe und **Playlists auswählen** – Spotify bleibt dabei im Hintergrund (läuft es nicht, wird es minimiert gestartet). Einrichten unter **Einstellungen → Spotify** (eigene Spotify-App mit Client-ID, Steuerung braucht Premium). Ohne Verbindung: ⏮ ⏯ ⏭ über die Windows-Medientasten
 - **System**: Lautstärke leiser/lauter/stumm, Maussteuerung
 
-Das Overlay erscheint **auch über Spielen und Emulatoren im Vollbild**:
-- **Randloses Vollbild** (z. B. RetroArch „Windowed Fullscreen“, Dolphin/PCSX2/DuckStation Standard): Overlay liegt direkt über dem Spiel
-- **Exklusives Vollbild**: Windows lässt dort kein Fenster darüber zeichnen – das Spiel minimiert sich kurz, das Overlay erscheint, und beim Schließen kommt das Spiel automatisch zurück
+Das Overlay erscheint **über Spielen und Emulatoren im Vollbild** (Einstellungen → Controller → Overlay-Modus):
+- **Über dem Spiel** (Standard): Das Overlay legt sich über das Spiel, ohne ihm den Fokus zu nehmen – das Spiel bleibt im Vollbild und minimiert sich nicht. Da das Spiel aktiv bleibt, sieht es die Controller-Eingaben mit (ggf. vorher im Spiel pausieren)
+- **Fokus holen**: Das Spiel bekommt keine Eingaben; Spiele im exklusiven Vollbild minimieren sich dabei kurz und kommen beim Schließen zurück
+- Bei **echtem exklusivem Vollbild** kann Windows kein Fenster darüber zeichnen – im Spiel/Emulator „Randloses Vollbild“ wählen
 
 **Kurz drücken** öffnet das kleine Schnellmenü (✕ beenden · △ Oberfläche · ○ weiterspielen). Beides unter **Einstellungen → Controller** anpassbar.
 Hinweis: Läuft Steam, kann die PS-Taste zusätzlich Steam öffnen – in Steam unter *Einstellungen → Controller → Guide-Tasten-Verknüpfungen* abschalten.

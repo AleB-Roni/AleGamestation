@@ -46,3 +46,23 @@ body.open #ovPanel { transform: none; }
 .ov-btn.danger.focused .ico { color: #fff; }
 .ov-music { display: flex; align-items: center; gap: 0.4rem; }
 .ov-music .icon { color: var(--accent-2); }
+
+/* Spotify: aktueller Titel und Playlist-Auswahl */
+.ov-track { gap: 0.8rem !important; white-space: normal; padding: 0.5rem; border-radius: 12px; background: rgba(255,255,255,0.04); }
+.ov-track img, .ov-track .art { width: 3.4rem; height: 3.4rem; border-radius: 8px; object-fit: cover; flex: none; }
+.ov-track .art, .ov-pl .art { display: grid; place-items: center; background: linear-gradient(135deg, #1db954, #0e5c2b); color: #fff; }
+.ov-track .meta { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 0.15rem; }
+.ov-track .meta b, .ov-track .meta span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ov-track .bar { height: 4px; border-radius: 2px; background: rgba(255,255,255,0.12); overflow: hidden; margin-top: 0.3rem; }
+.ov-track .bar i { display: block; height: 100%; background: #1db954; }
+.ov-tip { color: var(--muted); opacity: 0.7; font-size: 0.8rem; }
+.ov-pl { flex: 0 0 7.2rem; display: flex; flex-direction: column; gap: 0.35rem; cursor: pointer; transition: transform 0.15s; }
+.ov-pl img, .ov-pl .art { width: 7.2rem; height: 7.2rem; border-radius: 10px; object-fit: cover; outline: 3px solid transparent; outline-offset: 3px; transition: outline-color 0.15s; }
+.ov-pl.liked .art { background: linear-gradient(135deg, #5b3fd6, #a3c4f3); }
+.ov-pl .art .icon { width: 2.4rem; height: 2.4rem; }
+.ov-pl .name { font-size: 0.78rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ov-pl.focused { transform: scale(1.05); }
+.ov-pl.focused img, .ov-pl.focused .art { outline-color: var(--text); }
+.ov-pl.focused .name { color: var(--text); }
+.ov-btn.on .ico { color: #1db954; }
+#ovRows { overflow-y: auto; scrollbar-width: none; }

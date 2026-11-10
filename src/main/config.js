@@ -84,6 +84,9 @@ const DEFAULT_CONFIG = {
     // PS-/Xbox-Taste gedrückt halten: Konsolen-Overlay (Spiel beenden, Schnellstart, Spotify, Lautstärke)
     overlayEnabled: true,
     overlayHoldMs: 600,
+    // Overlay holt sich den Fokus (Spiel bekommt keine Eingaben, exklusives Vollbild minimiert sich kurz).
+    // false = Overlay liegt nur oben drüber, das Spiel bleibt im Vollbild
+    overlayFocus: false,
     // Maus- & Tastatursteuerung per Controller ein/aus (funktioniert überall in Windows)
     mouseModeCombo: 'BACK+Y',
     // Mausgeschwindigkeit (1 = normal)
@@ -93,6 +96,11 @@ const DEFAULT_CONFIG = {
     touchpadSpeed: 1,
     // Antippen = Klick
     touchpadTap: true
+  },
+
+  // Spotify im Overlay (eigene Spotify-App nötig; Anmeldedaten liegen separat in spotify.json)
+  spotify: {
+    clientId: ''
   },
 
   // Home Assistant: Fernseher einschalten und HDMI-Eingang wählen

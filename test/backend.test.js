@@ -480,3 +480,30 @@ test('ROMs ausblenden: Update-/DLC-Dateien automatisch und eigene Regeln', () =>
   lib = scanLibrary(cfg);
   assert.strictEqual(lib.systems.find((s) => s.id === 'switch').count, 2);
 });
+
+test('Spotify: Token erneuern, aktuellen Titel lesen, Playlist auf diesem PC abspielen', async () => {
+  const { Spotify } = require('../src/main/spotify');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ags-sp-'));
+  const file = path.join(dir, 'spotify.json');
+  fs.writeFileSync(file, JSON.stringify({ refreshToken: 'r1' }));
+  const calls = [];
+  const reply = (status, body) => ({ ok: status < 300, status, text: async () => (body ? JSON.stringify(body) : '') });
+  const fetch = async (url, o = {}) => {
+    calls.push(`${o.method || 'GET'} ${url.replace('https://api.spotify.com/v1', '')}${o.body && !url.includes('token') ? ' ' + o.body : ''}`);
+    if (url.includes('/api/token')) return reply(200, { access_token: 'a1', expires_in: 3600, refresh_token: 'r2' });
+    if (url.endsWith('/me/player?additional_types=episode')) return reply(200, { is_playing: true, shuffle_state: false, progress_ms: 1000, device: { name: 'PC', volume_percent: 40 }, item: { name: 'Get Lucky', duration_ms: 5000, artists: [{ name: 'Daft Punk' }], album: { images: [{ url: 'big' }, { url: 'mid' }] } } });
+    if (url.endsWith('/me/player/devices')) return reply(200, { devices: [{ id: 'phone', type: 'Smartphone', name: 'Handy' }, { id: 'pc', type: 'Computer', name: 'GAMING-PC' }] });
+    if (url.includes('/me/player/play')) return reply(204);
+    if (url.includes('/me/playlists')) return reply(200, { items: [{ id: 'p1', uri: 'spotify:playlist:p1', name: 'Mix', images: [{ url: 'img' }] }] });
+    return reply(404, { error: { message: 'x' } });
+  };
+  const sp = new Spotify({ getConfig: () => ({ spotify: { clientId: 'cid' } }), file, fetch, openUrl: () => {} });
+  assert.ok(sp.isConnected());
+  const now = await sp.now();
+  assert.deepStrictEqual([now.title, now.artist, now.image, now.playing], ['Get Lucky', 'Daft Punk', 'mid', true]);
+  assert.strictEqual(JSON.parse(fs.readFileSync(file, 'utf8')).refreshToken, 'r2'); // neues Token gespeichert
+  const pls = await sp.playlists();
+  assert.deepStrictEqual(pls.map((p) => p.name), ['Lieblingssongs', 'Mix']);
+  await sp.play('spotify:playlist:p1');
+  assert.ok(calls.includes('PUT /me/player/play?device_id=pc {"context_uri":"spotify:playlist:p1"}'), calls.join('\n'));
+});
