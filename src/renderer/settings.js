@@ -218,6 +218,7 @@
             const id = 'pc-' + Date.now();
             C().pcGames.push({ id, name: exe.split(/[\\/]/).pop().replace(/\.(exe|lnk|bat|cmd|url)$/i, ''), exe, args: '', cwd: '', cover: '', killMode: 'dir', processName: '' });
             await commit(true);
+            api.scrape({ ids: [id] }).catch(() => {}); // Cover gleich im Hintergrund laden
             openGame(id);
           }, { desc: '.exe, Verknüpfung (.lnk), .url oder .bat – z.B. Epic-/GOG-Spiele, Kodi, Programme' }),
           group('Deine Spiele & Programme', `${list.length}`)
@@ -264,11 +265,11 @@
       id: 'media', title: 'Cover', rows: () => {
         const SC = () => C().scraper;
         const SS = () => C().scraper.screenscraper;
-        const roms = App.library.games.filter((g) => g.type === 'rom');
+        const roms = App.library.games.filter((g) => ['rom', 'steam', 'epic', 'pc'].includes(g.type));
         const withCover = roms.filter((g) => g.cover).length;
         const ssReady = ['user', 'password', 'devid', 'devpassword'].every((k) => SS()[k]);
         return [
-          group('Cover herunterladen', `${withCover} von ${roms.length} ROMs haben ein Cover`),
+          group('Cover herunterladen', `${withCover} von ${roms.length} Spielen haben ein Cover`),
           button('⬇ Fehlende Cover jetzt herunterladen', () => App.scrape({})),
           button('⬇ Alle Cover neu herunterladen', async () => {
             if (await App.confirm('Alle Cover neu laden?', 'Vorhandene heruntergeladene Bilder werden ersetzt. Eigene Cover (über „Cover-Bild ändern“) bleiben erhalten.', 'Neu laden')) App.scrape({ force: true });
@@ -278,11 +279,13 @@
             { value: 'auto', label: 'Automatisch (ScreenScraper, sonst libretro)' },
             { value: 'libretro', label: 'Nur libretro (ohne Konto)' },
             { value: 'screenscraper', label: 'Nur ScreenScraper' }
-          ], ssReady ? '✔ ScreenScraper-Zugang eingetragen' : 'libretro funktioniert sofort – am besten mit ROMs im No-Intro/Redump-Namensformat'),
+          ], ssReady ? '✔ ScreenScraper-Zugang eingetragen' : 'Für ROMs: libretro funktioniert sofort – am besten mit ROMs im No-Intro/Redump-Namensformat'),
           toggle('Screenshots / Fanart als Hintergrund laden', SC, 'downloadSnaps', 'Wird hinter dem ausgewählten Spiel angezeigt'),
           toggle('Neue Spiele automatisch', SC, 'autoScrape', 'Beim Start fehlende Cover im Hintergrund laden'),
           pathRow('Speicherort', SC, 'mediaDir', 'folder', 'Leer = im AleGamestation-Datenordner', { rescan: true }),
-          group('ScreenScraper.fr', 'optional – größte Datenbank, erkennt ROMs auch per Prüfsumme'),
+          group('PC-Spiele (Steam, Epic, GOG, eigene)', 'Steam-Bilder ohne Konto, andere Spiele über die Steam-Suche'),
+          text('SteamGridDB-API-Schlüssel (optional)', SC, 'steamgriddbKey', 'Kostenlos auf steamgriddb.com → Profil → Einstellungen → API. Findet Bilder für fast jedes PC-Spiel, auch ohne Steam-Version', { secret: true }),
+          group('ScreenScraper.fr (ROMs)', 'optional – größte Datenbank, erkennt ROMs auch per Prüfsumme'),
           text('Benutzername', SS, 'user', 'Kostenloses Konto auf screenscraper.fr'),
           text('Passwort', SS, 'password', '', { secret: true }),
           text('Entwickler-ID (devid)', SS, 'devid', 'ScreenScraper verlangt zusätzlich einen Entwickler-Zugang – im ScreenScraper-Forum kostenlos beantragen'),

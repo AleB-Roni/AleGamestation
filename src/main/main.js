@@ -188,7 +188,7 @@ async function scrapeGames(games, { force = false, auto = false } = {}) {
 
 function autoScrape() {
   if (!cfg().scraper || cfg().scraper.autoScrape === false) return;
-  const todo = library.games.filter((g) => g.type === 'rom' && !g.cover);
+  const todo = library.games.filter((g) => ['rom', 'steam', 'epic', 'pc'].includes(g.type) && !g.cover);
   if (todo.length) scrapeGames(todo, { auto: true }).catch(() => {});
 }
 
@@ -422,7 +422,8 @@ ipcMain.handle('system:openRomDir', async (_e, systemId) => {
 ipcMain.handle('ha:tv', async (_e, on) => (on ? ha.tvOn() : ha.tvOff()));
 ipcMain.handle('mouse:toggle', () => mouseMode.toggle());
 ipcMain.handle('scrape:start', (_e, opts = {}) => {
-  let games = library.games.filter((g) => g.type === 'rom');
+  // Alle Spiele mit Bildquelle: ROMs, Steam, Epic, GOG, eigene Programme
+  let games = library.games.filter((g) => ['rom', 'steam', 'epic', 'pc'].includes(g.type));
   if (opts.ids) games = games.filter((g) => opts.ids.includes(g.id));
   else if (opts.system) games = games.filter((g) => g.system === opts.system);
   if (!opts.force && !opts.ids) games = games.filter((g) => !g.cover || !g.hero);

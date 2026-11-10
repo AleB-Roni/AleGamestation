@@ -383,6 +383,14 @@ function scanLibrary(cfg, opts = {}) {
       emulatorId: e.id, emulatorName: e.name, emulatorFound: !!e.exe && exists(e.exe), count: 0, logo: '', tileImage: '', romDirs: []
     });
   }
+  // Heruntergeladene Bilder für PC-Spiele (Steam, Epic, GOG, eigene) aus dem Medienordner
+  if (opts.mediaDir) {
+    for (const g of [...steam, ...epic, ...gog, ...pc]) {
+      const key = String(g.id).replace(/[^a-z0-9_-]+/gi, '_') + '.png';
+      if (!g.cover) { const p = path.join(opts.mediaDir, g.system, 'covers', key); if (exists(p)) g.cover = fileUrl(p); }
+      if (!g.hero) { const p = path.join(opts.mediaDir, g.system, 'snaps', key); if (exists(p)) g.hero = fileUrl(p); }
+    }
+  }
   const games = applyOverrides(cfg, [...steam, ...epic, ...gog, ...pc, ...roms]);
   return { systems, games, emulators, steamFound: !!findSteamPath(cfg.steam.path) };
 }

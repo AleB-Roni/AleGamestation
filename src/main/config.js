@@ -178,7 +178,9 @@ const DEFAULT_CONFIG = {
     // Speicherort der Bilder (leer = %APPDATA%\\AleGamestation\\media)
     mediaDir: '',
     // Kostenloses Konto auf screenscraper.fr; devid/devpassword = Entwickler-Zugang (im ScreenScraper-Forum beantragen)
-    screenscraper: { user: '', password: '', devid: '', devpassword: '' }
+    screenscraper: { user: '', password: '', devid: '', devpassword: '' },
+    // Optional: kostenloser API-Schlüssel von steamgriddb.com (Profil → Einstellungen → API) – Bilder für fast jedes PC-Spiel
+    steamgriddbKey: ''
   },
 
   // Pro Spiel: { emulator: 'dolphin', hidden: true, name: 'Eigener Name', cover: 'C:\\bild.png' }

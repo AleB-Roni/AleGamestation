@@ -375,3 +375,47 @@ test('PS-Taste: Schnellmenü-Kombination und Tasten-Ereignisse', async () => {
   await new Promise((r) => setTimeout(r, 60));
   assert.ok(combos.includes('closeGame'));
 });
+
+test('PC-Spiele: Bilder über Steam-CDN, Steam-Suche und SteamGridDB', async () => {
+  const { Scraper } = require('../src/main/scraper');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ags-pc-'));
+  const img = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(600)]);
+  const calls = [];
+  const fetch = async (url, opts = {}) => {
+    calls.push(url);
+    const ok = (body) => ({ ok: true, status: 200, text: async () => JSON.stringify(body), arrayBuffer: async () => img });
+    if (url.includes('storesearch')) {
+      if (url.includes('Witcher')) return ok({ items: [{ id: 999, name: 'Gwent' }, { id: 292030, name: 'The Witcher 3: Wild Hunt' }] });
+      return ok({ items: [{ id: 1, name: 'Etwas völlig anderes' }] });
+    }
+    if (url.includes('steamgriddb.com/api/v2/search')) { assert.strictEqual(opts.headers.Authorization, 'Bearer KEY'); return ok({ data: [{ id: 42 }] }); }
+    if (url.includes('steamgriddb.com/api/v2/grids')) return ok({ data: [{ url: 'https://cdn2.steamgriddb.com/grid.png' }] });
+    if (url.includes('steamgriddb.com/api/v2/heroes')) return ok({ data: [{ url: 'https://cdn2.steamgriddb.com/hero.png' }] });
+    if (url.includes('library_600x900_2x.jpg') && url.includes('/570/')) return { ok: false, status: 404 }; // ältere Spiele ohne 2x
+    return ok({});
+  };
+  let cfg = { scraper: { downloadSnaps: true }, systems: [] };
+  const s = new Scraper({ mediaDir: dir, fetch, getConfig: () => cfg });
+  // Steam-Spiel ohne lokales Bild
+  const r1 = await s.scrapePcGame({ id: 'steam-570', type: 'steam', system: 'steam', appid: '570', name: 'Dota 2' });
+  assert.deepStrictEqual([r1.covers, r1.snaps, r1.source], [true, true, 'steam']);
+  assert.ok(calls.includes('https://shared.steamstatic.com/store_item_assets/steam/apps/570/library_600x900.jpg'));
+  assert.ok(fs.existsSync(path.join(dir, 'steam', 'covers', 'steam-570.png')));
+  // Epic-Spiel: über die Steam-Suche (Präfix-Treffer, nicht "Gwent")
+  const r2 = await s.scrapePcGame({ id: 'epic-Abc', type: 'epic', system: 'epic', name: 'The Witcher 3' });
+  assert.strictEqual(r2.source, 'steam-suche');
+  assert.ok(calls.some((u) => u.includes('/apps/292030/')));
+  // Kein passender Treffer -> nichts Falsches laden
+  const r3 = await s.scrapePcGame({ id: 'pc-1', type: 'pc', system: 'pc', name: 'Mein Tool' });
+  assert.deepStrictEqual([r3.covers, r3.snaps], [false, false]);
+  // Mit SteamGridDB-Schlüssel
+  cfg = { scraper: { downloadSnaps: true, steamgriddbKey: 'KEY' }, systems: [] };
+  const r4 = await s.scrapePcGame({ id: 'pc-2', type: 'pc', system: 'pc', name: 'Fortnite' });
+  assert.deepStrictEqual([r4.covers, r4.snaps, r4.source], [true, true, 'steamgriddb']);
+  // Bibliothek findet die heruntergeladenen Bilder
+  const lib = scanLibrary(mergeDefaults(DEFAULT_CONFIG, { steam: { enabled: false }, stores: { epic: false, gog: false }, systems: [], emulators: [],
+    pcGames: [{ id: 'pc-2', name: 'Fortnite', exe: 'C:\\Fortnite.exe' }] }), { mediaDir: dir });
+  const g = lib.games.find((x) => x.id === 'pc-2');
+  assert.match(g.cover, /pc\/covers\/pc-2\.png$/);
+  assert.match(g.hero, /pc\/snaps\/pc-2\.png$/);
+});

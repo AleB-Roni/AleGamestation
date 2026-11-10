@@ -401,9 +401,12 @@
     const exe = await api.pickFile();
     if (!exe) return;
     const name = exe.split(/[\\/]/).pop().replace(/\.(exe|lnk|bat|cmd|url)$/i, '');
-    App.cfg.pcGames.push({ id: 'pc-' + Date.now(), name, exe, args: '', cwd: '', cover: '', killMode: 'dir', processName: '' });
+    const id = 'pc-' + Date.now();
+    App.cfg.pcGames.push({ id, name, exe, args: '', cwd: '', cover: '', killMode: 'dir', processName: '' });
     await App.save({ immediate: true, rescan: true });
-    App.toast(`„${name}“ hinzugefügt. Name & Cover kannst du über ${'Y'} → Details anpassen.`, 'ok', 5000);
+    App.toast(`„${name}“ hinzugefügt – suche Cover …`, 'ok', 3000);
+    // Cover gleich im Hintergrund laden
+    api.scrape({ ids: [id] }).catch(() => {});
   }
 
   function activate() {
@@ -534,12 +537,12 @@
         onChange: (v) => { if (v) ov.emulator = v; else delete ov.emulator; cleanup(); App.save({ rescan: true }); }
       });
     }
-    if (game.type === 'rom') items.push({ label: game.cover ? 'Cover neu herunterladen' : 'Cover herunterladen', icon: '⬇', action: async () => {
+    if (['rom', 'steam', 'epic', 'pc'].includes(game.type)) items.push({ label: game.cover ? 'Cover neu herunterladen' : 'Cover herunterladen', icon: '⬇', action: async () => {
       App.closeMenu();
       App.toast(`Suche Cover für „${game.name}“ …`, 'info', 2500);
       const r = await App.scrape({ ids: [game.id], force: true });
       const now = gameById(game.id);
-      App.toast(now && now.cover ? `✔ Cover für „${game.name}“ geladen` : `Kein Cover für „${game.name}“ gefunden – Tipp: ROM-Datei nach No-Intro/Redump benennen oder ScreenScraper einrichten`, now && now.cover ? 'ok' : 'error', 6000);
+      App.toast(now && now.cover ? `✔ Cover für „${game.name}“ geladen` : `Kein Cover für „${game.name}“ gefunden – ${game.type === 'rom' ? 'Tipp: ROM-Datei nach No-Intro/Redump benennen oder ScreenScraper einrichten' : 'Tipp: SteamGridDB-Schlüssel unter Einstellungen → Cover eintragen oder eigenes Bild wählen'}`, now && now.cover ? 'ok' : 'error', 6000);
       return r;
     } });
     items.push({ label: 'Cover-Bild ändern …', icon: '🖼', action: async () => {

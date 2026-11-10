@@ -221,6 +221,8 @@ class Scraper extends EventEmitter {
 
   /** Ein Spiel scrapen. Gibt { covers: bool, snaps: bool, source } zurück. */
   async scrapeGame(game, opts = {}) {
+    // Ohne ROM-Datei: PC-Spiel (Steam, Epic, GOG, eigenes Programm)
+    if (!game.rom) return this.scrapePcGame(game, opts);
     const cfg = this.getConfig();
     const sc = cfg.scraper || {};
     const sysKey = EXT_SYSTEM[path.extname(game.rom).toLowerCase()] || (cfg.systems.find((s) => s.id === game.system) || {}).scraperSystem || game.system;
@@ -255,6 +257,101 @@ class Scraper extends EventEmitter {
     return result;
   }
 
+  // ---------- PC-Spiele (Steam, Epic, GOG, eigene) ----------
+
+  /** Speichername für PC-Spiele (ohne ROM-Datei): aus der Spiel-ID */
+  pcKey(game) {
+    return String(game.id).replace(/[^a-z0-9_-]+/gi, '_') + '.img';
+  }
+
+  /** Steam-Shop nach einem Spielnamen durchsuchen -> App-ID (nur bei eindeutigem Treffer) */
+  async steamSearch(name) {
+    const clean = String(name).replace(/[™®©]/g, '').replace(/\s*[([].*?[)\]]/g, '').trim();
+    if (!clean) return null;
+    let json;
+    try {
+      json = JSON.parse(await this._get(`https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(clean)}&l=german&cc=DE`));
+    } catch { return null; }
+    const items = (json && json.items) || [];
+    const key = normalize(clean);
+    const exact = items.find((i) => normalize(i.name) === key);
+    if (exact) return exact.id;
+    // z.B. "The Witcher 3" -> "The Witcher 3: Wild Hunt"
+    const prefix = items.find((i) => normalize(i.name).startsWith(key) && key.length >= 6);
+    if (prefix) return prefix.id;
+    const contained = items.find((i) => key.startsWith(normalize(i.name)) && normalize(i.name).length >= 6);
+    return contained ? contained.id : null;
+  }
+
+  /** SteamGridDB (optional, kostenloser API-Schlüssel) */
+  async sgdb(name, key, want) {
+    const auth = { headers: { Authorization: 'Bearer ' + key, 'User-Agent': 'AleGamestation' } };
+    const get = async (u) => {
+      const res = await this.fetch('https://www.steamgriddb.com/api/v2' + u, auth);
+      if (res.status === 401) throw new Error('SteamGridDB: API-Schlüssel ungültig');
+      if (!res.ok) return null;
+      return JSON.parse(await res.text());
+    };
+    const search = await get('/search/autocomplete/' + encodeURIComponent(name));
+    const hit = search && search.data && search.data[0];
+    if (!hit) return {};
+    const out = {};
+    if (want.covers) {
+      const g = await get(`/grids/game/${hit.id}?dimensions=600x900,342x482,660x930&types=static`);
+      const url = g && g.data && g.data[0] && g.data[0].url;
+      if (url) try { out.covers = await this._get(url, true); } catch { /* ignore */ }
+    }
+    if (want.snaps) {
+      const h = await get(`/heroes/game/${hit.id}?types=static`);
+      const url = h && h.data && h.data[0] && h.data[0].url;
+      if (url) try { out.snaps = await this._get(url, true); } catch { /* ignore */ }
+    }
+    return out;
+  }
+
+  /** Bilder von Steams öffentlichem Bilderserver für eine App-ID */
+  async steamCdn(appid, want) {
+    const base = `https://shared.steamstatic.com/store_item_assets/steam/apps/${appid}/`;
+    const out = {};
+    if (want.covers) {
+      for (const f of ['library_600x900_2x.jpg', 'library_600x900.jpg', 'header.jpg']) {
+        try { out.covers = await this._get(base + f, true); break; } catch { /* nächstes Format */ }
+      }
+    }
+    if (want.snaps) {
+      try { out.snaps = await this._get(base + 'library_hero.jpg', true); } catch { /* ignore */ }
+    }
+    return out;
+  }
+
+  async scrapePcGame(game, opts = {}) {
+    const sc = this.getConfig().scraper || {};
+    const key = this.pcKey(game);
+    const want = {
+      covers: opts.force || !game.cover,
+      snaps: sc.downloadSnaps !== false && (opts.force || !game.hero)
+    };
+    if (!want.covers && !want.snaps) return { skipped: true };
+    const result = { covers: false, snaps: false, source: '' };
+    const save = async (got, src) => {
+      for (const kind of ['covers', 'snaps']) {
+        if (got[kind] && want[kind]) {
+          try { await this._save(this.coverPath(game.system, key, kind), got[kind]); result[kind] = true; want[kind] = false; result.source = result.source || src; } catch { /* ungültig */ }
+        }
+      }
+    };
+    // 1. Steam-Spiele: direkt über die App-ID
+    if (game.type === 'steam' && game.appid) await save(await this.steamCdn(game.appid, want), 'steam');
+    // 2. SteamGridDB (falls Schlüssel eingetragen) – auch für Spiele, die es nicht auf Steam gibt
+    if ((want.covers || want.snaps) && sc.steamgriddbKey) await save(await this.sgdb(game.name, sc.steamgriddbKey, want), 'steamgriddb');
+    // 3. Andere Spiele: im Steam-Shop nach dem Namen suchen
+    if ((want.covers || want.snaps) && game.type !== 'steam') {
+      const appid = await this.steamSearch(game.name);
+      if (appid) await save(await this.steamCdn(appid, want), 'steam-suche');
+    }
+    return result;
+  }
+
   /** Mehrere Spiele nacheinander scrapen, mit Fortschritt-Events. */
   async scrapeAll(games, opts = {}) {
     if (this.running) throw new Error('Cover-Download läuft bereits');
@@ -275,7 +372,7 @@ class Scraper extends EventEmitter {
         } catch (err) {
           stats.errors++;
           stats.error = err.message;
-          if (/Zugangsdaten|Tageslimit/.test(err.message)) this.cancelled = true;
+          if (/Zugangsdaten|Tageslimit|API-Schlüssel/.test(err.message)) this.cancelled = true;
         }
         stats.done++;
         this.emit('progress', { ...stats, current: game.name });

@@ -165,6 +165,13 @@ ROMs bekommen automatisch **Box-Art und Screenshots** (Screenshots erscheinen al
 Fehlende Cover werden beim Start automatisch im Hintergrund geladen. Manuell: **Menü → „Fehlende Cover herunterladen“**, pro System (Emulatoren-Tab → Y) oder pro Spiel (Details → „Cover herunterladen“). Der offizielle Spielname wird dabei gleich mit übernommen.
 Bilder liegen in `%APPDATA%\AleGamestation\media` (Speicherort änderbar). Eigene Bilder neben der ROM (`Spielname.png` oder `covers\Spielname.png`) haben Vorrang.
 
+### Bilder für PC-Spiele (Steam, Epic, GOG, eigene)
+
+- **Steam-Spiele** bekommen Cover und Hintergrund direkt von Steams Bilderserver – auch wenn Steam sie lokal noch nicht geladen hat
+- **Epic-, GOG- und eigene Spiele** werden im Steam-Shop gesucht und übernehmen dessen Bilder (funktioniert für alle Spiele, die es auch auf Steam gibt)
+- **Optional SteamGridDB**: Für Spiele ohne Steam-Version (z. B. Fortnite) einen kostenlosen API-Schlüssel von steamgriddb.com (Profil → Einstellungen → API) unter **Einstellungen → Cover** eintragen
+- Neu hinzugefügte Spiele bekommen ihr Cover sofort; eigene Bilder gehen immer über Details → „Cover-Bild ändern“
+
 ## Einrichtung der Emulatoren
 
 1. **Einstellungen → Emulatoren → „Installierte Emulatoren automatisch suchen“** (findet RetroArch, Dolphin, PCSX2, DuckStation, PPSSPP, melonDS an typischen Orten)
