@@ -225,3 +225,8 @@ src/main/        Electron-Hauptprozess
 src/renderer/    Oberfläche (HTML/CSS/JS, Controller-Navigation)
 test/            Tests (npm test)
 ```
+
+## Lizenzen
+
+- Icons: [Lucide](https://lucide.dev) (ISC-Lizenz, siehe `licenses/lucide-LICENSE.txt`) – neu übernehmen mit `npm run icons`
+- Konsolen-Abbildungen: eigene Zeichnungen

@@ -55,7 +55,9 @@
   }
 
   App.toast = function (text, type = 'info', ms = 3200) {
-    const t = el('div', 'toast ' + type, esc(text));
+    const { icon, text: rest } = Icons.fromLabel(text);
+    const ico = icon || (type === 'ok' ? 'check' : type === 'error' ? 'warning' : '');
+    const t = el('div', 'toast ' + type, (ico ? Icons.svg(ico) : '') + `<span>${esc(icon ? rest : text)}</span>`);
     $('#toasts').appendChild(t);
     setTimeout(() => t.remove(), ms);
   };
@@ -99,7 +101,7 @@
     if (!tabs.some((t) => t.system === 'pc')) tabs.push({ id: 'store:pc', label: 'Eigene', system: 'pc' });
     tabs.push({ id: 'emulators', label: 'Emulatoren' }); // immer da – auch ohne eingerichtete Konsolen
     tabs.push({ id: 'all', label: 'Alle Spiele' });
-    tabs.push({ id: 'settings', label: '⚙ Einstellungen' });
+    tabs.push({ id: 'settings', label: 'Einstellungen', icon: 'settings' });
     const prev = App.tabs[App.tabIndex] && App.tabs[App.tabIndex].id;
     App.tabs = tabs;
     const idx = tabs.findIndex((t) => t.id === prev);
@@ -111,7 +113,7 @@
     const list = $('#tabList');
     list.innerHTML = '';
     App.tabs.forEach((t, i) => {
-      const e = el('div', 'tab' + (i === App.tabIndex ? ' active' : ''), esc(t.label));
+      const e = el('div', 'tab' + (i === App.tabIndex ? ' active' : ''), (t.icon ? Icons.svg(t.icon) + ' ' : '') + esc(t.label));
       e.onclick = () => switchTab(i);
       list.appendChild(e);
     });
@@ -161,13 +163,13 @@
       }
     } else if (tab.id.startsWith('store:')) {
       const items = games.filter((g) => g.system === tab.system).map(gi);
-      if (tab.system === 'steam' && App.cfg.steam.showBigPictureTile) items.unshift({ kind: 'action', id: 'bigpicture', title: 'Steam Big Picture', sub: 'öffnen', icon: '▶' });
-      if (tab.system === 'pc') items.unshift({ kind: 'action', id: 'addGame', title: 'Spiel hinzufügen', sub: '.exe / Verknüpfung', icon: '＋' });
+      if (tab.system === 'steam' && App.cfg.steam.showBigPictureTile) items.unshift({ kind: 'action', id: 'bigpicture', title: 'Steam Big Picture', sub: 'öffnen', icon: 'play' });
+      if (tab.system === 'pc') items.unshift({ kind: 'action', id: 'addGame', title: 'Spiel hinzufügen', sub: '.exe / Verknüpfung', icon: 'plus' });
       secs.push({ title: systemOf(tab.system).name, layout: 'grid', items });
     } else if (tab.id === 'emulators') {
       const systems = App.library.systems.filter((s) => s.kind === 'emulator');
       const sysItems = systems.map((s) => ({ kind: 'system', system: s }));
-      sysItems.push({ kind: 'action', id: 'addSystem', title: 'Konsole hinzufügen', sub: 'Emulator + ROM-Ordner', icon: '＋' });
+      sysItems.push({ kind: 'action', id: 'addSystem', title: 'Konsole hinzufügen', sub: 'Emulator + ROM-Ordner', icon: 'plus' });
       App.emuSystemIndex = Math.min(App.emuSystemIndex, sysItems.length - 1);
       secs.push({ title: 'Emulatoren & Konsolen', layout: 'systems', items: sysItems });
       const sys = systems[App.emuSystemIndex];
@@ -185,7 +187,7 @@
 
   function cardHtml(item, wide) {
     if (item.kind === 'action') {
-      return `<div class="placeholder action"><div class="ph-icon">${item.icon}</div><div><div class="ph-name">${esc(item.title)}</div><div class="ph-sys">${esc(item.sub)}</div></div></div>`;
+      return `<div class="placeholder action"><div class="ph-icon">${Icons.svg(item.icon) || esc(item.icon)}</div><div><div class="ph-name">${esc(item.title)}</div><div class="ph-sys">${esc(item.sub)}</div></div></div>`;
     }
     if (item.kind === 'system') {
       const s = item.system;
@@ -207,7 +209,7 @@
       ? `<div class="card-blur" style="background-image:url('${esc(img).replace(/'/g, '%27')}')"></div><img src="${esc(img)}" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'placeholder',innerHTML:this.dataset.ph}))" data-ph="${esc(`<div class='ph-sys'>${esc(sys.short)}</div><div class='ph-name'>${esc(g.name)}</div>`)}">`
       : `<div class="placeholder" style="--c:${esc(sys.color)}"><div class="ph-sys">${esc(sys.short)}</div><div class="ph-name">${esc(g.name)}</div></div>`;
     const badge = g.type === 'rom' && img ? `<span class="badge">${esc(sys.short)}</span>` : '';
-    return inner + badge + (isFav(g.id) ? '<span class="fav-star">★</span>' : '');
+    return inner + badge + (isFav(g.id) ? `<span class="fav-star">${Icons.svg('star', 'filled')}</span>` : '');
   }
 
   function renderHome() {
@@ -287,11 +289,11 @@
       const sys = systemOf(g.system);
       $('#heroSystem').innerHTML = `<span class="dot" style="background:${esc(sys.color)};color:${esc(sys.color)}"></span>${esc(sys.name)}`;
       $('#heroTitle').textContent = g.name;
-      if (g.type === 'rom') chip(`🎮 Emulator: <b>${esc(g.emulatorName)}</b>${g.emulatorOverride ? ' (eigene Wahl)' : ''}`, 'emu');
+      if (g.type === 'rom') chip(`${Icons.svg('gamepad')} Emulator: <b>${esc(g.emulatorName)}</b>${g.emulatorOverride ? ' (eigene Wahl)' : ''}`, 'emu');
       else chip(esc(g.source || sys.name));
-      if (isFav(g.id)) chip('★ Favorit', 'fav');
+      if (isFav(g.id)) chip(`${Icons.svg('star', 'filled')} Favorit`, 'fav');
       const pt = fmtPlaytime((App.cfg.playtime || {})[g.id]);
-      if (pt) chip(pt);
+      if (pt) chip(`${Icons.svg('clock')} ${pt}`);
       const lp = fmtDate((App.cfg.lastPlayed || {})[g.id]);
       if (lp) chip(lp);
       bg = g.hero || g.cover;
@@ -299,8 +301,8 @@
       const s = item.system;
       $('#heroSystem').innerHTML = `<span class="dot" style="background:${esc(s.color)};color:${esc(s.color)}"></span>Emulator`;
       $('#heroTitle').textContent = s.name;
-      chip(`🎮 ${esc(s.emulatorName)}`, 'emu');
-      chip(s.emulatorFound ? '✔ Emulator gefunden' : '✖ Emulator nicht gefunden', s.emulatorFound ? 'ok' : 'bad');
+      chip(`${Icons.svg('gamepad')} ${esc(s.emulatorName)}`, 'emu');
+      chip(s.emulatorFound ? `${Icons.svg('check')} Emulator gefunden` : `${Icons.svg('warning')} Emulator nicht gefunden`, s.emulatorFound ? 'ok' : 'bad');
       chip(`${s.count} Spiele`);
     } else {
       $('#heroSystem').innerHTML = '';
@@ -486,8 +488,8 @@
       App.menu({
         title, text,
         items: [
-          { label: okLabel, icon: '✔', action: () => { done = true; App.closeMenu(); resolve(true); } },
-          { label: 'Abbrechen', icon: '✕', action: () => App.closeMenu() }
+          { label: okLabel, icon: 'check', action: () => { done = true; App.closeMenu(); resolve(true); } },
+          { label: 'Abbrechen', icon: 'x', action: () => App.closeMenu() }
         ],
         onClose: () => !done && resolve(false)
       });
@@ -511,9 +513,9 @@
       const b = el('div', 'btn' + (it.danger ? ' danger' : '') + (i === m.focus ? ' focused' : ''));
       if (it.type === 'select') {
         const opt = it.options.find((o) => o.value === it.value) || it.options[0] || { label: '-' };
-        b.innerHTML = `<span class="ico">${it.icon || ''}</span><span class="grow">${esc(it.label)}</span><span class="select"><span class="arrow">◀</span>${esc(opt.label)}<span class="arrow">▶</span></span>`;
+        b.innerHTML = `<span class="ico">${(Icons.has(it.icon) ? Icons.svg(it.icon) : esc(it.icon || ''))}</span><span class="grow">${esc(it.label)}</span><span class="select"><span class="arrow">◀</span>${esc(opt.label)}<span class="arrow">▶</span></span>`;
       } else {
-        b.innerHTML = `<span class="ico">${it.icon || ''}</span><span class="grow">${esc(it.label)}</span>${it.hint ? `<small>${esc(it.hint)}</small>` : ''}`;
+        b.innerHTML = `<span class="ico">${(Icons.has(it.icon) ? Icons.svg(it.icon) : esc(it.icon || ''))}</span><span class="grow">${esc(it.label)}</span>${it.hint ? `<small>${esc(it.hint)}</small>` : ''}`;
       }
       b.onclick = () => { m.focus = i; modalAction('accept'); };
       list.appendChild(b);
@@ -554,19 +556,19 @@
     const ov = (App.cfg.gameOverrides[game.id] = App.cfg.gameOverrides[game.id] || {});
     const cleanup = () => { if (!Object.keys(ov).length) delete App.cfg.gameOverrides[game.id]; };
     const items = [
-      { label: 'Spielen', icon: '▶', action: () => { App.closeMenu(); launch(game); } },
-      { label: isFav(game.id) ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen', icon: '★', action: () => { App.closeMenu(); toggleFavorite(game); } }
+      { label: 'Spielen', icon: 'play', action: () => { App.closeMenu(); launch(game); } },
+      { label: isFav(game.id) ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen', icon: 'star', action: () => { App.closeMenu(); toggleFavorite(game); } }
     ];
     if (game.type === 'rom') {
       const sysCfg = App.cfg.systems.find((s) => s.id === game.system);
       const options = [{ value: '', label: `Standard (${(App.library.emulators.find((e) => e.id === (sysCfg && sysCfg.emulator)) || { name: '–' }).name})` }]
-        .concat(App.library.emulators.map((e) => ({ value: e.id, label: e.name + (e.found ? '' : ' ⚠') })));
+        .concat(App.library.emulators.map((e) => ({ value: e.id, label: e.name + (e.found ? '' : ' (nicht gefunden)') })));
       items.push({
-        type: 'select', label: 'Starten mit', icon: '🎮', options, value: ov.emulator || '',
+        type: 'select', label: 'Starten mit', icon: 'gamepad', options, value: ov.emulator || '',
         onChange: (v) => { if (v) ov.emulator = v; else delete ov.emulator; cleanup(); App.save({ rescan: true }); }
       });
     }
-    if (['rom', 'steam', 'epic', 'pc'].includes(game.type)) items.push({ label: game.cover ? 'Cover neu herunterladen' : 'Cover herunterladen', icon: '⬇', action: async () => {
+    if (['rom', 'steam', 'epic', 'pc'].includes(game.type)) items.push({ label: game.cover ? 'Cover neu herunterladen' : 'Cover herunterladen', icon: 'download', action: async () => {
       App.closeMenu();
       App.toast(`Suche Cover für „${game.name}“ …`, 'info', 2500);
       const r = await App.scrape({ ids: [game.id], force: true });
@@ -574,18 +576,18 @@
       App.toast(now && now.cover ? `✔ Cover für „${game.name}“ geladen` : `Kein Cover für „${game.name}“ gefunden – ${game.type === 'rom' ? 'Tipp: ROM-Datei nach No-Intro/Redump benennen oder ScreenScraper einrichten' : 'Tipp: SteamGridDB-Schlüssel unter Einstellungen → Cover eintragen oder eigenes Bild wählen'}`, now && now.cover ? 'ok' : 'error', 6000);
       return r;
     } });
-    items.push({ label: 'Cover-Bild ändern …', icon: '🖼', action: async () => {
+    items.push({ label: 'Cover-Bild ändern …', icon: 'image', action: async () => {
       const p = await api.pickImage();
       if (p) { ov.cover = p; App.closeMenu(); await App.save({ immediate: true, rescan: true }); App.toast('Cover geändert', 'ok'); }
     } });
-    if (ov.cover) items.push({ label: 'Standard-Cover verwenden', icon: '↺', action: async () => { delete ov.cover; cleanup(); App.closeMenu(); await App.save({ immediate: true, rescan: true }); } });
-    items.push({ label: game.hidden ? 'Wieder anzeigen' : 'Aus Bibliothek ausblenden', icon: '👁', action: async () => {
+    if (ov.cover) items.push({ label: 'Standard-Cover verwenden', icon: 'undo', action: async () => { delete ov.cover; cleanup(); App.closeMenu(); await App.save({ immediate: true, rescan: true }); } });
+    items.push({ label: game.hidden ? 'Wieder anzeigen' : 'Aus Bibliothek ausblenden', icon: 'eye', action: async () => {
       if (game.hidden) delete ov.hidden; else ov.hidden = true;
       cleanup(); App.closeMenu(); await App.save({ immediate: true, rescan: true });
       App.toast(game.hidden ? 'Spiel wird wieder angezeigt' : 'Ausgeblendet – wieder einblenden unter Einstellungen → Bibliothek', 'info', 4000);
     } });
     if (game.type === 'pc' && game.system === 'pc') {
-      items.push({ label: 'Spiel entfernen', icon: '🗑', danger: true, action: async () => {
+      items.push({ label: 'Spiel entfernen', icon: 'trash', danger: true, action: async () => {
         App.closeMenu();
         if (await App.confirm('Spiel entfernen?', `„${esc(game.name)}“ wird aus AleGamestation entfernt (die Spieldateien bleiben erhalten).`, 'Entfernen')) {
           App.cfg.pcGames = App.cfg.pcGames.filter((g) => g.id !== game.id);
@@ -618,16 +620,16 @@
       text: s.count ? `${s.count} Spiele · Emulator: ${esc(s.emulatorName)}` : 'Noch keine Spiele gefunden – lege ROMs in den ROM-Ordner und lies die Bibliothek neu ein.',
       className: 'system-details',
       items: [
-        ...(s.count ? [{ label: 'Spiele anzeigen', icon: '▤', action: () => { App.closeMenu(); moveVertical(1); } }] : []),
-        { label: `${s.emulatorName} ohne Spiel starten`, icon: '▶', hint: s.emulatorFound ? 'z.B. zum Einrichten' : 'Emulator nicht gefunden', action: async () => {
+        ...(s.count ? [{ label: 'Spiele anzeigen', icon: 'list', action: () => { App.closeMenu(); moveVertical(1); } }] : []),
+        { label: `${s.emulatorName} ohne Spiel starten`, icon: 'play', hint: s.emulatorFound ? 'z.B. zum Einrichten' : 'Emulator nicht gefunden', action: async () => {
           App.closeMenu();
           try { const st = await api.launchEmulator(s.id); if (st && st.running) showRunning(st); } catch (e) { err(e); }
         } },
-        { label: 'ROM-Ordner öffnen', icon: '📂', hint: (sysCfg.romDirs || [])[0] || '', action: async () => {
+        { label: 'ROM-Ordner öffnen', icon: 'folder', hint: (sysCfg.romDirs || [])[0] || '', action: async () => {
           App.closeMenu();
           try { const d = await api.openRomDir(s.id); App.toast(`Ordner geöffnet: ${d}`, 'ok'); } catch (e) { err(e); }
         } },
-        { label: 'ROM-Ordner hinzufügen …', icon: '＋', action: async () => {
+        { label: 'ROM-Ordner hinzufügen …', icon: 'plus', action: async () => {
           const d = await api.pickFolder();
           if (!d) return;
           sysCfg.romDirs = [...(sysCfg.romDirs || []), d];
@@ -635,16 +637,16 @@
           await App.save({ immediate: true, rescan: true });
           App.toast(`Ordner hinzugefügt – ${(App.library.systems.find((x) => x.id === s.id) || { count: 0 }).count} Spiele gefunden`, 'ok');
         } },
-        { label: 'Bibliothek neu einlesen', icon: '↻', action: async () => { App.closeMenu(); await App.refreshLibrary(); } },
+        { label: 'Bibliothek neu einlesen', icon: 'refresh', action: async () => { App.closeMenu(); await App.refreshLibrary(); } },
         {
-          type: 'select', label: 'Emulator', icon: '🎮', value: sysCfg.emulator,
-          options: App.library.emulators.map((e) => ({ value: e.id, label: e.name + (e.found ? '' : ' ⚠') })),
+          type: 'select', label: 'Emulator', icon: 'gamepad', value: sysCfg.emulator,
+          options: App.library.emulators.map((e) => ({ value: e.id, label: e.name + (e.found ? '' : ' (nicht gefunden)') })),
           onChange: (v) => { sysCfg.emulator = v; App.save({ rescan: true }); }
         },
         { type: 'info', label: 'ROM-Ordner', value: (sysCfg.romDirs || []).join(' ; ') || '–' },
         { type: 'info', label: 'Dateiendungen', value: (sysCfg.extensions || []).join(' ') },
-        { label: 'Fehlende Cover für dieses System laden', icon: '⬇', action: () => { App.closeMenu(); App.scrape({ system: s.id }); } },
-        { label: sysCfg.logo ? 'Logo / Abbildung ändern …' : 'Eigenes Logo / Abbildung wählen …', icon: '🖼', hint: 'oben rechts auf der Kachel', action: async () => {
+        { label: 'Fehlende Cover für dieses System laden', icon: 'download', action: () => { App.closeMenu(); App.scrape({ system: s.id }); } },
+        { label: sysCfg.logo ? 'Logo / Abbildung ändern …' : 'Eigenes Logo / Abbildung wählen …', icon: 'image', hint: 'oben rechts auf der Kachel', action: async () => {
           const p = await api.pickImage();
           if (!p) return;
           sysCfg.logo = p;
@@ -652,8 +654,8 @@
           await App.save({ immediate: true, rescan: true });
           App.toast('Logo gespeichert', 'ok');
         } },
-        ...(sysCfg.logo ? [{ label: 'Eingebaute Abbildung verwenden', icon: '↺', action: async () => { delete sysCfg.logo; App.closeMenu(); await App.save({ immediate: true, rescan: true }); } }] : []),
-        { label: sysCfg.tileImage ? 'Hintergrundbild ändern …' : 'Hintergrundbild für die Kachel wählen …', icon: '🏞', hint: 'z.B. Foto der Konsole', action: async () => {
+        ...(sysCfg.logo ? [{ label: 'Eingebaute Abbildung verwenden', icon: 'undo', action: async () => { delete sysCfg.logo; App.closeMenu(); await App.save({ immediate: true, rescan: true }); } }] : []),
+        { label: sysCfg.tileImage ? 'Hintergrundbild ändern …' : 'Hintergrundbild für die Kachel wählen …', icon: 'image', hint: 'z.B. Foto der Konsole', action: async () => {
           const p = await api.pickImage();
           if (!p) return;
           sysCfg.tileImage = p;
@@ -661,8 +663,8 @@
           await App.save({ immediate: true, rescan: true });
           App.toast('Hintergrundbild gespeichert', 'ok');
         } },
-        ...(sysCfg.tileImage ? [{ label: 'Hintergrundbild entfernen', icon: '↺', action: async () => { delete sysCfg.tileImage; App.closeMenu(); await App.save({ immediate: true, rescan: true }); } }] : []),
-        { label: 'In Einstellungen bearbeiten', icon: '⚙', action: () => { App.closeMenu(); openSettings('systems'); } }
+        ...(sysCfg.tileImage ? [{ label: 'Hintergrundbild entfernen', icon: 'undo', action: async () => { delete sysCfg.tileImage; App.closeMenu(); await App.save({ immediate: true, rescan: true }); } }] : []),
+        { label: 'In Einstellungen bearbeiten', icon: 'settings', action: () => { App.closeMenu(); openSettings('systems'); } }
       ]
     });
     const heroBg = s.tileImage ? `;background-image:linear-gradient(to top, rgba(0,0,0,.75), rgba(0,0,0,.1)),url('${esc(s.tileImage).replace(/'/g, '%27')}');background-size:cover;background-position:center` : '';
@@ -680,12 +682,12 @@
       text: 'Dieser Emulator ist noch keiner Konsole zugeordnet. Richte ihn als Konsole ein, damit seine Spiele hier erscheinen.',
       className: 'system-details',
       items: [
-        { label: 'Als Konsole einrichten …', icon: '＋', hint: 'Konsole, ROM-Ordner', action: () => { App.closeMenu(); App.addSystemWizard(emuId); } },
-        { label: `${s.name} starten`, icon: '▶', hint: s.emulatorFound ? 'ohne Spiel' : 'Programm nicht gefunden', action: async () => {
+        { label: 'Als Konsole einrichten …', icon: 'plus', hint: 'Konsole, ROM-Ordner', action: () => { App.closeMenu(); App.addSystemWizard(emuId); } },
+        { label: `${s.name} starten`, icon: 'play', hint: s.emulatorFound ? 'ohne Spiel' : 'Programm nicht gefunden', action: async () => {
           App.closeMenu();
           try { const st = await api.launchEmulator(s.id); if (st && st.running) showRunning(st); } catch (e) { err(e); }
         } },
-        { label: 'In Einstellungen bearbeiten', icon: '⚙', action: () => { App.closeMenu(); openSettings('emulators'); } }
+        { label: 'In Einstellungen bearbeiten', icon: 'settings', action: () => { App.closeMenu(); openSettings('emulators'); } }
       ]
     });
     App.modalStack[App.modalStack.length - 1].header = `<div class="detail-cover sys-hero" style="--c:${esc(s.color)}">${ConsoleIcons.forSystem('generic')}<span>${esc(s.short)}</span></div>`;
@@ -720,9 +722,9 @@
   App.addSystemWizard = function (preEmuId) {
     const have = new Set(App.cfg.systems.map((s) => s.id));
     const items = SYSTEM_PRESETS.filter((p) => !have.has(p.id)).map((p) => ({
-      label: p.name, hint: p.extensions.join(' '), icon: '🎮', action: () => { App.closeMenu(); pickEmulator(p); }
+      label: p.name, hint: p.extensions.join(' '), icon: 'gamepad', action: () => { App.closeMenu(); pickEmulator(p); }
     }));
-    items.push({ label: 'Eigene Konsole …', icon: '＋', hint: 'Name & Endungen später anpassen', action: () => {
+    items.push({ label: 'Eigene Konsole …', icon: 'plus', hint: 'Name & Endungen später anpassen', action: () => {
       App.closeMenu();
       pickEmulator({ id: 'sys', name: 'Eigene Konsole', short: 'Eigene', color: '#5b6b8c', extensions: ['.zip', '.7z', '.iso', '.bin'] });
     } });
@@ -732,9 +734,9 @@
       if (preEmuId) return pickFolder(p, preEmuId);
       const list = App.cfg.emulators.map((e) => {
         const info = (App.library.emulators || []).find((x) => x.id === e.id);
-        return { label: e.name, icon: '🎮', hint: info && info.found ? '✔ gefunden' : '⚠ Programm nicht gefunden', action: () => { App.closeMenu(); pickFolder(p, e.id); } };
+        return { label: e.name, icon: 'gamepad', hint: info && info.found ? 'gefunden' : 'Programm nicht gefunden', action: () => { App.closeMenu(); pickFolder(p, e.id); } };
       });
-      list.unshift({ label: 'Neuen Emulator auswählen (.exe) …', icon: '＋', action: async () => {
+      list.unshift({ label: 'Neuen Emulator auswählen (.exe) …', icon: 'plus', action: async () => {
         const exe = await api.pickFile({ filters: [{ name: 'Programme', extensions: ['exe'] }] });
         if (!exe) return;
         const id = 'emu-' + Date.now();
@@ -749,8 +751,8 @@
       App.menu({
         title: `${p.short}: ROM-Ordner`, text: 'Wo liegen deine Spiele für diese Konsole? Unterordner werden mit durchsucht.',
         items: [
-          { label: 'Ordner auswählen …', icon: '📂', action: async () => { const d = await api.pickFolder(); if (!d) return; App.closeMenu(); finish(p, emuId, [d]); } },
-          { label: 'Später festlegen', icon: '⏭', action: () => { App.closeMenu(); finish(p, emuId, []); } }
+          { label: 'Ordner auswählen …', icon: 'folder', action: async () => { const d = await api.pickFolder(); if (!d) return; App.closeMenu(); finish(p, emuId, [d]); } },
+          { label: 'Später festlegen', icon: 'skip-forward', action: () => { App.closeMenu(); finish(p, emuId, []); } }
         ]
       });
     }
@@ -786,21 +788,21 @@
       title: 'Menü',
       text: '',
       items: [
-        ...(App.update && App.update.status === 'ready' ? [{ label: `Update auf v${App.update.available} installieren`, icon: '⬆', hint: 'App startet neu', action: () => { App.closeMenu(); App.installUpdate(); } }] : []),
-        { label: 'Nach Updates suchen', icon: '⟳', hint: App.update && App.update.available ? `v${App.update.available} verfügbar` : `v${(App.update && App.update.version) || ''}`, action: () => { App.closeMenu(); App.updateDialog(true); } },
-        { label: 'Herunterfahren', icon: '⏻', danger: true, action: () => doPower('shutdown', 'Herunterfahren') },
-        { label: 'Neu starten', icon: '⟳', action: () => doPower('restart', 'Neu starten') },
-        { label: 'Energie sparen', icon: '☾', action: () => doPower('sleep', 'Energie sparen') },
-        { label: 'Zum Desktop (Konsolenmodus beenden)', icon: '⇱', action: () => doPower('exit', 'Konsolenmodus beenden') },
-        { label: 'Maus- & Tastatursteuerung', icon: '🖱', hint: Glyphs.comboLabel(App.cfg.controller.mouseModeCombo), action: () => { App.closeMenu(); api.toggleMouseMode(); } },
+        ...(App.update && App.update.status === 'ready' ? [{ label: `Update auf v${App.update.available} installieren`, icon: 'update', hint: 'App startet neu', action: () => { App.closeMenu(); App.installUpdate(); } }] : []),
+        { label: 'Nach Updates suchen', icon: 'refresh', hint: App.update && App.update.available ? `v${App.update.available} verfügbar` : `v${(App.update && App.update.version) || ''}`, action: () => { App.closeMenu(); App.updateDialog(true); } },
+        { label: 'Herunterfahren', icon: 'power', danger: true, action: () => doPower('shutdown', 'Herunterfahren') },
+        { label: 'Neu starten', icon: 'restart', action: () => doPower('restart', 'Neu starten') },
+        { label: 'Energie sparen', icon: 'moon', action: () => doPower('sleep', 'Energie sparen') },
+        { label: 'Zum Desktop (Konsolenmodus beenden)', icon: 'logout', action: () => doPower('exit', 'Konsolenmodus beenden') },
+        { label: 'Maus- & Tastatursteuerung', icon: 'mouse', hint: Glyphs.comboLabel(App.cfg.controller.mouseModeCombo), action: () => { App.closeMenu(); api.toggleMouseMode(); } },
         ...(App.cfg.homeassistant && App.cfg.homeassistant.enabled ? [
-          { label: 'Fernseher einschalten / Eingang wählen', icon: '📺', action: async () => { App.closeMenu(); try { await api.haTv(true); App.toast('Fernseher angesteuert', 'ok'); } catch (e) { App.toast(String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''), 'error', 6000); } } },
-          { label: 'Fernseher ausschalten', icon: '⏼', action: async () => { App.closeMenu(); try { await api.haTv(false); } catch (e) { App.toast(String(e.message || e), 'error'); } } }
+          { label: 'Fernseher einschalten / Eingang wählen', icon: 'tv', action: async () => { App.closeMenu(); try { await api.haTv(true); App.toast('Fernseher angesteuert', 'ok'); } catch (e) { App.toast(String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''), 'error', 6000); } } },
+          { label: 'Fernseher ausschalten', icon: 'power', action: async () => { App.closeMenu(); try { await api.haTv(false); } catch (e) { App.toast(String(e.message || e), 'error'); } } }
         ] : []),
-        { label: 'Bildschirm umschalten …', icon: '🖵', action: displayMenu },
-        { label: 'Fehlende Cover herunterladen', icon: '⬇', action: () => { App.closeMenu(); App.scrape({}); } },
-        { label: 'Bibliothek neu einlesen', icon: '↻', action: async () => { App.closeMenu(); await App.refreshLibrary(); App.toast(`${App.library.games.length} Spiele gefunden`, 'ok'); } },
-        { label: 'Einstellungen', icon: '⚙', action: () => { App.closeMenu(); openSettings(); } }
+        { label: 'Bildschirm umschalten …', icon: 'monitor', action: displayMenu },
+        { label: 'Fehlende Cover herunterladen', icon: 'download', action: () => { App.closeMenu(); App.scrape({}); } },
+        { label: 'Bibliothek neu einlesen', icon: 'refresh', action: async () => { App.closeMenu(); await App.refreshLibrary(); App.toast(`${App.library.games.length} Spiele gefunden`, 'ok'); } },
+        { label: 'Einstellungen', icon: 'settings', action: () => { App.closeMenu(); openSettings(); } }
       ]
     });
   }
@@ -810,10 +812,10 @@
     App.menu({
       title: 'Bildschirm', text: 'Wie Win + P. Nach dem Umschalten passt sich die Oberfläche automatisch an.',
       items: [
-        { label: 'Nur zweiter Bildschirm (TV)', icon: '📺', action: () => set('external', 'nur TV') },
-        { label: 'Nur PC-Bildschirm', icon: '🖥', action: () => set('internal', 'nur PC-Bildschirm') },
-        { label: 'Duplizieren', icon: '⧉', action: () => set('clone', 'dupliziert') },
-        { label: 'Erweitern', icon: '⇔', action: () => set('extend', 'erweitert') }
+        { label: 'Nur zweiter Bildschirm (TV)', icon: 'tv', action: () => set('external', 'nur TV') },
+        { label: 'Nur PC-Bildschirm', icon: 'monitor', action: () => set('internal', 'nur PC-Bildschirm') },
+        { label: 'Duplizieren', icon: 'duplicate', action: () => set('clone', 'dupliziert') },
+        { label: 'Erweitern', icon: 'extend', action: () => set('extend', 'erweitert') }
       ]
     });
   }
@@ -914,7 +916,7 @@
     $('#killGlyph').outerHTML = Glyphs.html('A').replace('class="glyph', 'id="killGlyph" class="glyph');
     $('#emptyMenuGlyph').outerHTML = Glyphs.html('START').replace('class="glyph', 'id="emptyMenuGlyph" class="glyph');
     const pad = $('#padStatus');
-    pad.textContent = Glyphs.style() === 'keyboard' ? '⌨' : Glyphs.style() === 'playstation' ? 'PS' : Glyphs.style() === 'nintendo' ? 'NS' : '🎮';
+    pad.innerHTML = Icons.svg(Glyphs.style() === 'keyboard' ? 'keyboard' : 'gamepad');
     pad.title = Glyphs.detected().name || 'Controller';
     if (App.running) showRunning(App.running);
     renderHints();
@@ -1067,7 +1069,7 @@
     const show = ['available', 'downloading', 'ready'].includes(u.status);
     const b = $('#updateBadge');
     b.classList.toggle('hidden', !show);
-    b.textContent = u.status === 'downloading' ? `⬇ ${u.progress || 0} %` : u.status === 'ready' ? '⬆ Update bereit' : `⬆ v${u.available || ''}`;
+    b.innerHTML = u.status === 'downloading' ? `${Icons.svg('download')} ${u.progress || 0} %` : u.status === 'ready' ? `${Icons.svg('update')} Update bereit` : `${Icons.svg('update')} v${esc(u.available || '')}`;
   }
 
   function notesHtml(notes) {
@@ -1086,22 +1088,22 @@
     const items = [];
     const close = () => { App.updateDialogOpen = false; App.closeMenu(); };
     if (u.status === 'checking') items.push({ type: 'info', label: 'Status', value: 'Frage GitHub nach der neuesten Version …' });
-    if (u.status === 'latest') items.push({ type: 'info', label: 'Status', value: '✔ Du hast die neueste Version' });
+    if (u.status === 'latest') items.push({ type: 'info', label: 'Status', value: 'Du hast die neueste Version' });
     if (u.status === 'error') items.push({ type: 'info', label: 'Fehler', value: u.error || 'Unbekannt' });
     if (u.status === 'available' && u.canInstall) {
-      items.push({ label: `Herunterladen & installieren`, icon: '⬇', hint: `v${u.available}`, action: async () => { App.installWhenReady = true; await api.downloadUpdate(); } });
+      items.push({ label: `Herunterladen & installieren`, icon: 'download', hint: `v${u.available}`, action: async () => { App.installWhenReady = true; await api.downloadUpdate(); } });
     }
     if (u.status === 'available' && !u.canInstall) {
-      items.push({ label: 'Installer herunterladen', icon: '⬇', hint: 'öffnet den Browser', action: () => api.openUpdatePage(u.installerUrl || u.releaseUrl) });
+      items.push({ label: 'Installer herunterladen', icon: 'download', hint: 'öffnet den Browser', action: () => api.openUpdatePage(u.installerUrl || u.releaseUrl) });
     }
-    if (u.status === 'downloading') items.push({ label: 'Im Hintergrund weiterladen', icon: '⤓', hint: `${u.progress || 0} %`, action: close });
+    if (u.status === 'downloading') items.push({ label: 'Im Hintergrund weiterladen', icon: 'download', hint: `${u.progress || 0} %`, action: close });
     if (u.status === 'ready') {
-      items.push({ label: 'Jetzt installieren & neu starten', icon: '⬆', action: () => { close(); App.installUpdate(); } });
-      items.push({ label: 'Beim nächsten Beenden installieren', icon: '⏱', action: close });
+      items.push({ label: 'Jetzt installieren & neu starten', icon: 'update', action: () => { close(); App.installUpdate(); } });
+      items.push({ label: 'Beim nächsten Beenden installieren', icon: 'clock', action: close });
     }
-    if (['latest', 'error', 'idle', 'dev', 'unsupported'].includes(u.status)) items.push({ label: 'Erneut suchen', icon: '⟳', action: () => api.checkUpdate() });
-    items.push({ label: 'Release-Seite auf GitHub öffnen', icon: '↗', action: () => api.openUpdatePage(u.releaseUrl) });
-    if (!['downloading', 'ready'].includes(u.status)) items.push({ label: 'Schließen', icon: '✕', action: close });
+    if (['latest', 'error', 'idle', 'dev', 'unsupported'].includes(u.status)) items.push({ label: 'Erneut suchen', icon: 'refresh', action: () => api.checkUpdate() });
+    items.push({ label: 'Release-Seite auf GitHub öffnen', icon: 'external', action: () => api.openUpdatePage(u.releaseUrl) });
+    if (!['downloading', 'ready'].includes(u.status)) items.push({ label: 'Schließen', icon: 'x', action: close });
 
     const progress = u.status === 'downloading' ? `<div class="progress update-progress"><div style="width:${u.progress || 0}%"></div></div>` : '';
     const versions = `<div class="update-versions"><div><small>Installiert</small><b>v${esc(u.version || '?')}</b></div><span>→</span><div><small>Neueste</small><b>${u.available ? 'v' + esc(u.available) : u.status === 'latest' ? 'v' + esc(u.version) : '…'}</b></div></div>`;

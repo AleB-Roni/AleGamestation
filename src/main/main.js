@@ -259,13 +259,13 @@ const padLabel = (k) => {
 async function closeCurrentGame() {
   const name = launcher.isRunning() ? launcher.status().game.name : (launcher.hasRecent() ? launcher.last.game.name : '');
   if (!name) {
-    osd.show('🎮', 'Kein laufendes Spiel erkannt', '', 2500);
+    osd.show('gamepad', 'Kein laufendes Spiel erkannt', '', 2500);
     return false;
   }
-  osd.show('⏹', `${escHtml(name)} wird beendet …`, '', 0);
+  osd.show('stop', `${escHtml(name)} wird beendet …`, '', 0);
   send('toast', { type: 'info', text: `${name} wird beendet …` });
   const ok = await launcher.kill();
-  osd.show(ok ? '✔' : '🎮', ok ? `${escHtml(name)} beendet` : 'Kein laufendes Spiel erkannt', '', 2000);
+  osd.show(ok ? 'check' : 'gamepad', ok ? `${escHtml(name)} beendet` : 'Kein laufendes Spiel erkannt', '', 2000);
   return ok;
 }
 
@@ -276,7 +276,7 @@ function openQuickMenu() {
   if (!launcher.isRunning() && !launcher.hasRecent()) return;
   const name = launcher.isRunning() ? launcher.status().game.name : launcher.last.game.name;
   quickMenu = { openedAt: Date.now(), timer: setTimeout(closeQuickMenu, 10000) };
-  osd.show('⏸', escHtml(name), `${padLabel('A')} Spiel beenden &nbsp;·&nbsp; ${padLabel('Y')} Zur Oberfläche &nbsp;·&nbsp; ${padLabel('B')} Weiterspielen`, 0);
+  osd.show('pause', escHtml(name), `${padLabel('A')} Spiel beenden &nbsp;·&nbsp; ${padLabel('Y')} Zur Oberfläche &nbsp;·&nbsp; ${padLabel('B')} Weiterspielen`, 0);
 }
 function closeQuickMenu() {
   if (!quickMenu) return;
@@ -359,7 +359,7 @@ async function overlayAction(a) {
         for (let i = 0; i < 40 && launcher.isRunning(); i++) await new Promise((r) => setTimeout(r, 200));
         if (launcher.isRunning()) throw new Error('Das laufende Spiel ließ sich nicht beenden');
       }
-      osd.show('▶', `${escHtml(game.name)} wird gestartet …`, '', 2500);
+      osd.show('play', `${escHtml(game.name)} wird gestartet …`, '', 2500);
       return launcher.launch(game, (url) => shell.openExternal(url));
     }
     case 'spotify':
@@ -421,8 +421,8 @@ function comboText(combo, ps) {
 mouseMode.on('active', (on) => {
   send('mousemode', on);
   const ps = psWatcher.devices && psWatcher.devices.size > 0;
-  if (on) osd.show('🖱', 'Maus- & Tastatursteuerung aktiv', `${comboText(cfg().controller.mouseModeCombo, ps)} zum Beenden`, 0);
-  else osd.show('🎮', 'Controller-Steuerung', '', 1500);
+  if (on) osd.show('mouse', 'Maus- & Tastatursteuerung aktiv', `${comboText(cfg().controller.mouseModeCombo, ps)} zum Beenden`, 0);
+  else osd.show('gamepad', 'Controller-Steuerung', '', 1500);
 });
 mouseMode.on('keyboard', () => mouseMode.toggleKeyboard());
 

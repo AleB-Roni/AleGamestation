@@ -354,3 +354,35 @@ body.hide-cursor, body.hide-cursor * { cursor: none !important; }
 @keyframes laCard { to { opacity: 1; transform: none; } }
 @keyframes laInfo { to { opacity: 1; transform: none; } }
 @keyframes laBar { to { transform: translateX(260%); } }
+
+/* ---------- Einheitliche Icons ---------- */
+.icon { width: 1.15em; height: 1.15em; flex: none; vertical-align: -0.2em; }
+.icon.filled { fill: currentColor; }
+.btn .ico { display: inline-flex; align-items: center; justify-content: center; width: 1.6rem; color: var(--accent-2); }
+.btn .ico .icon { width: 1.35rem; height: 1.35rem; }
+.btn.focused .ico { color: inherit; }
+.btn.danger .ico { color: var(--danger); }
+.btn.danger.focused .ico { color: #fff; }
+.placeholder.action .ph-icon { color: var(--accent-2); line-height: 0; }
+.placeholder.action .ph-icon .icon { width: 2.8rem; height: 2.8rem; stroke-width: 1.6; }
+.chip { display: inline-flex; align-items: center; gap: 0.35rem; }
+.chip .icon { width: 1em; height: 1em; }
+.tab { display: inline-flex; align-items: center; gap: 0.4rem; }
+.tab .icon { width: 1.05em; height: 1.05em; }
+.pad-status { display: inline-flex; color: var(--text); }
+.pad-status .icon { width: 1.5rem; height: 1.5rem; }
+.update-badge { display: inline-flex; align-items: center; gap: 0.35rem; }
+.toast { display: flex; align-items: center; gap: 0.65rem; }
+.toast .icon { width: 1.2rem; height: 1.2rem; color: var(--accent-2); }
+.toast.ok .icon { color: var(--ok); }
+.toast.error .icon { color: var(--danger); }
+.s-row .s-label b { display: inline-flex; align-items: center; gap: 0.5rem; }
+.s-row .s-label b .icon { width: 1.15rem; height: 1.15rem; }
+.s-row.button-row .s-label b .icon { color: var(--accent-2); }
+.s-row.button-row.danger .s-label b .icon { color: var(--danger); }
+.chev { display: inline-flex; line-height: 0; }
+.chev .icon { width: 1.2rem; height: 1.2rem; }
+.s-crumb .sep { display: inline-flex; line-height: 0; }
+.s-crumb .sep .icon { width: 1rem; height: 1rem; }
+.card .fav-star { line-height: 0; }
+.card .fav-star .icon { width: 1.25rem; height: 1.25rem; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.8)); }

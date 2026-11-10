@@ -35,9 +35,9 @@
     const d = S.data || {};
     const rows = [];
     const game = d.running;
-    const g = [{ kind: 'btn', icon: '▶', label: game ? 'Zurück zum Spiel' : 'Schließen', action: () => act({ type: 'resume' }) },
-      { kind: 'btn', icon: '⌂', label: 'Zur Oberfläche', action: () => act({ type: 'home' }) }];
-    if (game) g.push({ kind: 'btn', icon: '⏹', label: 'Spiel beenden', danger: true, confirm: 'Wirklich beenden?', action: () => act({ type: 'quit' }) });
+    const g = [{ kind: 'btn', icon: 'play', label: game ? 'Zurück zum Spiel' : 'Schließen', action: () => act({ type: 'resume' }) },
+      { kind: 'btn', icon: 'home', label: 'Zur Oberfläche', action: () => act({ type: 'home' }) }];
+    if (game) g.push({ kind: 'btn', icon: 'stop', label: 'Spiel beenden', danger: true, confirm: 'Wirklich beenden?', action: () => act({ type: 'quit' }) });
     rows.push({ title: game ? 'Spiel' : 'AleGamestation', items: g });
 
     const sysColor = (id) => ((d.systems || []).find((s) => s.id === id) || {}).color;
@@ -52,20 +52,20 @@
 
     const sp = S.spotify || {};
     const music = sp.running
-      ? [{ kind: 'btn', icon: '⏮', label: 'Zurück', action: () => act({ type: 'spotify', cmd: 'prev' }, true) },
+      ? [{ kind: 'btn', icon: 'skip-back', label: 'Zurück', action: () => act({ type: 'spotify', cmd: 'prev' }, true) },
         { kind: 'btn', icon: sp.playing ? '⏸' : '▶', label: sp.playing ? 'Pause' : 'Abspielen', action: () => act({ type: 'spotify', cmd: 'playpause' }, true) },
-        { kind: 'btn', icon: '⏭', label: 'Weiter', action: () => act({ type: 'spotify', cmd: 'next' }, true) }]
-      : [{ kind: 'btn', icon: '♫', label: 'Spotify öffnen', action: () => act({ type: 'spotify', cmd: 'open' }, true) },
-        { kind: 'btn', icon: '⏯', label: 'Play / Pause', action: () => act({ type: 'spotify', cmd: 'playpause' }, true) }];
+        { kind: 'btn', icon: 'skip-forward', label: 'Weiter', action: () => act({ type: 'spotify', cmd: 'next' }, true) }]
+      : [{ kind: 'btn', icon: 'music', label: 'Spotify öffnen', action: () => act({ type: 'spotify', cmd: 'open' }, true) },
+        { kind: 'btn', icon: 'play-pause', label: 'Play / Pause', action: () => act({ type: 'spotify', cmd: 'playpause' }, true) }];
     rows.push({ title: 'Musik', items: music, music: true });
 
     rows.push({
       title: 'System',
       items: [
-        { kind: 'btn', icon: '🔉', label: 'Leiser', action: () => act({ type: 'volume', cmd: 'voldown' }, true), repeat: true },
-        { kind: 'btn', icon: '🔊', label: 'Lauter', action: () => act({ type: 'volume', cmd: 'volup' }, true), repeat: true },
-        { kind: 'btn', icon: '🔇', label: 'Stumm', action: () => act({ type: 'volume', cmd: 'mute' }, true) },
-        { kind: 'btn', icon: '🖱', label: 'Maussteuerung', action: () => act({ type: 'mouse' }) }
+        { kind: 'btn', icon: 'volume-down', label: 'Leiser', action: () => act({ type: 'volume', cmd: 'voldown' }, true), repeat: true },
+        { kind: 'btn', icon: 'volume-up', label: 'Lauter', action: () => act({ type: 'volume', cmd: 'volup' }, true), repeat: true },
+        { kind: 'btn', icon: 'volume-x', label: 'Stumm', action: () => act({ type: 'volume', cmd: 'mute' }, true) },
+        { kind: 'btn', icon: 'mouse', label: 'Maussteuerung', action: () => act({ type: 'mouse' }) }
       ]
     });
     return rows;
@@ -91,7 +91,7 @@
         const m = document.createElement('div');
         m.className = 'ov-music';
         m.innerHTML = sp.unsupported ? 'Steuert Spotify und andere Player über die Medientasten'
-          : !sp.running ? 'Spotify läuft nicht' : sp.playing ? `♫ <b>${esc(sp.title || '')}</b>${sp.artist ? ' – ' + esc(sp.artist) : ''}` : 'Spotify pausiert';
+          : !sp.running ? 'Spotify läuft nicht' : sp.playing ? `${Icons.svg('music')} <b>${esc(sp.title || '')}</b>${sp.artist ? ' – ' + esc(sp.artist) : ''}` : 'Spotify pausiert';
         box.appendChild(m);
       }
       const row = document.createElement('div');
@@ -104,7 +104,7 @@
           el.innerHTML = cover(it.game, it.color);
         } else {
           el.className = 'ov-btn' + (it.danger ? ' danger' : '');
-          el.innerHTML = `<span class="ico">${it.icon}</span><span>${esc(it.label)}</span>`;
+          el.innerHTML = `<span class="ico">${Icons.svg(it.icon) || esc(it.icon)}</span><span>${esc(it.label)}</span>`;
         }
         el.onclick = () => { S.row = ri; S.col = ci; activate(); };
         it.el = el;

@@ -11,19 +11,22 @@
     "dev": "electron . --dev --no-display-switch",
     "test": "node --test \"test/**/*.test.js\"",
     "dist": "electron-builder --win --publish never",
-    "release": "electron-builder --win --publish always"
+    "release": "electron-builder --win --publish always",
+    "icons": "node scripts/build-icons.js"
   },
   "devDependencies": {
     "electron": "^44.0.0",
-    "electron-builder": "^26.0.0"
+    "electron-builder": "^26.0.0",
+    "lucide-static": "^1.60.0"
   },
   "build": {
     "appId": "de.alegamestation.app",
     "productName": "AleGamestation",
     "files": [
-      "src/**/*",
       "build/icon.png",
-      "package.json"
+      "licenses/**/*",
+      "package.json",
+      "src/**/*"
     ],
     "asarUnpack": [
       "src/main/xinput-watcher.ps1",

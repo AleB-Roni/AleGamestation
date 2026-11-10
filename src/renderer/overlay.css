@@ -39,3 +39,10 @@ body.open #ovPanel { transform: none; }
 .ov-empty { color: var(--muted); font-size: 0.9rem; padding: 0.6rem 0.2rem; }
 #ovHints { display: flex; gap: 1.4rem; justify-content: flex-end; padding-top: 1rem; font-size: 0.9rem; color: var(--muted); border-top: 1px solid var(--line); margin-top: 0.6rem; }
 #ovHints .hint { display: inline-flex; gap: 0.45rem; align-items: center; }
+.ov-btn .ico { line-height: 0; color: var(--accent-2); }
+.ov-btn .ico .icon { width: 1.6rem; height: 1.6rem; }
+.ov-btn.focused .ico, .ov-btn.armed .ico { color: inherit; }
+.ov-btn.danger .ico { color: var(--danger); }
+.ov-btn.danger.focused .ico { color: #fff; }
+.ov-music { display: flex; align-items: center; gap: 0.4rem; }
+.ov-music .icon { color: var(--accent-2); }

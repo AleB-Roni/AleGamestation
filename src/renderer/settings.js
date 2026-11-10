@@ -244,7 +244,7 @@
         const sourceOpts = keep([{ value: '', label: 'Nicht umschalten' }, ...((cur && cur.sources) || []).map((s) => ({ value: s, label: s }))], H().source);
         const exitOpts = keep([{ value: '', label: 'Nicht umschalten' }, ...((cur && cur.sources) || []).map((s) => ({ value: s, label: s }))], H().sourceAtExit);
         return [
-          group('Verbindung', S.ha ? (S.ha.error ? '✖ ' + S.ha.error : `✔ verbunden · ${players.length} Geräte`) : 'Fernseher automatisch einschalten'),
+          group('Verbindung', S.ha ? (S.ha.error ? 'Fehler: ' + S.ha.error : `verbunden · ${players.length} Geräte`) : 'Fernseher automatisch einschalten'),
           toggle('Home Assistant verwenden', H, 'enabled'),
           text('Adresse', H, 'url', 'z.B. http://homeassistant.local:8123 oder http://192.168.1.10:8123'),
           text('Zugangstoken', H, 'token', 'Home Assistant → Profil → Sicherheit → „Langlebiges Zugangstoken“ erstellen', { secret: true }),
@@ -283,7 +283,7 @@
             { value: 'auto', label: 'Automatisch (ScreenScraper, sonst libretro)' },
             { value: 'libretro', label: 'Nur libretro (ohne Konto)' },
             { value: 'screenscraper', label: 'Nur ScreenScraper' }
-          ], ssReady ? '✔ ScreenScraper-Zugang eingetragen' : 'Für ROMs: libretro funktioniert sofort – am besten mit ROMs im No-Intro/Redump-Namensformat'),
+          ], ssReady ? 'ScreenScraper-Zugang eingetragen' : 'Für ROMs: libretro funktioniert sofort – am besten mit ROMs im No-Intro/Redump-Namensformat'),
           toggle('Screenshots / Fanart als Hintergrund laden', SC, 'downloadSnaps', 'Wird hinter dem ausgewählten Spiel angezeigt'),
           toggle('Neue Spiele automatisch', SC, 'autoScrape', 'Beim Start fehlende Cover im Hintergrund laden'),
           pathRow('Speicherort', SC, 'mediaDir', 'folder', 'Leer = im AleGamestation-Datenordner', { rescan: true }),
@@ -349,7 +349,7 @@
       id: 'stores', title: 'Steam & Stores', rows: () => {
         const hidden = App.library.games.filter((g) => g.hidden);
         return [
-          group('Steam', App.library.steamFound ? '✔ Steam gefunden' : '✖ Steam nicht gefunden'),
+          group('Steam', App.library.steamFound ? 'Steam gefunden' : 'Steam nicht gefunden'),
           toggle('Steam-Spiele anzeigen', () => C().steam, 'enabled', 'Installierte Spiele werden automatisch erkannt', { rescan: true }),
           pathRow('Steam-Ordner', () => C().steam, 'path', 'folder', 'Leer lassen = automatisch suchen', { rescan: true }),
           toggle('Kachel „Steam Big Picture öffnen“', () => C().steam, 'showBigPictureTile', '', { rescan: true }),
@@ -378,11 +378,11 @@
           unsupported: 'Updates nicht verfügbar',
           idle: 'Noch nicht gesucht',
           checking: 'Suche nach Updates …',
-          available: `⬆ Version ${u.available} ist verfügbar`,
-          latest: '✔ Du hast die neueste Version',
-          downloading: `⬇ Lade v${u.available || ''} herunter … ${u.progress || 0} %`,
-          ready: `⬆ Version ${u.available} ist bereit zur Installation`,
-          error: `✖ Fehler: ${u.error || ''}`
+          available: `Version ${u.available} ist verfügbar`,
+          latest: 'Du hast die neueste Version',
+          downloading: `Lade v${u.available || ''} herunter … ${u.progress || 0} %`,
+          ready: `Version ${u.available} ist bereit zur Installation`,
+          error: `Fehler: ${u.error || ''}`
         }[u.status] || '';
         const rows = [
           group('AleGamestation', `Version ${u.version || ''}`),
@@ -521,7 +521,7 @@
     const list = await api.runningPrograms();
     const have = new Set((C().performance.programs || []).map((p) => p.process.toLowerCase()));
     const items = list.filter((r) => !have.has(r.process.toLowerCase())).map((r) => ({
-      label: r.name, hint: `${r.memMB} MB`, icon: '▣',
+      label: r.name, hint: `${r.memMB} MB`, icon: 'app',
       action: () => { C().performance.programs.push({ name: r.name, process: r.process, action: 'pause', restore: true, enabled: true }); App.closeMenu(); commit(false); App.toast(`${r.name} hinzugefügt`, 'ok'); }
     }));
     if (!items.length) return App.toast('Keine passenden laufenden Programme gefunden', 'info');
@@ -609,7 +609,7 @@
       }
       case 'text': return `<input type="${r.secret ? 'password' : 'text'}" value="${esc(v)}" spellcheck="false" autocomplete="off">`;
       case 'path': return `<input type="text" value="${esc(v)}" spellcheck="false"><span class="mini-btn">Durchsuchen</span>`;
-      case 'item': return `${r.statusText ? `<span class="item-status ${r.status || ''}">${esc(r.statusText)}</span>` : ''}<span class="chev">›</span>`;
+      case 'item': return `${r.statusText ? `<span class="item-status ${r.status || ''}">${esc(r.statusText)}</span>` : ''}<span class="chev">${Icons.svg('chevron')}</span>`;
       default: return '';
     }
   }
@@ -637,7 +637,7 @@
       if (r.type === 'crumb') {
         const c = document.createElement('div');
         c.className = 's-crumb';
-        c.innerHTML = `<span>${esc(r.label)}</span><span class="sep">›</span><b>${esc(r.title)}</b>${r.extra ? `<small>${esc(r.extra)}</small>` : ''}`;
+        c.innerHTML = `<span>${esc(r.label)}</span><span class="sep">${Icons.svg('chevron')}</span><b>${esc(r.title)}</b>${r.extra ? `<small>${esc(r.extra)}</small>` : ''}`;
         body.appendChild(c);
         return;
       }
@@ -650,7 +650,10 @@
       }
       const row = document.createElement('div');
       row.className = 's-row' + (r.type === 'button' ? ' button-row' : '') + (r.type === 'item' ? ' item-row' : '') + (r.danger ? ' danger' : '');
-      row.innerHTML = `<div class="s-label"><b>${esc(r.label)}</b>${r.desc ? `<small>${esc(r.desc)}</small>` : ''}</div><div class="s-value">${valueHtml(r)}</div>`;
+      // Führendes Zeichen ("＋ …", "🔍 …") als einheitliches Icon darstellen
+      const lab = Icons.fromLabel(r.label);
+      const icon = r.icon || lab.icon;
+      row.innerHTML = `<div class="s-label"><b>${icon ? Icons.svg(icon) : ''}${esc(icon && !r.icon ? lab.text : r.label)}</b>${r.desc ? `<small>${esc(r.desc)}</small>` : ''}</div><div class="s-value">${valueHtml(r)}</div>`;
       const idx = focusables.length;
       row.onclick = (e) => {
         S.focus = idx; updateFocus();
