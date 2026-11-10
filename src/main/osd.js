@@ -20,7 +20,8 @@ font-size:18px;border:1px solid rgba(255,255,255,.14);box-shadow:0 10px 40px rgb
 </body></html>`;
 
 class Osd {
-  constructor() {
+  constructor(opts = {}) {
+    this.onShown = opts.onShown || (() => {});
     this.win = null;
     this.timer = null;
     this.sticky = null;
@@ -55,6 +56,8 @@ class Osd {
       const iconHtml = Icons.svg(icon) || '';
       await win.webContents.executeJavaScript(`show(${JSON.stringify(iconHtml)},${JSON.stringify(msg)},${JSON.stringify(sub)})`);
       win.showInactive();
+      // Über Vollbild-Spiele legen (ohne Fokus zu nehmen)
+      this.onShown(win);
       if (ms) this.timer = setTimeout(() => this.hide(), ms);
     } catch { /* Einblendung ist optional */ }
   }

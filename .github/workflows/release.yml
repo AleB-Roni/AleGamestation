@@ -33,6 +33,9 @@ jobs:
       - name: Windows-Test – Spiele starten und beenden
         run: node test/windows/kill.win.js
 
+      - name: Windows-Test – Overlay über Vollbild (Fenster-Fokus)
+        run: node test/windows/focus.win.js
+
       - name: Versions-Tag anlegen (falls noch nicht vorhanden)
         shell: bash
         run: |

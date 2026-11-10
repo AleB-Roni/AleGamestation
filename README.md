@@ -120,6 +120,10 @@ Während eines Spiels die **PS-Taste** (Xbox: Guide-Taste) **gedrückt halten** 
 - **Musik**: aktueller Spotify-Titel, ⏮ ⏯ ⏭ (über die Windows-Medientasten – funktioniert auch mit anderen Playern)
 - **System**: Lautstärke leiser/lauter/stumm, Maussteuerung
 
+Das Overlay erscheint **auch über Spielen und Emulatoren im Vollbild**:
+- **Randloses Vollbild** (z. B. RetroArch „Windowed Fullscreen“, Dolphin/PCSX2/DuckStation Standard): Overlay liegt direkt über dem Spiel
+- **Exklusives Vollbild**: Windows lässt dort kein Fenster darüber zeichnen – das Spiel minimiert sich kurz, das Overlay erscheint, und beim Schließen kommt das Spiel automatisch zurück
+
 **Kurz drücken** öffnet das kleine Schnellmenü (✕ beenden · △ Oberfläche · ○ weiterspielen). Beides unter **Einstellungen → Controller** anpassbar.
 Hinweis: Läuft Steam, kann die PS-Taste zusätzlich Steam öffnen – in Steam unter *Einstellungen → Controller → Guide-Tasten-Verknüpfungen* abschalten.
 

@@ -26,6 +26,13 @@ class Overlay {
     return this.win.loadFile(path.join(__dirname, '..', 'renderer', 'overlay.html')).then(() => this.win);
   }
 
+  /** Fenster-Handle (für das Hilfsprogramm) */
+  hwnd() {
+    if (!this.win || this.win.isDestroyed()) return 0;
+    const buf = this.win.getNativeWindowHandle();
+    return buf.length >= 8 ? Number(buf.readBigUInt64LE(0)) : buf.readUInt32LE(0);
+  }
+
   isVisible() {
     return this.visible && !!this.win && !this.win.isDestroyed();
   }

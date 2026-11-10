@@ -5,6 +5,9 @@
 #   h <delta>        Mausrad horizontal
 #   b <L|R|M> <1|0>  Maustaste drücken / loslassen
 #   k <vk> <1|0>     Taste drücken / loslassen (Virtual-Key-Code)
+#   front <hwnd> <1|0>  Fenster in den Vordergrund holen (trotz Windows-Fokus-Sperre), 1 = ganz oben fixieren
+#   top <hwnd>       Fenster ganz nach oben legen, ohne Fokus (für Einblendungen)
+#   q <id> fg        Anfrage: aktuelles Vordergrundfenster -> Antwort "a <id> <hwnd>" 
 $ErrorActionPreference = 'Stop'
 
 Add-Type -TypeDefinition @"
@@ -36,6 +39,47 @@ public static class AgsInput {
     i.u.ki.dwFlags = flags;
     Send(i);
   }
+
+  // ---------- Fenster in den Vordergrund (für Overlay über Vollbild-Spielen) ----------
+  [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] static extern bool BringWindowToTop(IntPtr h);
+  [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr h, int cmd);
+  [DllImport("user32.dll")] static extern bool IsIconic(IntPtr h);
+  [DllImport("user32.dll")] static extern bool IsWindow(IntPtr h);
+  [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll")] static extern bool AttachThreadInput(uint a, uint b, bool attach);
+  [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+  [DllImport("user32.dll")] static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+
+  public static long Fg() { return GetForegroundWindow().ToInt64(); }
+
+  public static bool Front(long hwnd, bool topmost) {
+    IntPtr h = new IntPtr(hwnd);
+    if (!IsWindow(h)) return false;
+    IntPtr fg = GetForegroundWindow();
+    uint pid;
+    uint fgThread = GetWindowThreadProcessId(fg, out pid);
+    uint me = GetCurrentThreadId();
+    // Kurzer ALT-Tastendruck: Windows erlaubt danach SetForegroundWindow (Fokus-Sperre)
+    keybd_event(0x12, 0, 0, UIntPtr.Zero);
+    keybd_event(0x12, 0, 2, UIntPtr.Zero);
+    bool attached = fgThread != 0 && fgThread != me && AttachThreadInput(me, fgThread, true);
+    if (IsIconic(h)) ShowWindow(h, 9); // SW_RESTORE (z.B. minimiertes Vollbild-Spiel)
+    else ShowWindow(h, 5);              // SW_SHOW
+    // HWND_TOPMOST = -1, HWND_TOP = 0; SWP_NOSIZE|SWP_NOMOVE|SWP_SHOWWINDOW
+    SetWindowPos(h, topmost ? new IntPtr(-1) : IntPtr.Zero, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0040);
+    BringWindowToTop(h);
+    bool ok = SetForegroundWindow(h);
+    if (attached) AttachThreadInput(me, fgThread, false);
+    return ok;
+  }
+
+  public static void Top(long hwnd) {
+    // ganz oben, ohne Fokus: SWP_NOSIZE|SWP_NOMOVE|SWP_NOACTIVATE|SWP_SHOWWINDOW
+    SetWindowPos(new IntPtr(hwnd), new IntPtr(-1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010 | 0x0040);
+  }
 }
 "@
 
@@ -52,6 +96,13 @@ while ($true) {
       'h' { [AgsInput]::Mouse(0, 0, [int]$p[1], 0x1000) }
       'b' { $f = $btn[$p[1]]; if ($f) { [AgsInput]::Mouse(0, 0, 0, $(if ($p[2] -eq '1') { $f[0] } else { $f[1] })) } }
       'k' { [AgsInput]::Key([uint16]$p[1], $p[2] -eq '1') }
+      'front' { [void][AgsInput]::Front([long]$p[1], $p[2] -eq '1') }
+      'top' { [AgsInput]::Top([long]$p[1]) }
+      'q' {
+        $v = ''
+        if ($p[2] -eq 'fg') { $v = [AgsInput]::Fg() }
+        [Console]::Out.WriteLine("a $($p[1]) $v"); [Console]::Out.Flush()
+      }
     }
   } catch { }
 }

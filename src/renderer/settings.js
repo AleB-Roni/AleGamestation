@@ -115,7 +115,7 @@
         group('Spiel beenden'),
         select('Tastenkombination „Spiel beenden“', () => C().controller, 'closeGameCombo', comboOptions(C().controller.closeGameCombo), 'Funktioniert auch, während das Spiel im Vordergrund ist'),
         button('Kombination „Spiel beenden“ aufnehmen …', () => recordCombo('closeGameCombo')),
-        toggle('Konsolen-Overlay (PS-/Xbox-Taste gedrückt halten)', () => C().controller, 'overlayEnabled', 'Über dem Spiel: beenden, Spiel wechseln, Spotify, Lautstärke'),
+        toggle('Konsolen-Overlay (PS-/Xbox-Taste gedrückt halten)', () => C().controller, 'overlayEnabled', 'Erscheint auch über Vollbild-Spielen: beenden, Spiel wechseln, Spotify, Lautstärke. Bei exklusivem Vollbild minimiert sich das Spiel kurz und kommt danach zurück – „Randloses Vollbild“ im Spiel/Emulator ist am flüssigsten'),
         select('Gedrückt halten für', () => C().controller, 'overlayHoldMs', [400, 600, 800, 1000].map((v) => ({ value: v, label: (v / 1000).toString().replace('.', ',') + ' s' })), 'Bis das Overlay erscheint'),
         select('PS- / Xbox-Taste kurz drücken (im Spiel)', () => C().controller, 'guideButton', [
           { value: 'quickMenu', label: 'Schnellmenü (Beenden mit Rückfrage)' },

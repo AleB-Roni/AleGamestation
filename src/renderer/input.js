@@ -18,7 +18,8 @@
     [0x1000, 'accept', 'A'], [0x2000, 'back', 'B'], [0x4000, 'x', 'X'], [0x8000, 'y', 'Y'],
     [0x10000, 'lt', 'LT'], [0x20000, 'rt', 'RT'], [0x40000, null, 'TOUCHPAD']
   ];
-  const hid = { mask: 0, axes: [0, 0, 0, 0], at: 0, connected: 0 };
+  // latched: seit der letzten Abfrage neu gedrückte Tasten (gehen auch bei blitzschnellem Antippen nicht verloren)
+  const hid = { mask: 0, axes: [0, 0, 0, 0], at: 0, connected: 0, latched: 0 };
 
   function emit(action, source) {
     // Direkt gelesene Controller (hid): die App hat bereits geprüft, ob die Oberfläche bedient werden darf
@@ -73,7 +74,7 @@
     const usePads = state.chromiumPads === false ? [] : hid.connected ? pads.filter((p) => !/054c|dualsense|dualshock|wireless controller/i.test(p.id)) : pads;
     if (hid.connected && hid.at) {
       for (const [bit, a, name] of HID_BITS) {
-        if (!(hid.mask & bit)) continue;
+        if (!((hid.mask | hid.latched) & bit)) continue;
         let act = a;
         if (state.swapAB && act === 'accept') act = 'back';
         else if (state.swapAB && act === 'back') act = 'accept';
@@ -125,9 +126,10 @@
       }
     }
     for (const a of [...held.keys()]) if (!active.has(a)) held.delete(a);
-    requestAnimationFrame(poll);
+    hid.latched = 0;
   }
-  requestAnimationFrame(poll);
+  // Fester Takt statt Bildwiederholung: wird bei verdeckten/transparenten Fenstern nicht gedrosselt
+  setInterval(poll, 16);
 
   window.Input = {
     on: (fn) => listeners.push(fn),
@@ -138,7 +140,9 @@
     connected: () => connected + hid.connected,
     /** Zustand eines direkt gelesenen PlayStation-Controllers (von der App) */
     hidState: (s) => {
-      hid.mask = s.mask < 0 ? 0 : s.mask;
+      const next = s.mask < 0 ? 0 : s.mask;
+      hid.latched |= next & ~hid.mask;
+      hid.mask = next;
       hid.axes = s.axes || [0, 0, 0, 0];
       hid.at = performance.now();
       if (s.mask > 0 && window.Glyphs && !state.paused && !state.gamepadDisabled) Glyphs.setInputMethod('gamepad');

@@ -16,6 +16,7 @@ const { MouseMode } = require('./mouse-mode');
 const { Osd } = require('./osd');
 const { TouchpadMouse } = require('./touchpad');
 const { Overlay } = require('./overlay');
+const { NativeHelper, hwndOf } = require('./native-helper');
 const media = require('./media');
 
 // Nur eine Instanz erlauben
@@ -36,8 +37,10 @@ const perf = new Performance();
 let perfPromise = Promise.resolve([]);
 const psWatcher = new PsHidWatcher();
 const ha = new HomeAssistant({ fetch: (url, opts) => net.fetch(url, opts), getConfig: () => store.get(), log: (m) => send('toast', { type: 'info', text: m }) });
-const mouseMode = new MouseMode({ getConfig: () => store.get() });
-const osd = new Osd();
+// Gemeinsames Windows-Hilfsprogramm: Maus/Tastatur, Medientasten, Fenster-Fokus
+const nativeHelper = new NativeHelper();
+const mouseMode = new MouseMode({ getConfig: () => store.get(), send: (line) => nativeHelper.send(line) });
+const osd = new Osd({ onShown: (w) => nativeHelper.top(hwndOf(w)) });
 const overlay = new Overlay({ preload: path.join(__dirname, 'preload.js') });
 // Touchpad als Maus: außerhalb von Spielen (oder nur in der Maussteuerung)
 const touchpad = new TouchpadMouse({
@@ -92,6 +95,8 @@ function bringToFront() {
   win.setAlwaysOnTop(true, 'screen-saver');
   win.focus();
   win.webContents.focus();
+  // Zusätzlich über das Hilfsprogramm: klappt auch, wenn ein Vollbild-Spiel den Fokus hält
+  nativeHelper.front(hwndOf(win), false);
   setTimeout(() => win && !win.isDestroyed() && win.setAlwaysOnTop(false), 400);
 }
 
@@ -316,16 +321,29 @@ watcher.on('released', ({ released }) => {
 
 // ---------- Konsolen-Overlay ----------
 const sessionStart = { at: 0 };
-function openOverlay() {
+let overlayGameHwnd = 0; // Spielfenster, das beim Schließen des Overlays wieder nach vorne kommt
+async function openOverlay() {
   mouseMode.setActive(false);
   closeQuickMenu();
   osd.hide();
   if (padForwarded) { send('pad:state', { mask: 0, axes: [0, 0, 0, 0] }); padForwarded = false; }
+  // Aktuelles Vordergrundfenster merken (das Spiel) – nicht unsere eigenen Fenster
+  const fg = await nativeHelper.foreground();
+  const own = [hwndOf(win), overlay.hwnd(), hwndOf(osd.win)];
+  overlayGameHwnd = fg && !own.includes(fg) ? fg : (launcher.isRunning() ? overlayGameHwnd : 0);
   const display = win && !win.isDestroyed() ? screen.getDisplayMatching(win.getBounds()) : undefined;
-  overlay.show(display).catch(() => {});
+  await overlay.show(display).catch(() => {});
+  // Ganz nach vorne – auch über Vollbild-Spiele (exklusives Vollbild minimiert sich dabei)
+  nativeHelper.front(overlay.hwnd(), true);
+  setTimeout(() => { if (overlay.isVisible()) nativeHelper.front(overlay.hwnd(), true); }, 350);
 }
-function closeOverlay() {
+/** @param {boolean} restoreGame Spiel danach wieder in den Vordergrund holen */
+function closeOverlay(restoreGame = true) {
   overlay.hide();
+  if (restoreGame && overlayGameHwnd && launcher.isRunning()) {
+    const h = overlayGameHwnd;
+    setTimeout(() => nativeHelper.front(h, false), 260);
+  }
 }
 
 function overlayData() {
@@ -346,13 +364,13 @@ function overlayData() {
 
 async function overlayAction(a) {
   switch (a.type) {
-    case 'resume': closeOverlay(); return true;
-    case 'home': closeOverlay(); bringToFront(); return true;
-    case 'quit': closeOverlay(); return closeCurrentGame();
+    case 'resume': closeOverlay(true); return true;
+    case 'home': closeOverlay(false); bringToFront(); return true;
+    case 'quit': closeOverlay(false); return closeCurrentGame();
     case 'launch': {
       const game = library.games.find((g) => g.id === a.id);
       if (!game) throw new Error('Spiel nicht gefunden');
-      closeOverlay();
+      closeOverlay(false);
       if (launcher.isRunning()) {
         await closeCurrentGame();
         // Sicherstellen, dass das alte Spiel wirklich weg ist (max. 8 s)
@@ -599,6 +617,7 @@ app.on('before-quit', async (e) => {
   watcher.stop();
   psWatcher.stop();
   mouseMode.stop();
+  nativeHelper.stop();
   osd.destroy();
   overlay.destroy();
   if (!quitting && (displaySwitched || perf.applied.length || perf.previousPlan || ha.ready())) {
