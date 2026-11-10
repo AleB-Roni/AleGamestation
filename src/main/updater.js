@@ -88,6 +88,8 @@ class Updater extends EventEmitter {
     const res = await this.fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
       headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'AleGamestation' }
     });
+    if (res.status === 404) throw new Error('Update-Quelle nicht gefunden – ist das GitHub-Repository privat? Updates funktionieren nur, wenn es öffentlich ist');
+    if (res.status === 403) throw new Error('GitHub hat zu viele Anfragen gemeldet – bitte später erneut suchen');
     if (!res.ok) throw new Error(`GitHub antwortet mit ${res.status}`);
     const r = JSON.parse(await res.text());
     const exe = (r.assets || []).find((a) => /\.exe$/i.test(a.name));
@@ -107,7 +109,9 @@ class Updater extends EventEmitter {
     try {
       latest = await this.fetchLatest();
     } catch (err) {
-      this._set({ status: 'error', error: `Keine Verbindung zu GitHub: ${err.message}` });
+      // Netzwerkfehler vs. Antwort von GitHub unterscheiden
+      const msg = /Update-Quelle|zu viele Anfragen/.test(err.message) ? err.message : `Keine Verbindung zu GitHub: ${err.message}`;
+      this._set({ status: 'error', error: msg });
       return this.get();
     }
     const newer = compareVersions(latest.version, this.state.version) > 0;

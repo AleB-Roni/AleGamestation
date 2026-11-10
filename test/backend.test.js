@@ -436,3 +436,11 @@ test('Tasten loslassen wird gemeldet (PS-Taste halten vs. kurz drücken)', () =>
   w._update('ps:1', 0);
   assert.deepStrictEqual(ev, ['down:' + BUTTONS.GUIDE, 'up:' + BUTTONS.GUIDE]);
 });
+
+test('Updates: verständliche Meldung, wenn das Repository privat ist (404)', async () => {
+  const { Updater } = require('../src/main/updater');
+  const u = new Updater({ version: '1.7.0', isPackaged: false, fetch: async () => ({ ok: false, status: 404, text: async () => '{}' }) });
+  const s = await u.check();
+  assert.strictEqual(s.status, 'error');
+  assert.match(s.error, /privat/);
+});
