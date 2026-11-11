@@ -131,6 +131,7 @@
   };
 
   function applyConfig() {
+    ConsoleIcons.usePhotos(App.cfg.general.consolePhotos);
     const g = App.cfg.general;
     document.documentElement.style.setProperty('--accent', g.accentColor || '#7c5cff');
     document.documentElement.style.setProperty('--scale', g.uiScale || 1);

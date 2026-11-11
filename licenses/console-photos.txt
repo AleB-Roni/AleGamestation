@@ -1,0 +1,28 @@
+Konsolenfotos in src/renderer/consoles/
+
+Fotos: Evan Amos (Vanamo Online Game Museum), veröffentlicht auf Wikimedia Commons als gemeinfrei (Public Domain).
+Freigestellt, zugeschnitten und verkleinert für AleGamestation.
+
+nes.webp  <-  https://commons.wikimedia.org/wiki/File:NES-Console-Set.png
+snes.webp  <-  https://commons.wikimedia.org/wiki/File:SNES-Mod1-Console-Set.jpg
+n64.webp  <-  https://commons.wikimedia.org/wiki/File:N64-Console-Set.png
+gb.webp  <-  https://commons.wikimedia.org/wiki/File:Game-Boy-FL.png
+gbc.webp  <-  https://commons.wikimedia.org/wiki/File:Nintendo-Game-Boy-Color-FL.jpg
+gba.webp  <-  https://commons.wikimedia.org/wiki/File:Nintendo-Game-Boy-Advance-Purple-FL.png
+nds.webp  <-  https://commons.wikimedia.org/wiki/File:Nintendo-DS-Lite-Black-Open.png
+3ds.webp  <-  https://commons.wikimedia.org/wiki/File:Nintendo-3DS-AquaOpen.png
+gc.webp  <-  https://commons.wikimedia.org/wiki/File:GameCube-Console-Set.png
+wii.webp  <-  https://commons.wikimedia.org/wiki/File:Wii-Console.png
+switch.webp  <-  https://commons.wikimedia.org/wiki/File:Nintendo-Switch-Console-Docked-wJoyConRB.jpg
+sms.webp  <-  https://commons.wikimedia.org/wiki/File:Sega-Master-System-Set.png
+md.webp  <-  https://commons.wikimedia.org/wiki/File:Sega-Mega-Drive-JP-Mk1-Console-Set.png
+saturn.webp  <-  https://commons.wikimedia.org/wiki/File:Sega-Saturn-Console-Set-Mk1.png
+ps1.webp  <-  https://commons.wikimedia.org/wiki/File:PSX-Console-wController.png
+ps2.webp  <-  https://commons.wikimedia.org/wiki/File:PS2-Fat-Console-Set.png
+ps3.webp  <-  https://commons.wikimedia.org/wiki/File:Sony-PlayStation-3-CECHA01-wController-L.png
+psp.webp  <-  https://commons.wikimedia.org/wiki/File:Sony-PSP-1000-Body.png
+vita.webp  <-  https://commons.wikimedia.org/wiki/File:PlayStation-Vita-1101-FL.png
+pce.webp  <-  https://commons.wikimedia.org/wiki/File:PC-Engine-Console-Set.png
+xbox.webp  <-  https://commons.wikimedia.org/wiki/File:Xbox-Console-wDuke-L.png
+x360.webp  <-  https://commons.wikimedia.org/wiki/File:Microsoft-Xbox-360-Pro-Flat-wController-L.png
+dc.webp  <-  https://commons.wikimedia.org/wiki/File:Sega-Dreamcast-Console-FL.png

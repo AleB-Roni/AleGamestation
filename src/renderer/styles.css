@@ -390,3 +390,9 @@ body.hide-cursor, body.hide-cursor * { cursor: none !important; }
 /* Debug-Modus */
 .debug-badge { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; padding: 0.25rem 0.6rem; border-radius: 999px; background: rgba(255,196,0,0.16); color: #ffc400; border: 1px solid rgba(255,196,0,0.4); }
 .debug-badge.bad { background: rgba(255,80,90,0.18); color: #ff6b75; border-color: rgba(255,80,90,0.5); }
+
+/* Konsolenfotos (freigestellt) auf den Kacheln */
+.sys-icon:has(.console-photo) { opacity: 0.92; width: 46%; top: 0.55rem; right: 0.5rem; }
+.sys-icon .console-photo { max-height: 5.2rem; object-fit: contain; object-position: right top; filter: drop-shadow(0 8px 18px rgba(0,0,0,0.55)); }
+.card.selected .sys-icon:has(.console-photo), .card.current .sys-icon:has(.console-photo) { opacity: 1; transform: scale(1.08) rotate(-2deg); }
+.modal.system-details .sys-hero .console-photo { max-height: 10rem; filter: drop-shadow(0 12px 24px rgba(0,0,0,0.5)); }

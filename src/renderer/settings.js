@@ -98,6 +98,7 @@
         toggle('Oberfläche minimieren, während ein Spiel läuft', () => C().general, 'minimizeOnLaunch'),
         toggle('Nach Spielende zurück in die Oberfläche', () => C().general, 'refocusAfterGame'),
         group('Darstellung'),
+        toggle('Konsolen als Foto zeigen', () => C().general, 'consolePhotos', 'Echte Konsolenfotos auf den Kacheln (sonst Umriss-Zeichnungen). Eigene Bilder: Einstellungen → Systeme & ROMs → Konsole → Logo', { get: () => C().general.consolePhotos !== false, rescan: true }),
         select('Akzentfarbe', () => C().general, 'accentColor', [
           { value: '#7c5cff', label: 'Violett' }, { value: '#22d3ee', label: 'Cyan' }, { value: '#3ddc84', label: 'Grün' },
           { value: '#ff4d6d', label: 'Rot' }, { value: '#ff9f1c', label: 'Orange' }, { value: '#3b82f6', label: 'Blau' }, { value: '#e5e5e5', label: 'Weiß' }

@@ -41,24 +41,33 @@
   // Weitere Systeme auf vorhandene Zeichnungen abbilden
   const ALIAS = { gbc: 'gb', sms: 'md', gg: 'gb', saturn: 'ps1', dc: 'ps2', pce: 'nes', neogeo: 'nes', ps3: 'ps2', switch: 'gba', '3ds': 'nds' };
 
-  function forSystem(id, name) {
-    if (ICONS[id]) return ICONS[id];
-    if (ALIAS[id]) return ICONS[ALIAS[id]];
-    const n = String(name || '').toLowerCase();
-    if (/portable|psp/.test(n)) return ICONS.psp;
-    if (/playstation 2|ps2/.test(n)) return ICONS.ps2;
-    if (/playstation|psx|ps1/.test(n)) return ICONS.ps1;
-    if (/gamecube/.test(n)) return ICONS.gc;
-    if (/wii/.test(n)) return ICONS.wii;
-    if (/\bds\b|nintendo ds/.test(n)) return ICONS.nds;
-    if (/advance/.test(n)) return ICONS.gba;
-    if (/game ?boy/.test(n)) return ICONS.gb;
-    if (/64/.test(n)) return ICONS.n64;
-    if (/super nintendo|snes/.test(n)) return ICONS.snes;
-    if (/nintendo|nes/.test(n)) return ICONS.nes;
-    if (/sega|mega|genesis/.test(n)) return ICONS.md;
-    return ICONS.generic;
+  /** Konsole erkennen: ID, sonst am Namen (auch eigene Konsolen wie „Switch 1 & 2“) */
+  const NAME_KEYS = [
+    [/switch/i, 'switch'], [/wii\s*u/i, 'wiiu'], [/3ds/i, '3ds'], [/game\s*cube/i, 'gc'], [/\bwii\b/i, 'wii'], [/\bds\b|nintendo ds/i, 'nds'],
+    [/64/i, 'n64'], [/super nintendo|snes/i, 'snes'], [/advance|gba/i, 'gba'], [/game\s*boy color|gbc/i, 'gbc'], [/game\s*boy/i, 'gb'],
+    [/vita/i, 'vita'], [/playstation 3|ps3/i, 'ps3'], [/playstation 2|ps2/i, 'ps2'], [/portable|psp/i, 'psp'], [/playstation|psx|ps1/i, 'ps1'],
+    [/dreamcast/i, 'dc'], [/saturn/i, 'saturn'], [/master system/i, 'sms'], [/mega\s*drive|genesis/i, 'md'], [/pc engine|turbografx/i, 'pce'],
+    [/xbox 360|x360/i, 'x360'], [/xbox/i, 'xbox'], [/\bnes\b|entertainment system/i, 'nes']
+  ];
+  function keyFor(id, name) {
+    const base = String(id || '').replace(/-[a-z0-9]{4}$/, ''); // "snes-ab12" (zweite Konsole gleicher Art)
+    const n = String(name || '');
+    const hit = NAME_KEYS.find(([re]) => re.test(n));
+    return [id, base, hit && hit[1]].find((k) => k && (PHOTOS.has(k) || ICONS[k] || ALIAS[k])) || '';
   }
 
-  window.ConsoleIcons = { forSystem, ICONS };
+  // Fotos der Konsolen mit transparentem Hintergrund (gemeinfrei, Evan Amos / Wikimedia Commons) in renderer/consoles/
+  const PHOTOS = new Set(window.CONSOLE_PHOTOS || []);
+  let photosOn = true;
+
+  function forSystem(id, name) {
+    const k = keyFor(id, name);
+    if (photosOn && PHOTOS.has(k)) return `<img class="console-photo" src="consoles/${k}.webp" alt="" draggable="false">`;
+    if (ICONS[k]) return ICONS[k];
+    if (ALIAS[k]) return ICONS[ALIAS[k]];
+    return ICONS.generic;
+  }
+  function usePhotos(on) { photosOn = on !== false; }
+
+  window.ConsoleIcons = { forSystem, keyFor, usePhotos, ICONS };
 })();

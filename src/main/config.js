@@ -32,6 +32,8 @@ const DEFAULT_CONFIG = {
     autoUpdate: true,
     // Gefundene Updates sofort im Hintergrund herunterladen (sonst erst nachfragen)
     autoDownloadUpdates: true,
+    // Konsolen-Kacheln: Fotos der Konsolen (sonst Umriss-Zeichnungen)
+    consolePhotos: true,
     // Emulatoren automatisch im Vollbild starten (passendes Argument für bekannte Emulatoren wird ergänzt)
     emulatorFullscreen: true,
     // Debug-Modus: Protokoll mit Eingaben/Fehlern schreiben (Einstellungen → Info & Updates)
