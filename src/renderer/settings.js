@@ -283,6 +283,20 @@
             action: () => openSystem(s.id)
           }));
         }
+        // Emulator-Tab: ausgeblendete Konsolen/Emulatoren wieder einblenden
+        const tab = C().emulatorTab || { order: [], hidden: [] };
+        const hidden = (tab.hidden || []).map((id) => App.library.systems.find((x) => x.id === id)).filter(Boolean);
+        rows.push(group('Emulator-Tab', 'Reihenfolge: Konsole auswählen → △ → „Position verschieben“'));
+        if (!hidden.length) rows.push({ type: 'info', label: 'Keine Konsolen ausgeblendet', desc: 'Ausblenden: im Emulator-Tab Konsole auswählen → △ → „Im Emulator-Tab ausblenden“', get: () => '' });
+        for (const h of hidden) {
+          rows.push(button(`Wieder einblenden: ${h.name}`, async () => {
+            tab.hidden = (tab.hidden || []).filter((id) => id !== h.id);
+            C().emulatorTab = tab;
+            await commit(false);
+            App.toast(`${h.short || h.name} wird wieder angezeigt`, 'ok');
+          }));
+        }
+        if ((tab.order || []).length) rows.push(button('Reihenfolge zurücksetzen', async () => { tab.order = []; C().emulatorTab = tab; await commit(false); }));
         return rows;
       }
     },

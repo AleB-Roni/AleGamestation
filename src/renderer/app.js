@@ -217,7 +217,7 @@
       if (tab.system === 'pc') items.unshift({ kind: 'action', id: 'addGame', title: 'Spiel hinzufügen', sub: '.exe / Verknüpfung', icon: 'plus' });
       secs.push({ title: systemOf(tab.system).name, layout: 'grid', items });
     } else if (tab.id === 'emulators') {
-      const systems = App.library.systems.filter((s) => s.kind === 'emulator');
+      const systems = emuTabSystems();
       const sysItems = systems.map((s) => ({ kind: 'system', system: s }));
       sysItems.push({ kind: 'action', id: 'addSystem', title: 'Konsole hinzufügen', sub: 'Emulator + ROM-Ordner', icon: 'plus' });
       App.emuSystemIndex = Math.min(App.emuSystemIndex, sysItems.length - 1);
@@ -233,6 +233,58 @@
       secs.push({ title: `Alle Spiele (${games.length})`, layout: 'grid', items: games.slice().sort((a, b) => a.name.localeCompare(b.name, 'de')).map(gi), letterJump: true });
     }
     return secs;
+  }
+
+  /** Konsolen/Emulatoren im Emulator-Tab: eigene Reihenfolge, ausgeblendete weggelassen */
+  function emuTab() {
+    if (!App.cfg.emulatorTab) App.cfg.emulatorTab = { order: [], hidden: [] };
+    return App.cfg.emulatorTab;
+  }
+  function emuTabSystems(includeHidden = false) {
+    const t = emuTab();
+    const all = App.library.systems.filter((s) => s.kind === 'emulator');
+    const pos = (id) => { const i = (t.order || []).indexOf(id); return i < 0 ? 1e6 + all.findIndex((x) => x.id === id) : i; };
+    return all.filter((s) => includeHidden || !(t.hidden || []).includes(s.id)).sort((a, b) => pos(a.id) - pos(b.id));
+  }
+  App.emuTabSystems = emuTabSystems;
+
+  /** Verschiebe-Modus: Konsole mit ◀ ▶ an eine andere Stelle schieben */
+  function startMoveSystem(s) {
+    App.closeMenu();
+    App.moveSystem = s.id;
+    App.focus = { s: 0, i: App.emuSystemIndex };
+    renderHome();
+    App.toast(`${s.short}: mit ◀ ▶ verschieben, bestätigen zum Ablegen`, 'info', 4000);
+  }
+  async function moveSystemStep(dir) {
+    const list = emuTabSystems(true).map((x) => x.id);
+    const visible = emuTabSystems().map((x) => x.id);
+    const from = visible.indexOf(App.moveSystem);
+    const to = from + dir;
+    if (from < 0 || to < 0 || to >= visible.length) return false;
+    // In der vollständigen Liste (inkl. ausgeblendeter) mit dem sichtbaren Nachbarn tauschen
+    const a = list.indexOf(visible[from]); const b = list.indexOf(visible[to]);
+    [list[a], list[b]] = [list[b], list[a]];
+    emuTab().order = list;
+    App.emuSystemIndex = to;
+    App.focus = { s: 0, i: to };
+    renderHome();
+    return true;
+  }
+  async function endMoveSystem() {
+    App.moveSystem = null;
+    renderHome();
+    await App.save({ immediate: true });
+    App.toast('Reihenfolge gespeichert', 'ok', 1500);
+  }
+  async function hideSystem(s) {
+    App.closeMenu();
+    const t = emuTab();
+    t.hidden = [...new Set([...(t.hidden || []), s.id])];
+    App.emuSystemIndex = Math.max(0, App.emuSystemIndex - 1);
+    await App.save({ immediate: true });
+    renderHome();
+    App.toast(`${s.short} ausgeblendet – wieder einblenden unter Einstellungen → Systeme & ROMs`, 'info', 5000);
   }
 
   function cardHtml(item, wide) {
@@ -282,6 +334,7 @@
       sec.items.forEach((item, ii) => {
         const card = el('div', 'card ' + (item.kind === 'system' ? 'system-card' : item.kind === 'action' ? 'action-card' : ''));
         if (item.kind === 'system' && ii === App.emuSystemIndex) card.classList.add('current');
+        if (item.kind === 'system' && item.system.id === App.moveSystem) card.classList.add('moving');
         card.innerHTML = cardHtml(item, sec.wide);
         card.onclick = () => { setFocus(si, ii); activate(); };
         card.onmouseenter = () => setFocus(si, ii, true);
@@ -308,18 +361,45 @@
     updateFocus(silent);
   }
 
+  /**
+   * Ansicht folgt der Auswahl: nur so weit scrollen, dass die Karte mit etwas Abstand sichtbar ist.
+   * Eigene Berechnung statt scrollIntoView – das wurde durch andere Scroll-Änderungen abgebrochen und blieb stehen.
+   */
+  function followSelection(card, secEl, silent) {
+    const behavior = silent ? 'auto' : 'smooth';
+    const grid = $('#grid');
+    const g = grid.getBoundingClientRect();
+    const c = card.getBoundingClientRect();
+    const marginTop = 56; const marginBottom = 72;
+    let top = grid.scrollTop;
+    const secTop = secEl ? secEl.getBoundingClientRect().top : c.top;
+    // Oberste Zeile des ersten Bereichs: ganz nach oben (Überschrift sichtbar). In großen Rastern (Steam, Alle Spiele)
+    // liegen alle Spiele im ersten Bereich – dort sonst normal mitscrollen.
+    if (App.focus.s === 0 && c.top - secTop < c.height * 0.9) top += secTop - g.top - 6;
+    else if (c.top < g.top + marginTop) top += c.top - g.top - marginTop;
+    else if (c.bottom > g.bottom - marginBottom) top += c.bottom - g.bottom + marginBottom;
+    top = Math.max(0, Math.round(top));
+    if (Math.abs(top - grid.scrollTop) > 1) grid.scrollTo({ top, behavior });
+    // Waagerechte Reihen (Konsolen, Zuletzt gespielt …): innerhalb der Reihe mitscrollen
+    const row = card.parentElement;
+    if (row && row.scrollWidth > row.clientWidth + 2) {
+      const r = row.getBoundingClientRect();
+      const side = Math.min(160, r.width * 0.15);
+      let left = row.scrollLeft;
+      if (c.left < r.left + side) left += c.left - r.left - side;
+      else if (c.right > r.right - side) left += c.right - r.right + side;
+      left = Math.max(0, Math.min(row.scrollWidth - row.clientWidth, Math.round(left)));
+      if (Math.abs(left - row.scrollLeft) > 1) row.scrollTo({ left, behavior });
+    }
+  }
+
   function updateFocus(silent) {
     document.querySelectorAll('#grid .card.selected').forEach((c) => c.classList.remove('selected'));
     const secEl = $('#grid').children[App.focus.s];
     const card = secEl && secEl.querySelector('.shelf-items').children[App.focus.i];
     if (card && card.classList.contains('card')) {
       card.classList.add('selected');
-      // Nur scrollen, wenn die Auswahl an den Rand kommt (scroll-margin hält Nachbarn sichtbar)
-      card.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: silent ? 'auto' : 'smooth' });
-      if (App.focus.s === 0 && secEl) secEl.scrollIntoView({ block: 'start', behavior: silent ? 'auto' : 'smooth' });
-      // Äußere Container dürfen nie seitlich mitscrollen (sonst „springt“ das ganze Feld)
-      $('#grid').scrollLeft = 0;
-      $('#gridWrap').scrollLeft = 0;
+      followSelection(card, secEl, silent);
     }
     updateHero();
     renderHints();
@@ -714,6 +794,8 @@
           App.toast('Hintergrundbild gespeichert', 'ok');
         } },
         ...(sysCfg.tileImage ? [{ label: 'Hintergrundbild entfernen', icon: 'undo', action: async () => { delete sysCfg.tileImage; App.closeMenu(); await App.save({ immediate: true, rescan: true }); } }] : []),
+        { label: 'Position verschieben', icon: 'extend', hint: '◀ ▶ im Emulator-Tab', action: () => startMoveSystem(s) },
+        { label: 'Im Emulator-Tab ausblenden', icon: 'eye-off', action: () => hideSystem(s) },
         { label: 'In Einstellungen bearbeiten', icon: 'settings', action: () => { App.closeMenu(); openSettings('systems'); } }
       ]
     });
@@ -737,6 +819,8 @@
           App.closeMenu();
           try { const st = await api.launchEmulator(s.id); if (st && st.running) showRunning(st); } catch (e) { err(e); }
         } },
+        { label: 'Position verschieben', icon: 'extend', hint: '◀ ▶ im Emulator-Tab', action: () => startMoveSystem(s) },
+        { label: 'Im Emulator-Tab ausblenden', icon: 'eye-off', action: () => hideSystem(s) },
         { label: 'In Einstellungen bearbeiten', icon: 'settings', action: () => { App.closeMenu(); openSettings('emulators'); } }
       ]
     });
@@ -815,7 +899,7 @@
       App.tabIndex = Math.max(0, App.tabs.findIndex((t) => t.id === 'emulators'));
       renderTabs();
       showView('home');
-      const systems = App.library.systems.filter((s) => s.kind === 'emulator');
+      const systems = emuTabSystems();
       App.emuSystemIndex = Math.max(0, systems.findIndex((s) => s.id === id));
       App.focus = { s: 0, i: App.emuSystemIndex };
       renderHome();
@@ -925,6 +1009,7 @@
     if (App.running) html = hint(glyph('A'), 'Spiel beenden');
     else if (App.modalStack.length) html = hint(glyph('A'), 'Auswählen') + hint(glyph('B'), 'Zurück');
     else if (App.view === 'settings') html = SettingsView.hints(hint, glyph);
+    else if (App.moveSystem) html = hint('◀ ▶', 'Verschieben') + hint(glyph('A'), 'Ablegen');
     else {
       const item = focusedItem();
       if (item && item.kind === 'game') html += hint(glyph('A'), 'Spielen') + hint(glyph('X'), 'Favorit') + hint(glyph('Y'), 'Details');
@@ -946,6 +1031,11 @@
       return;
     }
     if (App.modalStack.length) return modalAction(a);
+    if (App.moveSystem) {
+      if (a === 'left' || a === 'right') { if (moveSystemStep(a === 'right' ? 1 : -1)) Sounds.play('move'); }
+      else if (a === 'accept' || a === 'back') { Sounds.play('accept'); endMoveSystem(); }
+      return;
+    }
     // L2/R2: große Tabs wechseln (überall, auch in den Einstellungen)
     if (a === 'lt' || a === 'rt') return switchTab(App.tabIndex + (a === 'rt' ? 1 : -1));
     if (App.view === 'settings') return SettingsView.handle(a);

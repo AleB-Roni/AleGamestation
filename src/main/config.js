@@ -204,6 +204,9 @@ const DEFAULT_CONFIG = {
     { id: 'psp', name: 'PlayStation Portable', short: 'PSP', color: '#2b2b2b', extensions: ['.iso', '.cso', '.pbp'], romDirs: ['C:\\ROMs\\psp'], emulator: 'ppsspp', enabled: true }
   ],
 
+  // Emulator-Tab: Reihenfolge der Konsolen/Emulatoren (IDs) und ausgeblendete
+  emulatorTab: { order: [], hidden: [] },
+
   // Manuell hinzugefügte PC-Spiele / Programme (z.B. Epic, GOG, Emulator-Oberflächen, Kodi ...)
   // killMode: "tree" (Prozess + Kinder) | "dir" (alle Prozesse aus dem Spielordner) | "name" (Prozessname aus processName)
   pcGames: [
