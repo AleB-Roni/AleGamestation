@@ -77,6 +77,15 @@ function hwndOfPid(pid) {
     await sleep(300);
     console.log('✔ Fenster ohne Fokus ganz nach oben legen funktioniert');
   }
+  // Spiel anhalten/fortsetzen (Overlay-Modus "Spiel anhalten")
+  if (ha) {
+    const info = await helper.request(`pidinfo ${ha}`, 5000);
+    assert.match(info, /^\d+ notepad/i, 'Prozess zum Fenster: ' + info);
+    const pid = info.split(' ')[0];
+    assert.strictEqual(await helper.request(`suspend ${pid}`, 5000), '0', 'Anhalten');
+    assert.strictEqual(await helper.request(`resume ${pid}`, 5000), '0', 'Fortsetzen');
+    console.log('✔ Spiel anhalten und fortsetzen funktioniert');
+  }
   try { process.kill(a.pid); } catch { /* ignore */ }
   try { process.kill(b.pid); } catch { /* ignore */ }
   helper.stop();
