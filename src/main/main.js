@@ -345,7 +345,7 @@ function refreshLibrary() {
 let scraper = null;
 function getScraper() {
   if (!scraper || scraper.mediaDir !== mediaDir()) {
-    scraper = new Scraper({ mediaDir: mediaDir(), getConfig: cfg, fetch: (url, opts) => net.fetch(url, opts) });
+    scraper = new Scraper({ mediaDir: mediaDir(), getConfig: cfg, fetch: (url, opts) => net.fetch(url, opts), trace: (m) => debug.info('cover', m) });
     scraper.on('progress', (p) => send('scrape:progress', p));
   }
   return scraper;

@@ -56,33 +56,39 @@ function findSteamPath(configured) {
   return candidates.find((c) => exists(path.join(c, 'steamapps'))) || '';
 }
 
-function steamCover(steamPath, appid) {
+/**
+ * Bild aus Steams lokalem Bildspeicher (appcache/librarycache).
+ * Ältere Steam-Versionen: <appid>_library_600x900.jpg; neuere: <appid>/<hash>/library_capsule.jpg bzw. library_600x900.jpg
+ */
+function steamCacheImage(steamPath, appid, names) {
   const cache = path.join(steamPath, 'appcache', 'librarycache');
-  const options = [
-    path.join(cache, `${appid}_library_600x900.jpg`),
-    path.join(cache, String(appid), 'library_600x900.jpg'),
-    path.join(cache, `${appid}_header.jpg`),
-    path.join(cache, String(appid), 'header.jpg')
-  ];
-  const hit = options.find(exists);
-  if (hit) return fileUrl(hit);
-  // Neuere Steam-Versionen legen Bilder in Unterordnern mit Hash-Namen ab
+  for (const n of names) {
+    for (const p of [path.join(cache, `${appid}_${n}`), path.join(cache, String(appid), n)]) if (exists(p)) return fileUrl(p);
+  }
   try {
     const dir = path.join(cache, String(appid));
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (entry.isDirectory()) {
-        const p = path.join(dir, entry.name, 'library_600x900.jpg');
+    const subs = fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory());
+    for (const n of names) {
+      for (const e of subs) {
+        const p = path.join(dir, e.name, n);
         if (exists(p)) return fileUrl(p);
       }
     }
-  } catch { /* ignore */ }
+  } catch { /* kein Ordner */ }
   return '';
 }
 
+function steamCover(steamPath, appid) {
+  return steamCacheImage(steamPath, appid, ['library_capsule_2x.jpg', 'library_capsule.jpg', 'library_600x900_2x.jpg', 'library_600x900.jpg']);
+}
+
+/** Querformat-Bild als Notlösung, wenn es kein Hochformat-Cover gibt */
+function steamHeader(steamPath, appid) {
+  return steamCacheImage(steamPath, appid, ['header.jpg']);
+}
+
 function steamHero(steamPath, appid) {
-  const cache = path.join(steamPath, 'appcache', 'librarycache');
-  const hit = [path.join(cache, `${appid}_library_hero.jpg`), path.join(cache, String(appid), 'library_hero.jpg')].find(exists);
-  return hit ? fileUrl(hit) : '';
+  return steamCacheImage(steamPath, appid, ['library_hero_2x.jpg', 'library_hero.jpg']);
 }
 
 function scanSteam(cfg) {
@@ -117,6 +123,7 @@ function scanSteam(cfg) {
           appid: st.appid,
           installDir: path.join(lib, 'common', st.installdir || ''),
           cover: steamCover(steamPath, st.appid),
+          headerImage: steamHeader(steamPath, st.appid),
           hero: steamHero(steamPath, st.appid)
         });
       } catch { /* ignore */ }
@@ -434,6 +441,11 @@ function scanLibrary(cfg, opts = {}) {
       if (!g.cover) { const p = path.join(opts.mediaDir, g.system, 'covers', key); if (exists(p)) g.cover = fileUrl(p); }
       if (!g.hero) { const p = path.join(opts.mediaDir, g.system, 'snaps', key); if (exists(p)) g.hero = fileUrl(p); }
     }
+  }
+  // Notlösung Querformat-Bild; die Cover-Suche lädt trotzdem ein richtiges Hochformat-Cover nach
+  for (const g of steam) {
+    if (!g.cover && g.headerImage) { g.cover = g.headerImage; g.coverIsHeader = true; }
+    delete g.headerImage;
   }
   const games = applyOverrides(cfg, [...steam, ...epic, ...gog, ...pc, ...roms]);
   return { systems, games, emulators, steamFound: !!findSteamPath(cfg.steam.path) };

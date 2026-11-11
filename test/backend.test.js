@@ -593,3 +593,32 @@ test('AleClip: Status abfragen und Clip mit Länge und Ende anfordern', async ()
   assert.strictEqual((await off.status()).offline, true);
   await assert.rejects(off.saveReplay(10), /läuft nicht/);
 });
+
+test('Steam-Cover: neue Bild-Adressen mit Prüfsumme über die Shop-Schnittstelle', async () => {
+  const { Scraper } = require('../src/main/scraper');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ags-steam-'));
+  const calls = [];
+  const img = Buffer.alloc(5000, 1);
+  const fetch = async (url) => {
+    calls.push(url);
+    const ok = (body, bin) => ({ ok: true, status: 200, text: async () => JSON.stringify(body), arrayBuffer: async () => bin });
+    if (url.includes('IStoreBrowseService/GetItems')) {
+      return ok({ response: { store_items: [{ appid: 4069520, assets: { asset_url_format: 'steam/apps/4069520/${FILENAME}?t=1', library_capsule: 'abc/library_capsule.jpg', library_hero: 'def/library_hero.jpg', header: 'abc/header.jpg' } }] } });
+    }
+    if (url.includes('/apps/4069520/abc/library_capsule.jpg') || url.includes('/apps/4069520/def/library_hero.jpg')) return ok(null, img);
+    return { ok: false, status: 404, text: async () => '' }; // alte feste Pfade gibt es nicht mehr
+  };
+  const s = new Scraper({ mediaDir: dir, getConfig: () => ({ scraper: { downloadSnaps: true }, systems: [] }), fetch });
+  const r = await s.scrapePcGame({ id: 'steam-4069520', type: 'steam', system: 'steam', appid: 4069520, name: 'Super Battle Golf' });
+  assert.deepStrictEqual([r.covers, r.snaps, r.source], [true, true, 'steam']);
+  assert.ok(calls.some((u) => u.includes('/abc/library_capsule.jpg')));
+  assert.ok(fs.existsSync(path.join(dir, 'steam', 'covers', 'steam-4069520.png')));
+});
+
+test('Cover-Suche: eigene Konsole am Namen erkennen (z.B. „Switch 1 & 2“)', () => {
+  const { systemFromName, romTitle } = require('../src/main/scraper');
+  assert.strictEqual(systemFromName('Switch 1 & 2'), 'switch');
+  assert.strictEqual(systemFromName('Nintendo 3DS'), '3ds');
+  assert.strictEqual(systemFromName('Meine Sammlung'), '');
+  assert.strictEqual(romTitle({ name: 'Mario Kart 8 Deluxe [0100152000022000][v0]' }), 'Mario Kart 8 Deluxe');
+});

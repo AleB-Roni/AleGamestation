@@ -37,10 +37,28 @@ const LIBRETRO_SYSTEMS = {
 // System-IDs bei ScreenScraper
 const SCREENSCRAPER_IDS = {
   md: 1, sms: 2, nes: 3, snes: 4, gb: 9, gbc: 10, gba: 12, gc: 13, n64: 14, nds: 15, wii: 16,
-  gg: 21, saturn: 22, dc: 23, pce: 31, neogeo: 142, ps1: 57, ps2: 58, psp: 61, arcade: 75, atari2600: 26
+  gg: 21, saturn: 22, dc: 23, pce: 31, neogeo: 142, ps1: 57, ps2: 58, psp: 61, arcade: 75, atari2600: 26,
+  '3ds': 17, wiiu: 18, switch: 225, ps3: 59, vita: 62, xbox: 32, x360: 33
 };
+/** Eigene Konsolen (ID "sys-…"): System am Namen erkennen, z.B. "Switch 1 & 2" -> switch */
+const NAME_SYSTEM = [
+  [/switch/i, 'switch'], [/wii\s*u/i, 'wiiu'], [/3ds/i, '3ds'], [/\bds\b|nintendo ds/i, 'nds'], [/game\s*cube|\bgc\b/i, 'gc'], [/\bwii\b/i, 'wii'],
+  [/n64|nintendo 64/i, 'n64'], [/snes|super nintendo/i, 'snes'], [/\bnes\b|entertainment system/i, 'nes'], [/advance|gba/i, 'gba'],
+  [/game\s*boy color|gbc/i, 'gbc'], [/game\s*boy|\bgb\b/i, 'gb'], [/ps\s*vita|vita/i, 'vita'], [/ps3|playstation 3/i, 'ps3'], [/ps2|playstation 2/i, 'ps2'],
+  [/psp|portable/i, 'psp'], [/ps1|psx|playstation/i, 'ps1'], [/dreamcast/i, 'dc'], [/saturn/i, 'saturn'], [/mega\s*drive|genesis/i, 'md'],
+  [/master system/i, 'sms'], [/game gear/i, 'gg'], [/xbox 360|x360/i, 'x360'], [/xbox/i, 'xbox'], [/arcade|mame|fbneo/i, 'arcade']
+];
+/** Suchname für ein ROM: angezeigter Name ohne Klammer-Tags und Titel-IDs */
+function romTitle(game) {
+  return String(game.name || path.basename(game.rom || '', path.extname(game.rom || '')))
+    .replace(/\s*[([].*?[)\]]/g, '').replace(/\s+v\d[\d.]*$/i, '').trim();
+}
+function systemFromName(name) {
+  const hit = NAME_SYSTEM.find(([re]) => re.test(String(name || '')));
+  return hit ? hit[1] : '';
+}
 // Dateiendung -> genaueres System (z.B. .gbc im GBA-Ordner)
-const EXT_SYSTEM = { '.gb': 'gb', '.gbc': 'gbc', '.wbfs': 'wii', '.sms': 'sms', '.gg': 'gg' };
+const EXT_SYSTEM = { '.gb': 'gb', '.gbc': 'gbc', '.wbfs': 'wii', '.sms': 'sms', '.gg': 'gg', '.nsp': 'switch', '.xci': 'switch', '.nsz': 'switch', '.xcz': 'switch', '.3ds': '3ds', '.cia': '3ds', '.wua': 'wiiu', '.wux': 'wiiu' };
 
 const REGION_PREF = ['de', 'eu', 'wor', 'us', 'ss', 'jp'];
 
@@ -96,6 +114,7 @@ class Scraper extends EventEmitter {
     this.mediaDir = opts.mediaDir;
     this.fetch = opts.fetch || globalThis.fetch;
     this.getConfig = opts.getConfig;
+    this.trace = opts.trace || (() => {});
     this.listCache = new Map();
     this.running = false;
     this.cancelled = false;
@@ -225,7 +244,9 @@ class Scraper extends EventEmitter {
     if (!game.rom) return this.scrapePcGame(game, opts);
     const cfg = this.getConfig();
     const sc = cfg.scraper || {};
-    const sysKey = EXT_SYSTEM[path.extname(game.rom).toLowerCase()] || (cfg.systems.find((s) => s.id === game.system) || {}).scraperSystem || game.system;
+    const sysCfg = cfg.systems.find((s) => s.id === game.system) || {};
+    const sysKey = EXT_SYSTEM[path.extname(game.rom).toLowerCase()] || sysCfg.scraperSystem
+      || (LIBRETRO_SYSTEMS[game.system] || SCREENSCRAPER_IDS[game.system] ? game.system : systemFromName(sysCfg.name) || game.system);
     const want = {
       covers: opts.force || !fs.existsSync(this.coverPath(game.system, game.rom, 'covers')),
       snaps: sc.downloadSnaps !== false && (opts.force || !fs.existsSync(this.coverPath(game.system, game.rom, 'snaps')))
@@ -233,13 +254,18 @@ class Scraper extends EventEmitter {
     if (!want.covers && !want.snaps) return { skipped: true };
     const result = { covers: false, snaps: false, source: '' };
     const sources = sc.source === 'libretro' ? ['libretro'] : sc.source === 'screenscraper' ? ['screenscraper'] : ['screenscraper', 'libretro'];
+    // SteamGridDB (kostenloser Schlüssel) als letzte Quelle – hat auch viele Switch-/neuere Konsolenspiele
+    if (sc.steamgriddbKey) sources.push('steamgriddb');
     for (const src of sources) {
       if (!want.covers && !want.snaps) break;
       let got = {};
       if (src === 'screenscraper') {
         if (!this._ssReady(sc.screenscraper)) continue;
         got = await this._screenscraper(game, sysKey, want, sc.screenscraper);
+      } else if (src === 'steamgriddb') {
+        got = await this.sgdb(romTitle(game), sc.steamgriddbKey, want).catch(() => ({}));
       } else {
+        if (!LIBRETRO_SYSTEMS[sysKey]) continue; // z.B. Switch: libretro hat keine Bilder
         got = await this._libretro(game, sysKey, want);
       }
       if (got.title && got.covers && want.covers) await this._saveTitle(game, got.title);
@@ -309,18 +335,48 @@ class Scraper extends EventEmitter {
     return out;
   }
 
-  /** Bilder von Steams öffentlichem Bilderserver für eine App-ID */
+  /**
+   * Bild-Adressen eines Steam-Spiels über die Shop-Schnittstelle.
+   * Neuere Spiele haben Pfade mit Prüfsumme (…/apps/<id>/<hash>/library_capsule.jpg) – feste Adressen gibt es dort nicht.
+   */
+  async steamAssets(appid) {
+    const input = { ids: [{ appid: Number(appid) }], context: { language: 'german', country_code: 'DE' }, data_request: { include_assets: true } };
+    try {
+      const j = JSON.parse(await this._get('https://api.steampowered.com/IStoreBrowseService/GetItems/v1/?input_json=' + encodeURIComponent(JSON.stringify(input))));
+      const item = j && j.response && j.response.store_items && j.response.store_items[0];
+      const a = item && item.assets;
+      if (!a || !a.asset_url_format) return null;
+      const url = (file) => (file ? 'https://shared.steamstatic.com/store_item_assets/' + a.asset_url_format.replace('${FILENAME}', file) : '');
+      return {
+        covers: [a.library_capsule_2x, a.library_capsule].filter(Boolean).map(url),
+        snaps: [a.library_hero_2x, a.library_hero].filter(Boolean).map(url),
+        header: [a.header, a.main_capsule].filter(Boolean).map(url)
+      };
+    } catch { return null; }
+  }
+
+  /** Bilder von Steams Bilderserver für eine App-ID (erst die echten Adressen, dann die alten festen Pfade) */
   async steamCdn(appid, want) {
     const base = `https://shared.steamstatic.com/store_item_assets/steam/apps/${appid}/`;
+    const assets = await this.steamAssets(appid);
+    const first = async (urls) => {
+      for (const u of urls) {
+        try { return await this._get(u, true); } catch { /* nächste Adresse */ }
+      }
+      return null;
+    };
     const out = {};
     if (want.covers) {
-      for (const f of ['library_600x900_2x.jpg', 'library_600x900.jpg', 'header.jpg']) {
-        try { out.covers = await this._get(base + f, true); break; } catch { /* nächstes Format */ }
-      }
+      out.covers = await first([...((assets && assets.covers) || []), base + 'library_600x900_2x.jpg', base + 'library_600x900.jpg']);
+      // Notlösung: Querformat-Bild, wenn es kein Hochformat-Cover gibt
+      if (!out.covers) out.covers = await first([...((assets && assets.header) || []), base + 'header.jpg']);
+      if (!out.covers) delete out.covers;
     }
     if (want.snaps) {
-      try { out.snaps = await this._get(base + 'library_hero.jpg', true); } catch { /* ignore */ }
+      out.snaps = await first([...((assets && assets.snaps) || []), base + 'library_hero.jpg']);
+      if (!out.snaps) delete out.snaps;
     }
+    this.trace(`Steam ${appid}: Cover ${out.covers ? 'gefunden' : 'nicht gefunden'}, Hintergrund ${out.snaps ? 'gefunden' : 'nicht gefunden'}${assets ? '' : ' (Shop-Schnittstelle ohne Daten)'}`);
     return out;
   }
 
@@ -328,7 +384,7 @@ class Scraper extends EventEmitter {
     const sc = this.getConfig().scraper || {};
     const key = this.pcKey(game);
     const want = {
-      covers: opts.force || !game.cover,
+      covers: opts.force || !game.cover || !!game.coverIsHeader,
       snaps: sc.downloadSnaps !== false && (opts.force || !game.hero)
     };
     if (!want.covers && !want.snaps) return { skipped: true };
@@ -342,6 +398,11 @@ class Scraper extends EventEmitter {
     };
     // 1. Steam-Spiele: direkt über die App-ID
     if (game.type === 'steam' && game.appid) await save(await this.steamCdn(game.appid, want), 'steam');
+    // Steam-Spiel ohne eigene Shop-Seite (z.B. Playtest/Demo): über den Namen das Hauptspiel suchen
+    if ((want.covers || want.snaps) && game.type === 'steam') {
+      const appid = await this.steamSearch(game.name);
+      if (appid && String(appid) !== String(game.appid)) await save(await this.steamCdn(appid, want), 'steam-suche');
+    }
     // 2. SteamGridDB (falls Schlüssel eingetragen) – auch für Spiele, die es nicht auf Steam gibt
     if ((want.covers || want.snaps) && sc.steamgriddbKey) await save(await this.sgdb(game.name, sc.steamgriddbKey, want), 'steamgriddb');
     // 3. Andere Spiele: im Steam-Shop nach dem Namen suchen
@@ -369,9 +430,11 @@ class Scraper extends EventEmitter {
         try {
           const r = await this.scrapeGame(game, opts);
           if (r.covers || r.snaps || r.skipped) stats.found++; else stats.missing++;
+          this.trace(`${game.name}: ${r.skipped ? 'übersprungen' : r.covers || r.snaps ? `gefunden (${r.source || '?'})` : 'nichts gefunden'}`);
         } catch (err) {
           stats.errors++;
           stats.error = err.message;
+          this.trace(`${game.name}: Fehler ${err.message}`);
           if (/Zugangsdaten|Tageslimit|API-Schlüssel/.test(err.message)) this.cancelled = true;
         }
         stats.done++;
@@ -393,4 +456,4 @@ class Scraper extends EventEmitter {
   }
 }
 
-module.exports = { Scraper, normalize, bestMatch, LIBRETRO_SYSTEMS, SCREENSCRAPER_IDS };
+module.exports = { Scraper, normalize, bestMatch, LIBRETRO_SYSTEMS, SCREENSCRAPER_IDS, systemFromName, romTitle };
