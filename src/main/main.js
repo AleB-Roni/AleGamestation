@@ -27,6 +27,22 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 const store = new ConfigStore(app.getPath('userData'));
+const { DebugLog, brief } = require('./debug-log');
+// Debug-Modus: Einstellungen → Info & Updates oder Startparameter --ags-debug
+const debug = new DebugLog({
+  dir: path.join(app.getPath('userData'), 'logs'),
+  isEnabled: () => process.argv.includes('--ags-debug') || process.env.AGS_DEBUG === '1' || !!(store.get().general || {}).debugMode,
+  onEvent: (e) => send('debug:event', e)
+});
+debug.hookProcess();
+// Häufige Statusabfragen nicht protokollieren (nur deren Fehler)
+debug.wrapIpc(ipcMain, new Set(['game:status', 'overlay:spotify', 'pad:hidCount', 'update:get', 'debug:log', 'debug:state']));
+app.on('web-contents-created', (_e, wc) => debug.attach(wc, (w) => {
+  if (win && !win.isDestroyed() && w === win.webContents) return 'oberfläche';
+  if (overlay.win && !overlay.win.isDestroyed() && w === overlay.win.webContents) return 'overlay';
+  if (osd.win && !osd.win.isDestroyed() && w === osd.win.webContents) return 'einblendung';
+  return 'fenster';
+}));
 const launcher = new Launcher(() => store.get(), {
   readShortcutLink: (p) => shell.readShortcutLink(p),
   openPath: (p) => shell.openPath(p),
@@ -44,6 +60,16 @@ const spotify = new Spotify({
 const ha = new HomeAssistant({ fetch: (url, opts) => net.fetch(url, opts), getConfig: () => store.get(), log: (m) => send('toast', { type: 'info', text: m }) });
 // Gemeinsames Windows-Hilfsprogramm: Maus/Tastatur, Medientasten, Fenster-Fokus
 const nativeHelper = new NativeHelper();
+{
+  // Anfragen an das Windows-Hilfsprogramm (Bildschirme, Fokus) im Debug-Modus mitschreiben
+  const request = nativeHelper.request.bind(nativeHelper);
+  nativeHelper.request = async (cmd, timeout) => {
+    const t0 = Date.now();
+    const r = await request(cmd, timeout);
+    if (process.platform === 'win32' && (cmd !== 'fg' || r === '')) debug.write(r === '' && cmd !== 'fg' ? 'warn' : 'info', 'helper', `${String(cmd).slice(0, 90)} → ${r === '' ? '(keine Antwort)' : brief(r, 900)} (${Date.now() - t0} ms)`);
+    return r;
+  };
+}
 const mouseMode = new MouseMode({ getConfig: () => store.get(), send: (line) => nativeHelper.send(line) });
 const osd = new Osd({ onShown: (w) => nativeHelper.top(hwndOf(w)) });
 const overlay = new Overlay({ preload: path.join(__dirname, 'preload.js') });
@@ -73,6 +99,7 @@ function cfg() {
 }
 
 function send(channel, payload) {
+  if (channel === 'toast' && payload && debug) debug.write(payload.type === 'error' ? 'error' : 'info', 'meldung', payload.text || '');
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
 }
 
@@ -259,6 +286,7 @@ function applyAutostart() {
 }
 
 async function enterConsoleMode() {
+  debug.info('ablauf', 'Konsolenmodus starten', { display: cfg().display, targetDisplay: cfg().general.targetDisplay });
   const d = cfg().display;
   // Fernseher über Home Assistant einschalten und HDMI-Eingang wählen – bevor Windows das Bild umschaltet
   if (ha.ready()) {
@@ -283,6 +311,7 @@ async function enterConsoleMode() {
 }
 
 async function leaveConsoleMode(opts = {}) {
+  debug.info('ablauf', 'Konsolenmodus beenden', opts);
   const d = cfg().display;
   mouseMode.setActive(false);
   await perfPromise;
@@ -381,6 +410,12 @@ function createWindow() {
 }
 
 // ---------- Launcher-Events ----------
+launcher.on('started', (s) => debug.info('spiel', 'gestartet', s));
+launcher.on('exited', (i) => debug.info('spiel', 'beendet', i));
+launcher.on('error', (err) => debug.error('spiel', 'Startfehler: ' + ((err && err.stack) || err)));
+watcher.on('connection', (c) => debug.info('controller', 'Verbindung', c));
+psWatcher.on('connection', (c) => debug.info('controller', 'PlayStation (HID)', c));
+watcher.on('combo', ({ name }) => debug.info('controller', 'Tastenkombination ' + name));
 launcher.on('started', (status) => {
   send('game:status', status);
   overlay.send('overlay:refresh');
@@ -410,6 +445,7 @@ const padLabel = (k) => {
 };
 
 async function closeCurrentGame() {
+  debug.info('ablauf', 'Spiel beenden angefordert', launcher.status());
   const name = launcher.isRunning() ? launcher.status().game.name : (launcher.hasRecent() ? launcher.last.game.name : '');
   if (!name) {
     osd.show('gamepad', 'Kein laufendes Spiel erkannt', '', 2500);
@@ -472,6 +508,7 @@ const sessionStart = { at: 0 };
 let overlayGameHwnd = 0; // Spielfenster, das beim Schließen des Overlays wieder nach vorne kommt
 let overlayTookFocus = false;
 async function openOverlay() {
+  debug.info('ablauf', 'Overlay öffnen', { focus: !!cfg().controller.overlayFocus });
   mouseMode.setActive(false);
   closeQuickMenu();
   osd.hide();
@@ -496,6 +533,7 @@ async function openOverlay() {
 }
 /** @param {boolean} restoreGame Spiel danach wieder in den Vordergrund holen */
 function closeOverlay(restoreGame = true) {
+  debug.info('ablauf', 'Overlay schließen', { restoreGame });
   overlay.hide();
   if (restoreGame && overlayTookFocus && overlayGameHwnd && launcher.isRunning()) {
     const h = overlayGameHwnd;
@@ -688,6 +726,42 @@ ipcMain.handle('displays:tvOnly', (_e, mode) => applyTvOnly(true, mode === 'prim
 ipcMain.handle('displays:restore', async () => { await restoreDisplays('extend'); return true; });
 ipcMain.handle('system:displays', () => screen.getAllDisplays().map((d, i) => ({ index: i, label: d.label || `Bildschirm ${i + 1}`, width: d.size.width, height: d.size.height, primary: d.id === screen.getPrimaryDisplay().id })));
 ipcMain.handle('pad:hidCount', () => psWatcher.devices.size);
+
+// ---------- Debug-Modus ----------
+ipcMain.handle('debug:log', (_e, entry) => {
+  const e = entry || {};
+  debug.write(['error', 'warn'].includes(e.level) ? e.level : 'info', String(e.source || 'oberfläche').slice(0, 30), String(e.message || '').slice(0, 2000), e.data);
+  return true;
+});
+ipcMain.handle('debug:state', () => ({ enabled: debug.enabled, errors: debug.errors, warnings: debug.warnings, file: debug.file }));
+ipcMain.handle('debug:openFolder', () => shell.openPath(path.dirname(debug.file)));
+ipcMain.handle('debug:report', async () => {
+  const os = require('os');
+  const rawDisplays = await nativeHelper.request('displays', 15000).catch(() => '');
+  const displays = await listDisplays().catch((err) => ({ fehler: err.message }));
+  const lib = library || { games: [], systems: [] };
+  const sections = [
+    ['System', {
+      app: app.getVersion(), installiert: app.isPackaged, electron: process.versions.electron, chrome: process.versions.chrome,
+      windows: `${os.type()} ${os.release()} ${os.arch()}`, cpu: (os.cpus()[0] || {}).model, ramGB: Math.round(os.totalmem() / 1073741824),
+      start: process.argv.slice(1).join(' '), laufzeitMin: Math.round(process.uptime() / 60)
+    }],
+    ['Bildschirme (App)', displays],
+    ['Bildschirme (Windows-Rohdaten)', rawDisplays || '(keine Antwort vom Hilfsprogramm)'],
+    ['Bildschirme (Electron)', screen.getAllDisplays().map((d) => ({ id: d.id, label: d.label, bounds: d.bounds, scale: d.scaleFactor, primary: d.id === screen.getPrimaryDisplay().id }))],
+    ['Fernseher-Zustand', { tvOnlyState: tvOnlyState ? { ...tvOnlyState, saved: tvOnlyState.saved ? `(${tvOnlyState.saved.length} Zeichen)` : '' } : null, displaySwitched }],
+    ['Controller', { playstationHid: [...psWatcher.devices.values()].map((d) => ({ name: d.name || d.product, type: d.type, bt: d.bt })), mausmodus: mouseMode.active }],
+    ['Spiel', launcher.status()],
+    ['Bibliothek', { spiele: lib.games.length, ausgeblendet: lib.games.filter((g) => g.hidden).length, systeme: lib.systems.map((x) => `${x.id}: ${x.count ?? ''}`) }],
+    ['Spotify', spotify.status()],
+    ['Update', updater ? updater.get() : null],
+    ['Einstellungen (ohne Passwörter/Tokens)', cfg()]
+  ];
+  const file = debug.writeReport(app.getPath('desktop'), sections);
+  debug.info('debug', 'Bericht erstellt: ' + file);
+  shell.showItemInFolder(file);
+  return file;
+});
 ipcMain.handle('ha:test', () => ha.test());
 // Emulator eines Systems ohne Spiel starten (z.B. zum Einrichten)
 ipcMain.handle('emulator:launch', (_e, systemId) => {

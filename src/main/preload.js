@@ -74,5 +74,11 @@ contextBridge.exposeInMainWorld('api', {
   onOverlayOpen: on('overlay:open'),
   onOverlayClose: on('overlay:close'),
   onOverlayRefresh: on('overlay:refresh'),
-  hidControllers: () => ipcRenderer.invoke('pad:hidCount')
+  hidControllers: () => ipcRenderer.invoke('pad:hidCount'),
+  // Debug-Modus
+  debugLog: (entry) => ipcRenderer.invoke('debug:log', entry),
+  debugState: () => ipcRenderer.invoke('debug:state'),
+  debugReport: () => ipcRenderer.invoke('debug:report'),
+  debugOpenFolder: () => ipcRenderer.invoke('debug:openFolder'),
+  onDebugEvent: on('debug:event')
 });

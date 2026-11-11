@@ -113,6 +113,14 @@ Die Änderungsliste im Update-Fenster wird automatisch aus den Commit-Nachrichte
 | M | Menü |
 | O | Einstellungen |
 
+## Debug-Modus (Fehlersuche)
+
+**Einstellungen → Info & Updates → Debug-Modus** einschalten (oder die App mit `--ags-debug` starten). Oben erscheint „DEBUG“ – bei Fehlern rot mit Anzahl.
+
+Protokolliert werden: jede Eingabe mit aktueller Ansicht und Auswahl, Fehler aller Fenster (Oberfläche, Overlay), Anfragen an die App mit Dauer, Bildschirm-Umschaltungen, Controller-Verbindungen, Spielstart/-ende und Meldungen. Das Protokoll liegt unter `%APPDATA%\AleGamestation\logs\debug.log`.
+
+**Debug-Bericht erstellen** (Einstellungen → Info & Updates oder ☰ Menü) speichert Protokoll, Systeminfos, Bildschirme, Controller und Einstellungen als Textdatei auf dem Desktop. Passwörter, Tokens und API-Schlüssel werden dabei unkenntlich gemacht.
+
 ## Konsolen-Overlay (PS-/Xbox-Taste gedrückt halten)
 
 Während eines Spiels die **PS-Taste** (Xbox: Guide-Taste) **gedrückt halten** öffnet ein Menü über dem Spiel:

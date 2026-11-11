@@ -11,6 +11,7 @@
   api.onPadState((s) => Input.hidState(s));
 
   function toast(text, type = 'info') {
+    if (S.debug && type === 'error') api.debugLog({ level: 'error', source: 'overlay', message: text }).catch(() => {});
     const t = document.createElement('div');
     t.className = 'toast ' + type;
     t.textContent = text;
@@ -215,6 +216,7 @@
 
   Input.on((a) => {
     if (!document.body.classList.contains('open')) return;
+    if (S.debug) { const it = cur(); api.debugLog({ source: 'overlay-eingabe', message: a, data: { reihe: S.rows[S.row] && S.rows[S.row].title, auswahl: it && (it.label || (it.game && it.game.name) || (it.pl && it.pl.name)) } }).catch(() => {}); }
     const r = S.rows[S.row];
     switch (a) {
       case 'up': if (S.row > 0) { disarm(); S.row--; S.col = Math.min(S.col, Math.max(0, S.rows[S.row].items.length - 1)); focus(); hints(); Sounds.play('move'); } break;
@@ -256,6 +258,7 @@
       document.documentElement.style.setProperty('--accent', cfg.general.accentColor || '#7c5cff');
       Glyphs.configure({ style: cfg.controller.glyphStyle || 'auto', swapAB: cfg.controller.swapAB });
     } catch { /* Standardwerte */ }
+    try { S.debug = !!(await api.debugState()).enabled; } catch { S.debug = false; }
     S.data = await api.overlayData();
     if (S.data.ps) Glyphs.setDetected('playstation', 'DualSense');
     S.row = 0; S.col = 0; S.armed = null;

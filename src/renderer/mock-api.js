@@ -60,6 +60,8 @@
     spotifyConnect: async () => ({ user: 'Ale', product: 'premium' }), spotifyDisconnect: async () => true, spotifyDashboard: async () => true,
     spotifyTest: async () => ({ title: 'Get Lucky', artist: 'Daft Punk' }),
     overlayPlaylists: async () => [{ id: 'liked', uri: 'liked', name: 'Lieblingssongs', liked: true }, { id: 'p1', uri: 'spotify:playlist:1', name: 'Gaming Mix' }, { id: 'p2', uri: 'spotify:playlist:2', name: 'Chill Lo-Fi Beats' }, { id: 'p3', uri: 'spotify:playlist:3', name: 'Synthwave' }],
+    debugLog: async () => true, debugState: async () => ({ enabled: true, errors: 0, warnings: 0 }), debugReport: async () => 'C:\\Users\\Ale\\Desktop\\AleGamestation-Debugbericht.txt', debugOpenFolder: async () => true,
+    onDebugEvent: () => () => {},
     identifyDisplays: async () => true, tvOnly: async () => ({ ok: true }), restoreDisplays: async () => true, info: async () => ({}),
     updateState: async () => ({ status: 'latest', version: '1.0.0' }), checkUpdate: async () => null, installUpdate: async () => false, onUpdateState: noop,
     recommendedPrograms: async () => [{ name: 'OneDrive', process: 'OneDrive.exe', action: 'close', note: 'Synchronisation' }, { name: 'Microsoft Teams', process: 'ms-teams.exe', action: 'close', note: 'Viel RAM' }],

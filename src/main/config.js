@@ -32,6 +32,8 @@ const DEFAULT_CONFIG = {
     autoUpdate: true,
     // Gefundene Updates sofort im Hintergrund herunterladen (sonst erst nachfragen)
     autoDownloadUpdates: true,
+    // Debug-Modus: Protokoll mit Eingaben/Fehlern schreiben (Einstellungen → Info & Updates)
+    debugMode: false,
     hideCursor: true,
     showClock: true,
     confirmPowerActions: true,

@@ -54,7 +54,40 @@
     return App.library.games.find((g) => g.id === id);
   }
 
+  /** Debug-Modus: Eintrag ins Protokoll (nur wenn eingeschaltet) */
+  App.debug = false;
+  App.log = function (source, message, data, level = 'info') {
+    if (!App.debug || !api.debugLog) return;
+    api.debugLog({ level, source, message, data }).catch(() => {});
+  };
+  function debugContext() {
+    const tab = App.tabs && App.tabs[App.tabIndex];
+    const sec = App.sections && App.sections[App.focus.s];
+    const item = sec && sec.items && sec.items[App.focus.i];
+    return {
+      view: App.view, tab: tab && tab.id, modal: App.modalStack.length, bereich: sec && sec.title, pos: `${App.focus.s}/${App.focus.i}`,
+      auswahl: item && (item.kind === 'game' ? item.game.name : item.kind === 'system' ? item.system.name : item.kind || '')
+    };
+  }
+  async function refreshDebug() {
+    let st = { enabled: false };
+    try { st = await api.debugState(); } catch { /* ältere Version */ }
+    App.debug = !!st.enabled;
+    const b = $('#debugBadge');
+    b.classList.toggle('hidden', !App.debug);
+    b.classList.toggle('bad', !!st.errors);
+    b.textContent = st.errors ? `DEBUG · ${st.errors} Fehler` : 'DEBUG';
+  }
+  App.debugReport = async function () {
+    App.toast('Erstelle Debug-Bericht …', 'info', 2000);
+    try {
+      const file = await api.debugReport();
+      App.toast(`Bericht auf dem Desktop gespeichert: ${file.split(/[\\/]/).pop()}`, 'ok', 8000);
+    } catch (e) { App.toast(String(e.message || e), 'error', 6000); }
+  };
+
   App.toast = function (text, type = 'info', ms = 3200) {
+    if (type === 'error') App.log('meldung', text, debugContext(), 'error');
     const { icon, text: rest } = Icons.fromLabel(text);
     const ico = icon || (type === 'ok' ? 'check' : type === 'error' ? 'warning' : '');
     const t = el('div', 'toast ' + type, (ico ? Icons.svg(ico) : '') + `<span>${esc(icon ? rest : text)}</span>`);
@@ -802,6 +835,7 @@
         { label: 'Bildschirm umschalten …', icon: 'monitor', action: displayMenu },
         { label: 'Fehlende Cover herunterladen', icon: 'download', action: () => { App.closeMenu(); App.scrape({}); } },
         { label: 'Bibliothek neu einlesen', icon: 'refresh', action: async () => { App.closeMenu(); await App.refreshLibrary(); App.toast(`${App.library.games.length} Spiele gefunden`, 'ok'); } },
+        ...(App.debug ? [{ label: 'Debug-Bericht erstellen', icon: 'bolt', hint: 'Datei auf dem Desktop', action: () => { App.closeMenu(); App.debugReport(); } }] : []),
         { label: 'Einstellungen', icon: 'settings', action: () => { App.closeMenu(); openSettings(); } }
       ]
     });
@@ -809,10 +843,21 @@
 
   function displayMenu() {
     const set = (mode, label) => { App.closeMenu(); App.closeMenu(); api.setDisplayMode(mode); App.toast(`Anzeige: ${label}`); };
+    const tv = async (mode) => {
+      App.closeMenu(); App.closeMenu();
+      App.toast('Schalte auf den Fernseher um …', 'info', 2500);
+      const r = await api.tvOnly(mode).catch((e) => ({ ok: false, error: String(e.message || e) }));
+      App.toast(r && r.ok ? (mode === 'only' ? 'Nur noch der Fernseher ist aktiv' : 'Fernseher ist jetzt der Hauptbildschirm') : (r && r.error) || 'Umschalten fehlgeschlagen', r && r.ok ? 'ok' : 'error', 6000);
+    };
     App.menu({
       title: 'Bildschirm', text: 'Wie Win + P. Nach dem Umschalten passt sich die Oberfläche automatisch an.',
       items: [
-        { label: 'Nur zweiter Bildschirm (TV)', icon: 'tv', action: () => set('external', 'nur TV') },
+        ...(App.cfg.display.tv ? [
+          { label: `Nur Fernseher (${App.cfg.display.tv.name})`, icon: 'tv', action: () => tv('only') },
+          { label: 'Fernseher als Hauptbildschirm', icon: 'tv', hint: 'Monitore bleiben an', action: () => tv('primary') },
+          { label: 'Alle Bildschirme wieder einschalten', icon: 'extend', action: async () => { App.closeMenu(); App.closeMenu(); await api.restoreDisplays(); App.toast('Bildschirme wiederhergestellt', 'ok'); } }
+        ] : []),
+        { label: App.cfg.display.tv ? 'Nur zweiter Bildschirm (Windows wählt)' : 'Nur zweiter Bildschirm (TV)', icon: 'tv', action: () => set('external', 'nur TV') },
         { label: 'Nur PC-Bildschirm', icon: 'monitor', action: () => set('internal', 'nur PC-Bildschirm') },
         { label: 'Duplizieren', icon: 'duplicate', action: () => set('clone', 'dupliziert') },
         { label: 'Erweitern', icon: 'extend', action: () => set('extend', 'erweitert') }
@@ -877,7 +922,8 @@
   App.renderHints = renderHints;
 
   // ---------------- Eingabe ----------------
-  Input.on((a) => {
+  Input.on((a, src) => {
+    if (App.debug) App.log('eingabe', `${a} (${src || '?'})`, debugContext());
     if (App.recording) return;
     if (App.running) {
       if (a === 'accept') api.kill();
@@ -962,8 +1008,12 @@
     if (st.running) showRunning(st);
 
     api.onGameStatus((s) => (s.running ? showRunning(s) : hideRunning()));
-    api.onConfigChanged((c) => { App.cfg = c; if (App.view === 'home') { const f = { ...App.focus }; renderHome(); setFocus(Math.min(f.s, Math.max(0, App.sections.length - 1)), 0, true); } });
-    api.onToast((t) => App.toast(t.text, t.type));
+    api.onConfigChanged((c) => { App.cfg = c; refreshDebug(); if (App.view === 'home') { const f = { ...App.focus }; renderHome(); setFocus(Math.min(f.s, Math.max(0, App.sections.length - 1)), 0, true); } });
+    api.onToast((t) => App.toast(t.text, t.type, t.ms));
+    refreshDebug();
+    api.onDebugEvent(() => refreshDebug());
+    window.addEventListener('error', (e) => App.log('oberfläche', `JS-Fehler: ${e.message} (${(e.filename || '').split('/').pop()}:${e.lineno})`, debugContext(), 'error'));
+    window.addEventListener('unhandledrejection', (e) => App.log('oberfläche', 'Promise-Fehler: ' + ((e.reason && (e.reason.stack || e.reason.message)) || e.reason), debugContext(), 'error'));
     api.onScrapeProgress(showScrapeProgress);
     api.onMouseMode((on) => {
       Input.configure({ gamepadDisabled: on });

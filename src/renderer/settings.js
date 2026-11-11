@@ -458,6 +458,12 @@
           ready: `Version ${u.available} ist bereit zur Installation`,
           error: `Fehler: ${u.error || ''}`
         }[u.status] || '';
+        const debugRows = [
+          group('Fehlersuche', 'Debug-Modus'),
+          toggle('Debug-Modus', () => C().general, 'debugMode', 'Schreibt Eingaben, Fehler, Bildschirm- und Controller-Infos in ein Protokoll. Oben erscheint „DEBUG“'),
+          button('Debug-Bericht erstellen', () => App.debugReport(), { desc: 'Speichert Protokoll, Systeminfos und Einstellungen (ohne Passwörter/Tokens) als Textdatei auf dem Desktop – zum Weitergeben an Claude' }),
+          button('Protokoll-Ordner öffnen', () => api.debugOpenFolder())
+        ];
         const rows = [
           group('AleGamestation', `Version ${u.version || ''}`),
           { type: 'info', label: 'Update-Status', desc: status, get: () => '' },
@@ -467,7 +473,7 @@
         ];
         if (u.status === 'ready') rows.push(button(`⬆ Jetzt auf v${u.available} aktualisieren und neu starten`, () => App.installUpdate()));
         if (u.notes && u.available) rows.push(group(`Neu in Version ${u.available}`), ...u.notes.split('\n').filter((l) => l.trim()).slice(0, 12).map((l) => ({ type: 'info', label: l.replace(/^\s*[-*•]\s*/, '• '), get: () => '' })));
-        return rows;
+        return rows.concat(debugRows);
       }
     }
   ];

@@ -507,3 +507,14 @@ test('Spotify: Token erneuern, aktuellen Titel lesen, Playlist auf diesem PC abs
   await sp.play('spotify:playlist:p1');
   assert.ok(calls.includes('PUT /me/player/play?device_id=pc {"context_uri":"spotify:playlist:p1"}'), calls.join('\n'));
 });
+
+test('Debug-Bericht: Passwörter und Tokens werden unkenntlich gemacht', () => {
+  const { redact } = require('../src/main/debug-log');
+  const r = redact({ homeassistant: { url: 'http://ha', token: 'abc123' }, scraper: { screenscraper: { user: 'ale', password: 'geheim' }, steamgriddbKey: 'k' }, spotify: { clientId: 'cid' } });
+  assert.strictEqual(r.homeassistant.url, 'http://ha');
+  assert.match(r.homeassistant.token, /^\*\*\*/);
+  assert.match(r.scraper.screenscraper.password, /^\*\*\*/);
+  assert.match(r.scraper.steamgriddbKey, /^\*\*\*/);
+  assert.strictEqual(r.scraper.screenscraper.user, 'ale');
+  assert.strictEqual(r.spotify.clientId, 'cid');
+});
