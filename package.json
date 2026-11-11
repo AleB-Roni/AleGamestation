@@ -1,7 +1,7 @@
 {
   "name": "alegamestation",
   "productName": "AleGamestation",
-  "version": "1.10.0",
+  "version": "1.10.1",
   "description": "Konsolenmodus für Windows-PCs: alle Spiele & Emulatoren mit dem Controller vom Fernseher aus starten.",
   "main": "src/main/main.js",
   "author": "AleB-Roni",
