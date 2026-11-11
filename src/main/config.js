@@ -116,8 +116,15 @@ const DEFAULT_CONFIG = {
     // Eingang, z.B. "HDMI 2" (Liste kommt aus Home Assistant)
     source: '',
     turnOnAtStart: true,
+    // Einschalten über ein anderes Gerät, z.B. media_player.chromecast (weckt den TV per HDMI-CEC) oder script.tv_an; leer = Fernseher selbst
+    powerOnEntity: '',
+    // Ausschalten über ein anderes Gerät; leer = Fernseher selbst
+    powerOffEntity: '',
     // So lange warten, bis der Fernseher eingeschaltet ist
     waitForTvSeconds: 20,
+    // Nach dem Einschalten kurz warten, dann den Eingang wählen (und so lange erneut versuchen, bis er bleibt)
+    sourceDelaySeconds: 3,
+    sourceRetrySeconds: 20,
     // Beim Zurückkehren zum Desktop: Fernseher aus bzw. auf anderen Eingang schalten
     turnOffAtExit: false,
     sourceAtExit: '',

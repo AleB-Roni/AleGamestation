@@ -57,7 +57,7 @@ const spotify = new Spotify({
   getConfig: () => store.get(), file: path.join(app.getPath('userData'), 'spotify.json'),
   fetch: (u, o) => net.fetch(u, o), openUrl: (u) => shell.openExternal(u)
 });
-const ha = new HomeAssistant({ fetch: (url, opts) => net.fetch(url, opts), getConfig: () => store.get(), log: (m) => send('toast', { type: 'info', text: m }) });
+const ha = new HomeAssistant({ fetch: (url, opts) => net.fetch(url, opts), getConfig: () => store.get(), log: (m) => send('toast', { type: 'info', text: m }), trace: (m) => debug.info('homeassistant', m) });
 // Gemeinsames Windows-Hilfsprogramm: Maus/Tastatur, Medientasten, Fenster-Fokus
 const nativeHelper = new NativeHelper();
 {

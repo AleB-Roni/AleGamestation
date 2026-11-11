@@ -286,6 +286,9 @@
         const keep = (list, v, label) => (v && !list.some((o) => o.value === v) ? [{ value: v, label: label || v }, ...list] : list);
         const playerOpts = keep([{ value: '', label: '– bitte wählen –' }, ...players.map((p) => ({ value: p.id, label: `${p.name} (${p.state})` }))], H().tvEntity);
         const sourceOpts = keep([{ value: '', label: 'Nicht umschalten' }, ...((cur && cur.sources) || []).map((s) => ({ value: s, label: s }))], H().source);
+        const devices = [...players.map((p) => ({ value: p.id, label: `${p.name} (${p.state})` })), ...((S.ha && S.ha.scripts) || []).map((x) => ({ value: x.id, label: `${x.name} (${x.id.split('.')[0]})` }))];
+        const viaOpts = keep([{ value: '', label: 'den Fernseher selbst' }, ...devices], H().powerOnEntity);
+        const offOpts = keep([{ value: '', label: 'den Fernseher selbst' }, ...devices], H().powerOffEntity);
         const exitOpts = keep([{ value: '', label: 'Nicht umschalten' }, ...((cur && cur.sources) || []).map((s) => ({ value: s, label: s }))], H().sourceAtExit);
         return [
           group('Verbindung', S.ha ? (S.ha.error ? 'Fehler: ' + S.ha.error : `verbunden · ${players.length} Geräte`) : 'Fernseher automatisch einschalten'),
@@ -297,10 +300,13 @@
           select('Fernseher', H, 'tvEntity', playerOpts, players.length ? 'Mediaplayer aus Home Assistant' : 'Erst „Verbindung testen“ drücken'),
           select('HDMI-Eingang', H, 'source', sourceOpts, 'Auf diesen Eingang wird beim Start automatisch umgeschaltet'),
           toggle('Beim Start einschalten', H, 'turnOnAtStart'),
-          select('Warten bis der Fernseher an ist', H, 'waitForTvSeconds', [5, 10, 15, 20, 30, 45].map((v) => ({ value: v, label: `bis zu ${v} s` }))),
+          select('Einschalten über', H, 'powerOnEntity', viaOpts, 'Z.B. Chromecast, wenn Home Assistant den TV im ausgeschalteten Zustand nicht findet: weckt ihn per HDMI-CEC. Danach wird der HDMI-Eingang oben am Fernseher gewählt', { get: () => H().powerOnEntity || '' }),
+          select('Warten bis der Fernseher an ist', H, 'waitForTvSeconds', [5, 10, 15, 20, 30, 45, 60, 90].map((v) => ({ value: v, label: `bis zu ${v} s` }))),
+          select('Eingang wählen nach', H, 'sourceDelaySeconds', [0, 2, 3, 5, 8, 12].map((v) => ({ value: v, label: v ? `${v} s Wartezeit` : 'sofort' })), 'Mehr Zeit, falls der Chromecast den TV erst auf seinen eigenen Eingang schaltet', { get: () => H().sourceDelaySeconds ?? 3 }),
           toggle('Beim Zurückkehren zum Desktop ausschalten', H, 'turnOffAtExit'),
           select('…oder auf diesen Eingang schalten', H, 'sourceAtExit', exitOpts, 'Wenn der Fernseher anbleiben soll'),
           toggle('Beim Herunterfahren ausschalten', H, 'turnOffAtShutdown'),
+          select('Ausschalten über', H, 'powerOffEntity', offOpts, 'Falls der Fernseher sich über Home Assistant nicht direkt ausschalten lässt', { get: () => H().powerOffEntity || '' }),
           button('📺 Fernseher jetzt einschalten + Eingang wählen', async () => { App.toast('Schalte Fernseher ein …'); try { const r = await api.haTv(true); App.toast(`Fernseher ${r && r.on ? 'an' : 'angesteuert'}${r && r.source ? ' · ' + r.source : ''}`, 'ok'); } catch (e) { App.toast(cleanErr(e), 'error', 6000); } }),
           button('Fernseher jetzt ausschalten', async () => { try { await api.haTv(false); App.toast('Fernseher aus', 'ok'); } catch (e) { App.toast(cleanErr(e), 'error', 6000); } }),
           group('Weitere Aktionen', 'Szenen, Skripte, Licht …'),

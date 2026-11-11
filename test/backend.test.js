@@ -181,11 +181,11 @@ test('Home Assistant: Fernseher einschalten, warten, HDMI-Eingang wählen', asyn
     if (u.pathname === '/api/services/scene/turn_on' || u.pathname === '/api/services/light/turn_off' || u.pathname === '/api/services/media_player/turn_off') body = [];
     return { ok: body !== null, status: body !== null ? 200 : 404, text: async () => JSON.stringify(body) };
   };
-  const cfg = { homeassistant: { enabled: true, url: 'http://ha.local:8123/', token: 'TOKEN', tvEntity: 'media_player.tv', source: 'HDMI 2', waitForTvSeconds: 5,
+  const cfg = { homeassistant: { enabled: true, url: 'http://ha.local:8123/', token: 'TOKEN', tvEntity: 'media_player.tv', source: 'HDMI 2', waitForTvSeconds: 5, sourceDelaySeconds: 0,
     startServices: ['scene.gaming', 'light.turn_off:light.decke'], turnOffAtShutdown: true } };
   const ha = new HomeAssistant({ fetch, getConfig: () => cfg });
   const r = await ha.onStart();
-  assert.deepStrictEqual(r, { on: true, source: 'HDMI 2' });
+  assert.deepStrictEqual(r, { on: true, source: 'HDMI 2', via: '' });
   assert.ok(calls.includes('POST /api/services/media_player/turn_on {"entity_id":"media_player.tv"}'));
   assert.ok(calls.some((c) => c.startsWith('POST /api/services/media_player/select_source') && c.includes('HDMI 2')));
   assert.ok(calls.includes('POST /api/services/scene/turn_on {"entity_id":"scene.gaming"}'));
@@ -517,4 +517,36 @@ test('Debug-Bericht: Passwörter und Tokens werden unkenntlich gemacht', () => {
   assert.match(r.scraper.steamgriddbKey, /^\*\*\*/);
   assert.strictEqual(r.scraper.screenscraper.user, 'ale');
   assert.strictEqual(r.spotify.clientId, 'cid');
+});
+
+test('Home Assistant: TV ist aus „nicht verfügbar“ – über Chromecast einschalten, dann HDMI-Eingang am TV wählen', async () => {
+  const { HomeAssistant } = require('../src/main/homeassistant');
+  let tv = { state: 'unavailable', attributes: {} };
+  let castSwitchedBack = false;
+  const calls = [];
+  const fetch = async (url, opts) => {
+    const u = new URL(url);
+    calls.push(`${opts.method} ${u.pathname}${opts.body ? ' ' + opts.body : ''}`);
+    let body = null;
+    if (u.pathname === '/api/states/media_player.tv') body = tv;
+    if (u.pathname === '/api/services/media_player/turn_on' && JSON.parse(opts.body).entity_id === 'media_player.chromecast') {
+      // Chromecast weckt den TV per CEC und schaltet auf seinen eigenen Eingang
+      setTimeout(() => { tv = { state: 'on', attributes: { source: 'HDMI 3 (Chromecast)', source_list: ['HDMI 1', 'HDMI 3 (Chromecast)'] } }; }, 300);
+      body = [];
+    }
+    if (u.pathname === '/api/services/media_player/select_source') {
+      if (tv.state === 'unavailable') return { ok: false, status: 500, text: async () => '' };
+      tv = { ...tv, attributes: { ...tv.attributes, source: JSON.parse(opts.body).source } };
+      // Beim ersten Mal schaltet CEC kurz danach zurück auf den Chromecast
+      if (!castSwitchedBack) { castSwitchedBack = true; setTimeout(() => { tv = { ...tv, attributes: { ...tv.attributes, source: 'HDMI 3 (Chromecast)' } }; }, 500); }
+      body = [];
+    }
+    return { ok: body !== null, status: body !== null ? 200 : 404, text: async () => JSON.stringify(body) };
+  };
+  const cfg = { homeassistant: { enabled: true, url: 'http://ha', token: 'T', tvEntity: 'media_player.tv', powerOnEntity: 'media_player.chromecast', source: 'HDMI 1', waitForTvSeconds: 5, sourceDelaySeconds: 0 } };
+  const ha = new HomeAssistant({ fetch, getConfig: () => cfg });
+  const r = await ha.tvOn();
+  assert.deepStrictEqual(r, { on: true, source: 'HDMI 1', via: 'media_player.chromecast' });
+  assert.ok(!calls.some((c) => c.includes('turn_on {"entity_id":"media_player.tv"}')), 'TV selbst wird nicht eingeschaltet');
+  assert.ok(calls.filter((c) => c.includes('select_source')).length >= 2, 'Eingang wird nach dem Zurückschalten erneut gewählt');
 });
