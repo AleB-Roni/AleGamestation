@@ -3,7 +3,7 @@
   const api = window.api;
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const S = { data: null, spotify: null, rows: [], row: 0, col: 0, armed: null, armTimer: null, spotifyTimer: null, playlists: [] };
+  const S = { data: null, spotify: null, rows: [], row: 0, col: 0, armed: null, armTimer: null, spotifyTimer: null, playlists: [], clip: null };
 
   // Eingaben kommen ausschließlich von der App (alle Controller-Typen), nicht von Chromium
   Input.configure({ chromiumPads: false });
@@ -41,6 +41,33 @@
     if (game) g.push({ kind: 'btn', icon: 'maximize', label: 'Vollbild (F11)', action: () => act({ type: 'f11' }) });
     if (game) g.push({ kind: 'btn', icon: 'stop', label: 'Spiel beenden', danger: true, confirm: 'Wirklich beenden?', action: () => act({ type: 'quit' }) });
     rows.push({ title: game ? 'Spiel' : 'AleGamestation', items: g });
+
+    // Clips mit AleClip (wie die Create-Taste bei PlayStation)
+    const cl = S.clip;
+    if (cl && !cl.disabled && (cl.ok || cl.installed)) {
+      if (cl.offline) {
+        rows.push({ title: 'Clips (AleClip)', clip: true, items: [{ kind: 'btn', icon: 'clapperboard', label: 'AleClip starten', action: () => clipAct({ type: 'clipStart' }, 'AleClip wird gestartet …') }] });
+      } else {
+        const max = cl.replaySeconds || 0;
+        const lens = (cl.lengths || []).filter((x) => x <= max);
+        if (max && !lens.includes(max)) lens.push(max);
+        const fmt = (x) => (x < 60 ? `${x} s` : x % 60 ? `${Math.floor(x / 60)}:${String(x % 60).padStart(2, '0')} Min` : `${x / 60} Min`);
+        rows.push({
+          title: 'Clip speichern – letzte …', clip: true,
+          items: cl.replay
+            ? lens.map((x) => ({ kind: 'btn', icon: 'clapperboard', label: fmt(x), small: true, action: () => clipAct({ type: 'clip', seconds: x }, `Clip wird gespeichert – letzte ${fmt(x)}`) }))
+            : [{ kind: 'btn', icon: 'play', label: 'Instant Replay einschalten', action: () => clipAct({ type: 'clipReplay', enabled: true }, 'Instant Replay wird eingeschaltet') }]
+        });
+        rows.push({
+          title: 'Aufnahme',
+          items: [
+            { kind: 'btn', icon: 'camera', label: 'Screenshot', action: () => clipAct({ type: 'clipShot' }, 'Screenshot wird gespeichert') },
+            { kind: 'btn', icon: cl.recording ? 'stop' : 'circle-dot', label: cl.recording ? 'Aufnahme stoppen' : 'Aufnahme starten', danger: !!cl.recording, action: () => clipAct({ type: 'clipRecord' }, cl.recording ? 'Aufnahme wird gespeichert' : 'Aufnahme gestartet') },
+            ...(cl.replay ? [{ kind: 'btn', icon: 'pause', label: 'Instant Replay aus', action: () => clipAct({ type: 'clipReplay', enabled: false }, 'Instant Replay ausgeschaltet') }] : [])
+          ]
+        });
+      }
+    }
 
     const sysColor = (id) => ((d.systems || []).find((s) => s.id === id) || {}).color;
     rows.push({
@@ -104,7 +131,18 @@
       t.className = 'ov-row-title';
       t.innerHTML = `<span>${esc(r.title)}</span>`;
       box.appendChild(t);
-      if (r.music) {
+      if (r.clip && S.clip) {
+        const c = S.clip;
+        const fmtT = (x) => `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, '0')}`;
+        const m = document.createElement('div');
+        m.className = 'ov-music';
+        m.innerHTML = c.offline ? 'AleClip läuft nicht'
+          : c.recording ? `${Icons.svg('circle-dot')} <b>Aufnahme läuft</b>`
+            : c.replay ? `${Icons.svg('clapperboard')} Instant Replay · ${fmtT(Math.min(c.buffered || 0, c.replaySeconds || 0))} von ${fmtT(c.replaySeconds || 0)} gepuffert`
+              : 'Instant Replay ist aus';
+        box.appendChild(m);
+      }
+            if (r.music) {
         const sp = S.spotify || {};
         const m = document.createElement('div');
         m.className = 'ov-music';
@@ -135,7 +173,7 @@
           el.className = 'ov-pl' + (it.pl.liked ? ' liked' : '');
           el.innerHTML = `${it.pl.image ? `<img src="${esc(it.pl.image)}" alt="">` : `<div class="art">${Icons.svg(it.pl.liked ? 'heart' : 'music')}</div>`}<div class="name">${esc(it.pl.name)}</div>`;
         } else {
-          el.className = 'ov-btn' + (it.danger ? ' danger' : '') + (it.on ? ' on' : '');
+          el.className = 'ov-btn' + (it.danger ? ' danger' : '') + (it.on ? ' on' : '') + (it.small ? ' small' : '');
           el.innerHTML = `<span class="ico">${Icons.svg(it.icon) || esc(it.icon)}</span><span>${esc(it.label)}</span>`;
         }
         el.onclick = () => { S.row = ri; S.col = ci; activate(); };
@@ -230,6 +268,18 @@
     }
   });
 
+  async function clipAct(a, text) {
+    const r = await act(a, true);
+    if (r && r !== true && r.ok === false) return;
+    if (r) toast(text, 'ok');
+    setTimeout(refreshClip, a.type === 'clipStart' ? 300 : 900);
+  }
+
+  async function refreshClip() {
+    try { S.clip = await api.overlayAleClip(); } catch { S.clip = null; }
+    if (S.data) render();
+  }
+
   async function playPlaylist(pl) {
     toast(`Spiele „${pl.name}“ …`);
     const ok = await act({ type: 'spotify', cmd: 'play', uri: pl.uri }, false);
@@ -268,7 +318,8 @@
     Sounds.play('open');
     refreshSpotify().then(() => { if (S.spotify && S.spotify.api) loadPlaylists(); });
     clearInterval(S.spotifyTimer);
-    S.spotifyTimer = setInterval(refreshSpotify, 3000);
+    S.spotifyTimer = setInterval(() => { refreshSpotify(); refreshClip(); }, 3000);
+    refreshClip();
   }
 
   function close() {

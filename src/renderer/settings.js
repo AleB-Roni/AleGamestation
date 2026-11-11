@@ -156,11 +156,13 @@
         select('Tastenkombination „Spiel beenden“', () => C().controller, 'closeGameCombo', comboOptions(C().controller.closeGameCombo), 'Funktioniert auch, während das Spiel im Vordergrund ist'),
         button('Kombination „Spiel beenden“ aufnehmen …', () => recordCombo('closeGameCombo')),
         toggle('Konsolen-Overlay (PS-/Xbox-Taste gedrückt halten)', () => C().controller, 'overlayEnabled', 'Erscheint über dem Spiel: beenden, Spiel wechseln, Musik auswählen, Lautstärke'),
-        select('Overlay-Modus', () => C().controller, 'overlayFocus', [
-          { value: false, label: 'Über dem Spiel – Spiel bleibt im Vollbild' },
-          { value: true, label: 'Fokus holen – Spiel bekommt keine Eingaben' }
-        ], '„Über dem Spiel“: kein Minimieren, aber das Spiel sieht die Controller-Eingaben mit. Bei echtem exklusivem Vollbild im Spiel „Randloses Vollbild“ wählen'),
-                select('Gedrückt halten für', () => C().controller, 'overlayHoldMs', [400, 600, 800, 1000].map((v) => ({ value: v, label: (v / 1000).toString().replace('.', ',') + ' s' })), 'Bis das Overlay erscheint'),
+        select('Overlay-Modus', () => C().controller, 'overlayMode', [
+          { value: 'pause', label: 'Spiel anhalten (keine Eingaben)' },
+          { value: 'over', label: 'Nur darüberlegen – Spiel läuft weiter' },
+          { value: 'focus', label: 'Fokus holen' }
+        ], '„Anhalten“: Das Spiel friert ein, solange das Overlay offen ist – bleibt im Vollbild und reagiert nicht auf den Controller. Für Online-Spiele „Nur darüberlegen“ wählen', { get: () => C().controller.overlayMode || 'pause' }),
+        toggle('Schnellmenü hält das Spiel auch an', () => C().controller, 'quickMenuPause', 'PS-/Xbox-Taste kurz drücken', { get: () => C().controller.quickMenuPause !== false }),
+        select('Gedrückt halten für', () => C().controller, 'overlayHoldMs', [400, 600, 800, 1000].map((v) => ({ value: v, label: (v / 1000).toString().replace('.', ',') + ' s' })), 'Bis das Overlay erscheint'),
         select('PS- / Xbox-Taste kurz drücken (im Spiel)', () => C().controller, 'guideButton', [
           { value: 'quickMenu', label: 'Schnellmenü (Beenden mit Rückfrage)' },
           { value: 'off', label: 'Nichts tun' }
@@ -312,6 +314,37 @@
           group('Weitere Aktionen', 'Szenen, Skripte, Licht …'),
           listText('Beim Start ausführen', H, 'startServices', 'z.B. scene.gaming ; script.licht_dimmen ; light.turn_off:light.decke'),
           listText('Beim Beenden ausführen', H, 'exitServices')
+        ];
+      }
+    },
+    {
+      id: 'aleclip', title: 'Clips', rows: () => {
+        if (!C().aleclip) C().aleclip = { enabled: true, exe: '', autoStart: true, clipLengths: [15, 30, 60, 120, 300] };
+        const A = () => C().aleclip;
+        const st = S.aleclip || {};
+        const fmtT = (x) => `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, '0')}`;
+        const state = st.disabled ? 'aus' : st.offline ? (st.installed || st.exe ? 'installiert, läuft nicht' : 'nicht gefunden')
+          : st.ok ? `verbunden · v${st.version || ''} · Instant Replay ${st.replay ? `an (${fmtT(st.replaySeconds || 0)})` : 'aus'}` : '';
+        return [
+          group('AleClip', state),
+          { type: 'info', label: 'Clips wie bei der PlayStation', desc: 'Im Overlay (PS halten) die letzten Sekunden/Minuten als Clip speichern, Screenshot machen oder eine Aufnahme starten. Der Clip endet beim Öffnen des Overlays – das Menü ist nicht zu sehen. Die maximale Länge stellst du in AleClip ein (Instant Replay → Puffer-Länge).', get: () => '' },
+          toggle('Clips im Overlay anzeigen', A, 'enabled', '', { get: () => A().enabled !== false }),
+          pathRow('AleClip.exe', A, 'exe', 'file', st.exe && !A().exe ? `Automatisch gefunden: ${st.exe}` : 'Leer lassen = automatisch suchen'),
+          toggle('AleClip beim Start mitstarten', A, 'autoStart', 'Startet AleClip minimiert im Hintergrund, falls es noch nicht läuft', { get: () => A().autoStart !== false }),
+          listText('Clip-Längen im Overlay (Sekunden)', A, 'clipLengths', 'z.B. 15 ; 30 ; 60 ; 120 ; 300 – längere als der Puffer in AleClip werden ausgeblendet', {
+            get: () => (A().clipLengths || []).join(' ; '),
+            set: (v) => { A().clipLengths = v.split(';').map((x) => parseInt(x, 10)).filter((x) => x >= 5).slice(0, 8); }
+          }),
+          button('Verbindung prüfen', async () => {
+            S.aleclip = await api.aleclipStatus().catch(() => ({}));
+            render();
+            App.toast(S.aleclip.ok ? `AleClip verbunden – Instant Replay ${S.aleclip.replay ? 'an' : 'aus'}` : S.aleclip.offline ? 'AleClip läuft nicht' : 'AleClip nicht erreichbar', S.aleclip.ok ? 'ok' : 'error', 5000);
+          }),
+          ...(st.offline && (st.installed || st.exe) ? [button('AleClip jetzt starten', async () => {
+            App.toast('Starte AleClip …', 'info', 2500);
+            try { await api.aleclipStart(); App.toast('AleClip läuft', 'ok'); } catch (e) { App.toast(cleanErr(e), 'error', 6000); }
+            S.aleclip = await api.aleclipStatus().catch(() => ({})); render();
+          })] : [])
         ];
       }
     },
@@ -852,6 +885,7 @@
       if (sectionId) { S.section = Math.max(0, SECTIONS.findIndex((s) => s.id === sectionId)); S.focus = 0; S.detail = null; }
       try { S.displays = await api.listDisplays(); } catch { S.displays = []; }
       try { S.spotify = await api.spotifyStatus(); } catch { S.spotify = {}; }
+      try { S.aleclip = await api.aleclipStatus(); } catch { S.aleclip = {}; }
       try { S.update = await api.updateState(); } catch { S.update = {}; }
       render();
     },

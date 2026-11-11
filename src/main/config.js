@@ -88,9 +88,11 @@ const DEFAULT_CONFIG = {
     // PS-/Xbox-Taste gedrückt halten: Konsolen-Overlay (Spiel beenden, Schnellstart, Spotify, Lautstärke)
     overlayEnabled: true,
     overlayHoldMs: 600,
-    // Overlay holt sich den Fokus (Spiel bekommt keine Eingaben, exklusives Vollbild minimiert sich kurz).
-    // false = Overlay liegt nur oben drüber, das Spiel bleibt im Vollbild
-    overlayFocus: false,
+    // Overlay-Modus: "pause" = Spiel wird angehalten (keine Eingaben, bleibt im Vollbild),
+    // "focus" = Overlay holt den Fokus (exklusives Vollbild minimiert sich kurz), "over" = nur darüberlegen (Spiel läuft weiter)
+    overlayMode: 'pause',
+    // Auch das Schnellmenü (PS kurz drücken) hält das Spiel an
+    quickMenuPause: true,
     // Maus- & Tastatursteuerung per Controller ein/aus (funktioniert überall in Windows)
     mouseModeCombo: 'BACK+Y',
     // Mausgeschwindigkeit (1 = normal)
@@ -100,6 +102,17 @@ const DEFAULT_CONFIG = {
     touchpadSpeed: 1,
     // Antippen = Klick
     touchpadTap: true
+  },
+
+  // AleClip: Clips (Instant Replay), Screenshots und Aufnahme aus dem Overlay
+  aleclip: {
+    enabled: true,
+    // leer = automatisch suchen (%LOCALAPPDATA%\Programs\AleClip\AleClip.exe)
+    exe: '',
+    // Beim Start des Konsolenmodus minimiert mitstarten, falls es nicht läuft
+    autoStart: true,
+    // Auswahl im Overlay (Sekunden); begrenzt auf die Puffer-Länge in AleClip
+    clipLengths: [15, 30, 60, 120, 300]
   },
 
   // Spotify im Overlay (eigene Spotify-App nötig; Anmeldedaten liegen separat in spotify.json)

@@ -146,11 +146,14 @@ Während eines Spiels die **PS-Taste** (Xbox: Guide-Taste) **gedrückt halten** 
 - **Weiterspielen**, **Zur Oberfläche**, **Vollbild (F11)** (sendet F11 an das Spiel – bei den meisten Emulatoren/Spielen Vollbild an/aus), **Spiel beenden** (mit Rückfrage)
 - **Schnellstart**: zuletzt gespielte Spiele – das laufende Spiel wird beendet und das gewählte gestartet
 - **Musik**: aktueller Spotify-Titel mit Cover und Fortschritt, ⏮ ⏯ ⏭, Zufallswiedergabe und **Playlists auswählen** – Spotify bleibt dabei im Hintergrund (läuft es nicht, wird es minimiert gestartet). Einrichten unter **Einstellungen → Spotify** (eigene Spotify-App mit Client-ID, Steuerung braucht Premium). Ohne Verbindung: ⏮ ⏯ ⏭ über die Windows-Medientasten
+- **Clip speichern** (mit [AleClip](https://github.com/AleB-Roni/AleClip)): die letzten 15 s / 30 s / 1 Min / 2 Min … als Clip, **Screenshot**, **Aufnahme** starten/stoppen, Instant Replay an/aus – wie die Create-Taste bei der PlayStation. Der Clip endet beim Öffnen des Overlays, das Menü ist nicht zu sehen. Einstellungen → **Clips** (AleClip wird automatisch gefunden und minimiert mitgestartet; die maximale Länge ist die Puffer-Länge in AleClip)
 - **System**: Lautstärke leiser/lauter/stumm, Maussteuerung
 
 Das Overlay erscheint **über Spielen und Emulatoren im Vollbild** (Einstellungen → Controller → Overlay-Modus):
-- **Über dem Spiel** (Standard): Das Overlay legt sich über das Spiel, ohne ihm den Fokus zu nehmen – das Spiel bleibt im Vollbild und minimiert sich nicht. Da das Spiel aktiv bleibt, sieht es die Controller-Eingaben mit (ggf. vorher im Spiel pausieren)
+- **Spiel anhalten** (Standard): Das Spiel wird eingefroren, solange Overlay oder Schnellmenü offen sind – es bleibt im Vollbild sichtbar, reagiert aber nicht auf den Controller, und läuft beim Schließen genau dort weiter. Für **Online-Spiele** besser „Nur darüberlegen“ wählen (Anhalten kann die Verbindung trennen)
+- **Nur darüberlegen**: Das Spiel läuft weiter und sieht die Controller-Eingaben mit
 - **Fokus holen**: Das Spiel bekommt keine Eingaben; Spiele im exklusiven Vollbild minimieren sich dabei kurz und kommen beim Schließen zurück
+- Overlay und Einblendungen sind in Aufnahmen und Clips (AleClip, OBS, Discord) unsichtbar
 - Bei **echtem exklusivem Vollbild** kann Windows kein Fenster darüber zeichnen – im Spiel/Emulator „Randloses Vollbild“ wählen
 
 **Kurz drücken** öffnet das kleine Schnellmenü (✕ beenden · □ Vollbild/F11 · △ Oberfläche · ○ weiterspielen). Beides unter **Einstellungen → Controller** anpassbar.

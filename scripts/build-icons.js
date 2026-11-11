@@ -17,7 +17,8 @@ const MAP = {
   external: 'external-link', music: 'music', 'volume-down': 'volume-1', 'volume-up': 'volume-2', 'volume-x': 'volume-x',
   mouse: 'mouse', search: 'search', plug: 'plug', info: 'info', warning: 'triangle-alert', pin: 'map-pin',
   later: 'fast-forward', back: 'chevron-left', chevron: 'chevron-right', bolt: 'zap', 'play-pause': 'circle-play',
-  shuffle: 'shuffle', heart: 'heart', link: 'link', maximize: 'maximize'
+  shuffle: 'shuffle', heart: 'heart', link: 'link', maximize: 'maximize',
+  clapperboard: 'clapperboard', camera: 'camera', 'circle-dot': 'circle-dot'
 };
 
 const pkgDir = path.dirname(require.resolve('lucide-static/package.json'));

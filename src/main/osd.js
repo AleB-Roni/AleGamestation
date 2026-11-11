@@ -35,6 +35,8 @@ class Osd {
       webPreferences: { sandbox: true, contextIsolation: true }
     });
     this.win.setAlwaysOnTop(true, 'screen-saver');
+    // Nicht in Aufnahmen/Clips (AleClip, OBS, Discord): Windows blendet das Fenster beim Aufzeichnen aus
+    this.win.setContentProtection(true);
     this.win.setIgnoreMouseEvents(true);
     this.win.setVisibleOnAllWorkspaces(true);
     return this.win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(HTML)).then(() => this.win);

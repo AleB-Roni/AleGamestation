@@ -19,6 +19,7 @@ const { Overlay } = require('./overlay');
 const { NativeHelper, hwndOf } = require('./native-helper');
 const media = require('./media');
 const { Spotify } = require('./spotify');
+const { AleClip } = require('./aleclip');
 
 // Nur eine Instanz erlauben
 if (!app.requestSingleInstanceLock()) {
@@ -53,6 +54,7 @@ let updater = null;
 const perf = new Performance();
 let perfPromise = Promise.resolve([]);
 const psWatcher = new PsHidWatcher();
+const aleclip = new AleClip({ getConfig: () => store.get(), trace: (m, d) => debug.info('aleclip', m, d) });
 const spotify = new Spotify({
   getConfig: () => store.get(), file: path.join(app.getPath('userData'), 'spotify.json'),
   fetch: (u, o) => net.fetch(u, o), openUrl: (u) => shell.openExternal(u)
@@ -298,6 +300,10 @@ async function enterConsoleMode() {
     }
   }
   await system.runCommands(d.customCommandsOnStart);
+  // AleClip im Hintergrund mitstarten (für Clips aus dem Overlay)
+  if (aleclip.enabled() && cfg().aleclip.autoStart !== false && aleclip.findExe()) {
+    aleclip.status().then((st) => { if (st.offline) return aleclip.start(); return null; }).catch((err) => debug.warn('aleclip', err.message));
+  }
   if (!skipDisplaySwitch && (d.onStart === 'tvOnly' || d.onStart === 'tvPrimary')) {
     const r = await applyTvOnly(false, d.onStart === 'tvPrimary' ? 'primary' : 'only');
     if (!r.ok) startupNotes.push({ type: 'error', text: r.error });
@@ -447,6 +453,7 @@ const padLabel = (k) => {
 
 async function closeCurrentGame() {
   debug.info('ablauf', 'Spiel beenden angefordert', launcher.status());
+  await resumeGame(); // ein angehaltenes Spiel lässt sich nicht sauber beenden
   const name = launcher.isRunning() ? launcher.status().game.name : (launcher.hasRecent() ? launcher.last.game.name : '');
   if (!name) {
     osd.show('gamepad', 'Kein laufendes Spiel erkannt', '', 2500);
@@ -466,6 +473,12 @@ function openQuickMenu() {
   if (!launcher.isRunning() && !launcher.hasRecent()) return;
   const name = launcher.isRunning() ? launcher.status().game.name : launcher.last.game.name;
   quickMenu = { openedAt: Date.now(), timer: setTimeout(closeQuickMenu, 10000) };
+  if (cfg().controller.quickMenuPause !== false && overlayModeSetting() === 'pause' && launcher.isRunning()) {
+    nativeHelper.foreground().then((fg) => {
+      const own = [hwndOf(win), overlay.hwnd(), hwndOf(osd.win)];
+      if (quickMenu && fg && !own.includes(fg)) { overlayGameHwnd = fg; pauseGame(fg); }
+    });
+  }
   osd.show('pause', escHtml(name), `${padLabel('A')} Spiel beenden &nbsp;·&nbsp; ${padLabel('X')} Vollbild (F11) &nbsp;·&nbsp; ${padLabel('Y')} Zur Oberfläche &nbsp;·&nbsp; ${padLabel('B')} Weiterspielen`, 0);
 }
 
@@ -488,6 +501,7 @@ function closeQuickMenu() {
   quickMenu = null;
   quickMenuClosedAt = Date.now();
   osd.hide();
+  if (!overlay.isVisible()) resumeGame();
 }
 // PS-/Xbox-Taste: kurz = Schnellmenü (im Spiel), gedrückt halten = Konsolen-Overlay
 let guideTimer = null;
@@ -523,8 +537,49 @@ watcher.on('released', ({ released }) => {
 const sessionStart = { at: 0 };
 let overlayGameHwnd = 0; // Spielfenster, das beim Schließen des Overlays wieder nach vorne kommt
 let overlayTookFocus = false;
+let overlayOpenedAt = 0; // für Clips: die Zeit im Overlay (angehaltenes Spiel) wird weggelassen
+
+// ---------- Spiel anhalten, solange Overlay/Schnellmenü offen sind (keine Eingaben im Spiel) ----------
+// Systemprozesse und eigene Fenster werden nie angehalten
+const NEVER_PAUSE = /^(explorer|dwm|csrss|winlogon|svchost|lsass|services|smss|wininit|fontdrvhost|sihost|ctfmon|textinputhost|searchhost|searchapp|shellexperiencehost|startmenuexperiencehost|applicationframehost|lockapp|systemsettings|taskmgr|powershell|pwsh|cmd|conhost|windowsterminal|alegamestation|electron|steam|steamwebhelper|epicgameslauncher|galaxyclient|spotify|discord)$/i;
+let pausedGame = null; // { pid, name }
+function overlayModeSetting() {
+  const c = cfg().controller;
+  return c.overlayMode || (c.overlayFocus ? 'focus' : 'pause');
+}
+async function pauseGame(hwnd) {
+  if (pausedGame || !hwnd || process.platform !== 'win32') return false;
+  const info = (await nativeHelper.request(`pidinfo ${hwnd}`, 3000)).trim();
+  const [pidStr, ...rest] = info.split(' ');
+  const pid = Number(pidStr);
+  const name = rest.join(' ');
+  if (!pid || pid === process.pid || NEVER_PAUSE.test(name)) { debug.info('pause', `Nicht angehalten: ${name || 'unbekannt'} (${pid || '-'})`); return false; }
+  const r = await nativeHelper.request(`suspend ${pid}`, 3000);
+  if (r !== '0') { debug.warn('pause', `Anhalten fehlgeschlagen: ${name} (Code ${r || 'keine Antwort'})`); return false; }
+  pausedGame = { pid, name, at: Date.now() };
+  debug.info('pause', `Spiel angehalten: ${name} (${pid})`);
+  return true;
+}
+let resuming = Promise.resolve();
+function resumeGame() {
+  resuming = resuming.then(doResumeGame);
+  return resuming;
+}
+async function doResumeGame() {
+  if (!pausedGame) return;
+  const { pid, name } = pausedGame;
+  pausedGame = null;
+  // Mehrfach versuchen – ein angehaltenes Spiel darf nie hängen bleiben
+  for (let i = 0; i < 3; i++) {
+    const r = await nativeHelper.request(`resume ${pid}`, 3000);
+    if (r === '0' || r === '-1') { debug.info('pause', `Spiel fortgesetzt: ${name} (${pid})`); return; }
+  }
+  debug.error('pause', `Fortsetzen fehlgeschlagen: ${name} (${pid})`);
+}
 async function openOverlay() {
-  debug.info('ablauf', 'Overlay öffnen', { focus: !!cfg().controller.overlayFocus });
+  const mode = overlayModeSetting();
+  overlayOpenedAt = Date.now() - (cfg().controller.overlayHoldMs || 600);
+  debug.info('ablauf', 'Overlay öffnen', { modus: mode });
   mouseMode.setActive(false);
   closeQuickMenu();
   osd.hide();
@@ -534,9 +589,11 @@ async function openOverlay() {
   const own = [hwndOf(win), overlay.hwnd(), hwndOf(osd.win)];
   overlayGameHwnd = fg && !own.includes(fg) ? fg : (launcher.isRunning() ? overlayGameHwnd : 0);
   const display = win && !win.isDestroyed() ? screen.getDisplayMatching(win.getBounds()) : undefined;
-  const focus = !!cfg().controller.overlayFocus;
+  const focus = mode === 'focus';
   overlayTookFocus = focus;
   await overlay.show(display, focus).catch(() => {});
+  // Spiel anhalten: bleibt im Vollbild sichtbar, reagiert aber nicht auf den Controller
+  if (mode === 'pause' && overlayGameHwnd && overlay.isVisible()) await pauseGame(overlayGameHwnd);
   if (focus) {
     // Ganz nach vorne mit Fokus – auch über Vollbild-Spiele (exklusives Vollbild minimiert sich dabei)
     nativeHelper.front(overlay.hwnd(), true);
@@ -551,6 +608,7 @@ async function openOverlay() {
 function closeOverlay(restoreGame = true) {
   debug.info('ablauf', 'Overlay schließen', { restoreGame });
   overlay.hide();
+  resumeGame();
   if (restoreGame && overlayTookFocus && overlayGameHwnd && launcher.isRunning()) {
     const h = overlayGameHwnd;
     setTimeout(() => nativeHelper.front(h, false), 260);
@@ -607,6 +665,15 @@ async function overlayAction(a) {
       return media.mediaKey((l) => mouseMode.send(l), a.cmd);
     case 'volume': return media.mediaKey((l) => mouseMode.send(l), a.cmd);
     case 'mouse': closeOverlay(); mouseMode.toggle(); return mouseMode.active;
+    case 'clip': {
+      // Clip endet beim Öffnen des Overlays – das angehaltene Spiel und das Menü sind nicht drin
+      const endAgo = overlayOpenedAt ? (Date.now() - overlayOpenedAt) / 1000 : 0;
+      return aleclip.saveReplay(Number(a.seconds) || 0, endAgo);
+    }
+    case 'clipShot': return aleclip.command('screenshot');
+    case 'clipRecord': return aleclip.command('toggle_record');
+    case 'clipReplay': return aleclip.command('set_replay', { enabled: !!a.enabled });
+    case 'clipStart': return aleclip.start();
     case 'f11':
       // Overlay schließen (Spiel bekommt ggf. den Fokus zurück), dann F11 senden
       closeOverlay(true);
@@ -624,6 +691,9 @@ ipcMain.handle('overlay:spotify', async () => {
   }
   return media.spotifyInfo();
 });
+ipcMain.handle('overlay:aleclip', async () => ({ ...(await aleclip.status()), lengths: cfg().aleclip.clipLengths || [15, 30, 60, 120, 300] }));
+ipcMain.handle('aleclip:status', async () => ({ ...(await aleclip.status()), exe: aleclip.findExe() }));
+ipcMain.handle('aleclip:start', () => aleclip.start());
 ipcMain.handle('overlay:playlists', async () => (spotify.isConnected() ? spotify.playlists() : []));
 ipcMain.handle('spotify:status', () => spotify.status());
 ipcMain.handle('spotify:connect', () => spotify.connect());
@@ -902,6 +972,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('before-quit', async (e) => {
+  if (pausedGame) { e.preventDefault(); await resumeGame(); app.quit(); return; }
   watcher.stop();
   psWatcher.stop();
   mouseMode.stop();

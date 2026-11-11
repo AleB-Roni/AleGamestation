@@ -21,6 +21,8 @@ class Overlay {
       webPreferences: { preload: this.preload, contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required' }
     });
     this.win.setAlwaysOnTop(true, 'screen-saver');
+    // Nicht in Aufnahmen/Clips (AleClip, OBS, Discord): Windows blendet das Fenster beim Aufzeichnen aus
+    this.win.setContentProtection(true);
     this.win.setVisibleOnAllWorkspaces(true);
     this.win.on('closed', () => { this.win = null; this.visible = false; });
     return this.win.loadFile(path.join(__dirname, '..', 'renderer', 'overlay.html')).then(() => this.win);

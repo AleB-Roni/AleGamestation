@@ -66,3 +66,8 @@ body.open #ovPanel { transform: none; }
 .ov-pl.focused .name { color: var(--text); }
 .ov-btn.on .ico { color: #1db954; }
 #ovRows { overflow-y: auto; scrollbar-width: none; }
+
+/* Clips (AleClip) */
+.ov-btn.small { padding: 0.65rem 0.3rem; font-size: 0.85rem; }
+.ov-btn.small .ico .icon { width: 1.25rem; height: 1.25rem; }
+#ovRows > * { flex-shrink: 0; }

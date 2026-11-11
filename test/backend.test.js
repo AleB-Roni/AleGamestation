@@ -562,3 +562,34 @@ test('Emulatoren im Vollbild: Argument für bekannte Emulatoren ergänzen', () =
   assert.strictEqual(profileFor('C:\\x\\flycast.exe').fullscreen, null);
   assert.strictEqual(profileFor('D:\\Switch\\citron.exe').args, '-f -g "{rom}"');
 });
+
+test('AleClip: Status abfragen und Clip mit Länge und Ende anfordern', async () => {
+  const net = require('net');
+  const { AleClip } = require('../src/main/aleclip');
+  const sock = process.platform === 'win32' ? `\\\\.\\pipe\\ags-test-${process.pid}` : path.join(os.tmpdir(), `ags-test-${process.pid}.sock`);
+  const got = [];
+  const server = net.createServer((c) => {
+    let buf = '';
+    c.on('data', (d) => {
+      buf += d;
+      if (!buf.includes('\n')) return;
+      const msg = JSON.parse(buf);
+      got.push(msg);
+      const reply = msg.cmd === 'status' ? { ok: true, replay: true, replaySeconds: 120, buffered: 50 }
+        : msg.cmd === 'save_replay' ? { ok: true, saving: true, seconds: msg.seconds } : { ok: false, error: 'x' };
+      c.end(JSON.stringify(reply) + '\n');
+    });
+  });
+  await new Promise((r) => server.listen(sock, r));
+  const a = new AleClip({ getConfig: () => ({ aleclip: {} }), pipe: sock });
+  assert.deepStrictEqual(await a.status(), { ok: true, replay: true, replaySeconds: 120, buffered: 50 });
+  const r = await a.saveReplay(30, 2.34);
+  assert.strictEqual(r.seconds, 30);
+  assert.deepStrictEqual(got[1], { cmd: 'save_replay', seconds: 30, end_ago: 2.3 });
+  await assert.rejects(a.command('kaputt'), /x/);
+  await new Promise((r) => server.close(r));
+  // Läuft nicht -> verständliche Meldung
+  const off = new AleClip({ getConfig: () => ({ aleclip: {} }), pipe: sock });
+  assert.strictEqual((await off.status()).offline, true);
+  await assert.rejects(off.saveReplay(10), /läuft nicht/);
+});

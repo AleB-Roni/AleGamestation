@@ -14,6 +14,9 @@
 #   q <id> save            Aktuelle Anordnung sichern -> Base64
 #   q <id> restore <b64>   Gesicherte Anordnung wiederherstellen -> Ergebniscode
 #   q <id> extend          Alle Bildschirme erweitern -> Ergebniscode
+#   q <id> pidinfo <hwnd>  Prozess eines Fensters -> "pid name"
+#   q <id> suspend <pid>   Prozess anhalten (Spiel-Pause im Overlay) -> 0 = ok
+#   q <id> resume <pid>    Prozess fortsetzen -> 0 = ok
 $ErrorActionPreference = 'Stop'
 
 Add-Type -TypeDefinition @"
@@ -285,6 +288,30 @@ public static class AgsInput {
     return SetDisplayConfig((uint)np, paths, (uint)nm, modes, SET_FLAGS);
   }
 
+  // ---------- Spiel anhalten, solange das Overlay offen ist ----------
+  [DllImport("ntdll.dll")] static extern int NtSuspendProcess(IntPtr h);
+  [DllImport("ntdll.dll")] static extern int NtResumeProcess(IntPtr h);
+  [DllImport("kernel32.dll")] static extern IntPtr OpenProcess(uint access, bool inherit, uint pid);
+  [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
+
+  /** Prozess zu einem Fenster: "pid name" */
+  public static string PidInfo(long hwnd) {
+    uint pid;
+    GetWindowThreadProcessId(new IntPtr(hwnd), out pid);
+    if (pid == 0) return "";
+    string name = "";
+    try { name = System.Diagnostics.Process.GetProcessById((int)pid).ProcessName; } catch { }
+    return pid + " " + name;
+  }
+  /** Prozess anhalten (resume = false) oder fortsetzen; 0 = ok */
+  public static int Suspend(uint pid, bool resume) {
+    IntPtr h = OpenProcess(0x0800, false, pid); // PROCESS_SUSPEND_RESUME
+    if (h == IntPtr.Zero) return -1;
+    int r = resume ? NtResumeProcess(h) : NtSuspendProcess(h);
+    CloseHandle(h);
+    return r;
+  }
+
   public static void Top(long hwnd) {
     // ganz oben, ohne Fokus: SWP_NOSIZE|SWP_NOMOVE|SWP_NOACTIVATE|SWP_SHOWWINDOW
     SetWindowPos(new IntPtr(hwnd), new IntPtr(-1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010 | 0x0040);
@@ -316,6 +343,9 @@ while ($true) {
         elseif ($p[2] -eq 'save') { $v = [AgsInput]::Save() }
         elseif ($p[2] -eq 'restore') { $v = [AgsInput]::Restore($p[3]) }
         elseif ($p[2] -eq 'extend') { $v = [AgsInput]::Extend() }
+        elseif ($p[2] -eq 'pidinfo') { $v = [AgsInput]::PidInfo([long]$p[3]) }
+        elseif ($p[2] -eq 'suspend') { $v = [AgsInput]::Suspend([uint32]$p[3], $false) }
+        elseif ($p[2] -eq 'resume') { $v = [AgsInput]::Suspend([uint32]$p[3], $true) }
         [Console]::Out.WriteLine("a $($p[1]) $v"); [Console]::Out.Flush()
       }
     }

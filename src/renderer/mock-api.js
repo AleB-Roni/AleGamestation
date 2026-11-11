@@ -59,6 +59,9 @@
     spotifyStatus: async () => ({ connected: true, user: 'Ale', product: 'premium', redirect: 'http://127.0.0.1:43821/callback' }),
     spotifyConnect: async () => ({ user: 'Ale', product: 'premium' }), spotifyDisconnect: async () => true, spotifyDashboard: async () => true,
     spotifyTest: async () => ({ title: 'Get Lucky', artist: 'Daft Punk' }),
+    overlayAleClip: async () => ({ ok: true, running: true, replay: true, buffered: 102, replaySeconds: 120, recording: false, lengths: [15, 30, 60, 120, 300] }),
+    aleclipStatus: async () => ({ ok: true, running: true, replay: true, buffered: 102, replaySeconds: 120, recording: false, version: '1.0.0', exe: 'C:\\Users\\Ale\\AppData\\Local\\Programs\\AleClip\\AleClip.exe' }),
+    aleclipStart: async () => ({ ok: true }),
     overlayPlaylists: async () => [{ id: 'liked', uri: 'liked', name: 'Lieblingssongs', liked: true }, { id: 'p1', uri: 'spotify:playlist:1', name: 'Gaming Mix' }, { id: 'p2', uri: 'spotify:playlist:2', name: 'Chill Lo-Fi Beats' }, { id: 'p3', uri: 'spotify:playlist:3', name: 'Synthwave' }],
     emulatorProfiles: async () => [
       { id: 'eden', match: '^eden', name: 'Eden (Switch)', fullscreen: ['-f'], has: '(^|\\s)(-f|--fullscreen)(\\s|$)', hasFlags: 'i', args: '-f -g "{rom}"' },
