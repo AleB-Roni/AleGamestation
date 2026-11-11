@@ -121,11 +121,29 @@ Protokolliert werden: jede Eingabe mit aktueller Ansicht und Auswahl, Fehler all
 
 **Debug-Bericht erstellen** (Einstellungen → Info & Updates oder ☰ Menü) speichert Protokoll, Systeminfos, Bildschirme, Controller und Einstellungen als Textdatei auf dem Desktop. Passwörter, Tokens und API-Schlüssel werden dabei unkenntlich gemacht.
 
+## Emulatoren im Vollbild starten
+
+Unter **Einstellungen → Emulatoren → „Spiele im Vollbild starten“** (Standard: an) ergänzt AleGamestation bei bekannten Emulatoren automatisch das Vollbild-Argument – auch wenn es nicht in den Start-Argumenten steht:
+
+| Emulator | Vollbild-Argument | Empfohlene Start-Argumente |
+|---|---|---|
+| Eden, Citron, Sudachi, Suyu, Torzu, yuzu (Switch) | `-f` | `-f -g "{rom}"` |
+| Ryujinx (Switch) | `--fullscreen` | `--fullscreen "{rom}"` |
+| Cemu (Wii U) | `-f` | `-f -g "{rom}"` |
+| Dolphin (GameCube/Wii) | `-C Dolphin.Display.Fullscreen=True` | `-b -C Dolphin.Display.Fullscreen=True -e "{rom}"` |
+| Azahar / Lime3DS / Citra (3DS), melonDS, mGBA, RetroArch | `-f` | |
+| DuckStation, PCSX2 | `-fullscreen` | `-batch -fullscreen -- "{rom}"` |
+| RPCS3 | `--fullscreen` | `--no-gui --fullscreen "{rom}"` |
+| PPSSPP | `--fullscreen` | `--fullscreen "{rom}"` |
+| xemu, Xenia, Vita3K, Snes9x, Mesen | jeweils passend | |
+
+Pro Emulator lässt sich das abschalten; dort steht auch, was erkannt wurde, und ein Knopf übernimmt die empfohlenen Start-Argumente. Neu hinzugefügte Emulatoren bekommen Namen und Start-Argumente automatisch. Flycast und Project64 haben kein Vollbild-Argument – dort im Emulator „im Vollbild starten“ einschalten. Notfalls hilft im Spiel **Vollbild (F11)** im Overlay oder □ im Schnellmenü.
+
 ## Konsolen-Overlay (PS-/Xbox-Taste gedrückt halten)
 
 Während eines Spiels die **PS-Taste** (Xbox: Guide-Taste) **gedrückt halten** öffnet ein Menü über dem Spiel:
 
-- **Zurück zum Spiel**, **Zur Oberfläche**, **Spiel beenden** (mit Rückfrage)
+- **Weiterspielen**, **Zur Oberfläche**, **Vollbild (F11)** (sendet F11 an das Spiel – bei den meisten Emulatoren/Spielen Vollbild an/aus), **Spiel beenden** (mit Rückfrage)
 - **Schnellstart**: zuletzt gespielte Spiele – das laufende Spiel wird beendet und das gewählte gestartet
 - **Musik**: aktueller Spotify-Titel mit Cover und Fortschritt, ⏮ ⏯ ⏭, Zufallswiedergabe und **Playlists auswählen** – Spotify bleibt dabei im Hintergrund (läuft es nicht, wird es minimiert gestartet). Einrichten unter **Einstellungen → Spotify** (eigene Spotify-App mit Client-ID, Steuerung braucht Premium). Ohne Verbindung: ⏮ ⏯ ⏭ über die Windows-Medientasten
 - **System**: Lautstärke leiser/lauter/stumm, Maussteuerung
@@ -135,7 +153,7 @@ Das Overlay erscheint **über Spielen und Emulatoren im Vollbild** (Einstellunge
 - **Fokus holen**: Das Spiel bekommt keine Eingaben; Spiele im exklusiven Vollbild minimieren sich dabei kurz und kommen beim Schließen zurück
 - Bei **echtem exklusivem Vollbild** kann Windows kein Fenster darüber zeichnen – im Spiel/Emulator „Randloses Vollbild“ wählen
 
-**Kurz drücken** öffnet das kleine Schnellmenü (✕ beenden · △ Oberfläche · ○ weiterspielen). Beides unter **Einstellungen → Controller** anpassbar.
+**Kurz drücken** öffnet das kleine Schnellmenü (✕ beenden · □ Vollbild/F11 · △ Oberfläche · ○ weiterspielen). Beides unter **Einstellungen → Controller** anpassbar.
 Hinweis: Läuft Steam, kann die PS-Taste zusätzlich Steam öffnen – in Steam unter *Einstellungen → Controller → Guide-Tasten-Verknüpfungen* abschalten.
 
 ## Home Assistant – Fernseher automatisch einschalten

@@ -550,3 +550,15 @@ test('Home Assistant: TV ist aus „nicht verfügbar“ – über Chromecast ein
   assert.ok(!calls.some((c) => c.includes('turn_on {"entity_id":"media_player.tv"}')), 'TV selbst wird nicht eingeschaltet');
   assert.ok(calls.filter((c) => c.includes('select_source')).length >= 2, 'Eingang wird nach dem Zurückschalten erneut gewählt');
 });
+
+test('Emulatoren im Vollbild: Argument für bekannte Emulatoren ergänzen', () => {
+  const { withFullscreen, profileFor } = require('../src/main/emulator-profiles');
+  const run = (exe, a) => withFullscreen(exe, a, splitArgs(a)).args;
+  assert.deepStrictEqual(run('C:\\Emu\\eden.exe', '"{rom}"'), ['-f', '{rom}']);
+  assert.deepStrictEqual(run('C:\\Emu\\Ryujinx.exe', '"{rom}"'), ['--fullscreen', '{rom}']);
+  assert.deepStrictEqual(run('C:\\Emu\\yuzu.exe', '-f -g "{rom}"'), ['-f', '-g', '{rom}']); // schon drin -> nichts doppelt
+  assert.deepStrictEqual(run('C:\\Dolphin\\Dolphin.exe', '-b -e "{rom}"'), ['-C', 'Dolphin.Display.Fullscreen=True', '-b', '-e', '{rom}']);
+  assert.deepStrictEqual(run('C:\\x\\unbekannt.exe', '"{rom}"'), ['{rom}']);
+  assert.strictEqual(profileFor('C:\\x\\flycast.exe').fullscreen, null);
+  assert.strictEqual(profileFor('D:\\Switch\\citron.exe').args, '-f -g "{rom}"');
+});

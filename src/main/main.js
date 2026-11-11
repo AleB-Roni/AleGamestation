@@ -411,6 +411,7 @@ function createWindow() {
 
 // ---------- Launcher-Events ----------
 launcher.on('started', (s) => debug.info('spiel', 'gestartet', s));
+launcher.on('launching', (l) => debug.info('spiel', 'Startbefehl', l));
 launcher.on('exited', (i) => debug.info('spiel', 'beendet', i));
 launcher.on('error', (err) => debug.error('spiel', 'Startfehler: ' + ((err && err.stack) || err)));
 watcher.on('connection', (c) => debug.info('controller', 'Verbindung', c));
@@ -465,7 +466,21 @@ function openQuickMenu() {
   if (!launcher.isRunning() && !launcher.hasRecent()) return;
   const name = launcher.isRunning() ? launcher.status().game.name : launcher.last.game.name;
   quickMenu = { openedAt: Date.now(), timer: setTimeout(closeQuickMenu, 10000) };
-  osd.show('pause', escHtml(name), `${padLabel('A')} Spiel beenden &nbsp;·&nbsp; ${padLabel('Y')} Zur Oberfläche &nbsp;·&nbsp; ${padLabel('B')} Weiterspielen`, 0);
+  osd.show('pause', escHtml(name), `${padLabel('A')} Spiel beenden &nbsp;·&nbsp; ${padLabel('X')} Vollbild (F11) &nbsp;·&nbsp; ${padLabel('Y')} Zur Oberfläche &nbsp;·&nbsp; ${padLabel('B')} Weiterspielen`, 0);
+}
+
+/** F11 (meist Vollbild an/aus) an das laufende Spiel senden – vorher sicherstellen, dass es den Fokus hat */
+async function sendGameKey(vk = 0x7a, label = 'F11') {
+  const fg = await nativeHelper.foreground();
+  const own = [hwndOf(win), overlay.hwnd(), hwndOf(osd.win)].filter(Boolean);
+  if (own.includes(fg) && overlayGameHwnd) {
+    nativeHelper.front(overlayGameHwnd, false);
+    await new Promise((r) => setTimeout(r, 350));
+  }
+  debug.info('spiel', `Taste ${label} an das Spiel gesendet`, { vordergrund: fg, spielFenster: overlayGameHwnd });
+  nativeHelper.send(`k ${vk} 1`);
+  nativeHelper.send(`k ${vk} 0`);
+  return true;
 }
 function closeQuickMenu() {
   if (!quickMenu) return;
@@ -490,6 +505,7 @@ watcher.on('pressed', ({ id, pressed }) => {
   }
   if (!quickMenu || Date.now() - quickMenu.openedAt < 250) return;
   if (pressed & BUTTONS.A) { closeQuickMenu(); closeCurrentGame(); }
+  else if (pressed & BUTTONS.X) { closeQuickMenu(); setTimeout(() => sendGameKey(), 250); }
   else if (pressed & BUTTONS.Y) { closeQuickMenu(); bringToFront(); }
   else if (pressed & BUTTONS.B) closeQuickMenu();
 });
@@ -591,6 +607,11 @@ async function overlayAction(a) {
       return media.mediaKey((l) => mouseMode.send(l), a.cmd);
     case 'volume': return media.mediaKey((l) => mouseMode.send(l), a.cmd);
     case 'mouse': closeOverlay(); mouseMode.toggle(); return mouseMode.active;
+    case 'f11':
+      // Overlay schließen (Spiel bekommt ggf. den Fokus zurück), dann F11 senden
+      closeOverlay(true);
+      setTimeout(() => sendGameKey(), overlayTookFocus ? 700 : 300);
+      return true;
     default: return false;
   }
 }
@@ -726,6 +747,10 @@ ipcMain.handle('displays:tvOnly', (_e, mode) => applyTvOnly(true, mode === 'prim
 ipcMain.handle('displays:restore', async () => { await restoreDisplays('extend'); return true; });
 ipcMain.handle('system:displays', () => screen.getAllDisplays().map((d, i) => ({ index: i, label: d.label || `Bildschirm ${i + 1}`, width: d.size.width, height: d.size.height, primary: d.id === screen.getPrimaryDisplay().id })));
 ipcMain.handle('pad:hidCount', () => psWatcher.devices.size);
+// Bekannte Emulatoren (Vollbild-Argumente, empfohlene Start-Argumente) für die Oberfläche
+ipcMain.handle('emulators:profiles', () => require('./emulator-profiles').PROFILES.map((p) => ({
+  id: p.id, match: p.match.source, name: p.name, fullscreen: p.fullscreen, has: p.has ? p.has.source : '', hasFlags: p.has ? p.has.flags : '', note: p.note || '', args: p.args
+})));
 
 // ---------- Debug-Modus ----------
 ipcMain.handle('debug:log', (_e, entry) => {

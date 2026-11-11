@@ -36,8 +36,9 @@
     const d = S.data || {};
     const rows = [];
     const game = d.running;
-    const g = [{ kind: 'btn', icon: 'play', label: game ? 'Zurück zum Spiel' : 'Schließen', action: () => act({ type: 'resume' }) },
+    const g = [{ kind: 'btn', icon: 'play', label: game ? 'Weiterspielen' : 'Schließen', action: () => act({ type: 'resume' }) },
       { kind: 'btn', icon: 'home', label: 'Zur Oberfläche', action: () => act({ type: 'home' }) }];
+    if (game) g.push({ kind: 'btn', icon: 'maximize', label: 'Vollbild (F11)', action: () => act({ type: 'f11' }) });
     if (game) g.push({ kind: 'btn', icon: 'stop', label: 'Spiel beenden', danger: true, confirm: 'Wirklich beenden?', action: () => act({ type: 'quit' }) });
     rows.push({ title: game ? 'Spiel' : 'AleGamestation', items: g });
 

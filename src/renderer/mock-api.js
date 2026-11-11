@@ -60,6 +60,10 @@
     spotifyConnect: async () => ({ user: 'Ale', product: 'premium' }), spotifyDisconnect: async () => true, spotifyDashboard: async () => true,
     spotifyTest: async () => ({ title: 'Get Lucky', artist: 'Daft Punk' }),
     overlayPlaylists: async () => [{ id: 'liked', uri: 'liked', name: 'Lieblingssongs', liked: true }, { id: 'p1', uri: 'spotify:playlist:1', name: 'Gaming Mix' }, { id: 'p2', uri: 'spotify:playlist:2', name: 'Chill Lo-Fi Beats' }, { id: 'p3', uri: 'spotify:playlist:3', name: 'Synthwave' }],
+    emulatorProfiles: async () => [
+      { id: 'eden', match: '^eden', name: 'Eden (Switch)', fullscreen: ['-f'], has: '(^|\\s)(-f|--fullscreen)(\\s|$)', hasFlags: 'i', args: '-f -g "{rom}"' },
+      { id: 'dolphin', match: '^dolphin', name: 'Dolphin (GameCube/Wii)', fullscreen: ['-C', 'Dolphin.Display.Fullscreen=True'], has: 'Display\\.Fullscreen', hasFlags: 'i', args: '-b -C Dolphin.Display.Fullscreen=True -e "{rom}"' }
+    ],
     debugLog: async () => true, debugState: async () => ({ enabled: true, errors: 0, warnings: 0 }), debugReport: async () => 'C:\\Users\\Ale\\Desktop\\AleGamestation-Debugbericht.txt', debugOpenFolder: async () => true,
     onDebugEvent: () => () => {},
     identifyDisplays: async () => true, tvOnly: async () => ({ ok: true }), restoreDisplays: async () => true, info: async () => ({}),

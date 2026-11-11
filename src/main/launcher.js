@@ -132,6 +132,12 @@ class Launcher extends EventEmitter {
       };
       exe = emu.exe;
       args = splitArgs(emu.args).map((a) => fillPlaceholders(a, vars));
+      // Vollbild: passendes Argument für bekannte Emulatoren ergänzen (pro Emulator / global abschaltbar)
+      if (emu.fullscreen !== false && (cfg.general || {}).emulatorFullscreen !== false) {
+        const fs2 = require('./emulator-profiles').withFullscreen(emu.exe, emu.args, args);
+        args = fs2.args;
+      }
+      this.emit('launching', { exe, args });
       cwd = emu.cwd || path.dirname(emu.exe);
       dirs.push(path.dirname(emu.exe));
     } else {

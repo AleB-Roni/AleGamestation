@@ -54,6 +54,22 @@
     return App.library.games.find((g) => g.id === id);
   }
 
+  /** Bekanntes Emulator-Profil zu einer .exe (Name, empfohlene Start-Argumente, Vollbild) */
+  App.emuProfiles = [];
+  App.emuProfile = function (exe) {
+    const base = String(exe || '').split(/[\\/]/).pop();
+    return App.emuProfiles.find((p) => new RegExp(p.match, 'i').test(base)) || null;
+  };
+  /** Neuen Emulator-Eintrag aus einer .exe erstellen – mit passendem Namen und Start-Argumenten */
+  App.newEmulator = function (exe) {
+    const p = App.emuProfile(exe);
+    const id = 'emu-' + Date.now();
+    const name = p ? p.name : exe.split(/[\\/]/).pop().replace(/\.exe$/i, '');
+    const args = p && !/CORE_libretro/.test(p.args) ? p.args : '"{rom}"';
+    App.cfg.emulators.push({ id, name, exe, args });
+    return id;
+  };
+
   /** Debug-Modus: Eintrag ins Protokoll (nur wenn eingeschaltet) */
   App.debug = false;
   App.log = function (source, message, data, level = 'info') {
@@ -772,8 +788,7 @@
       list.unshift({ label: 'Neuen Emulator auswählen (.exe) …', icon: 'plus', action: async () => {
         const exe = await api.pickFile({ filters: [{ name: 'Programme', extensions: ['exe'] }] });
         if (!exe) return;
-        const id = 'emu-' + Date.now();
-        App.cfg.emulators.push({ id, name: exe.split(/[\\/]/).pop().replace(/\.exe$/i, ''), exe, args: '"{rom}"' });
+        const id = App.newEmulator(exe);
         App.closeMenu();
         pickFolder(p, id);
       } });
@@ -998,6 +1013,7 @@
 
   async function init() {
     App.cfg = await api.getConfig();
+    try { App.emuProfiles = await api.emulatorProfiles(); } catch { App.emuProfiles = []; }
     applyConfig();
     if (App.cfg.general.hideCursor) document.body.classList.add('hide-cursor');
     App.library = await api.getLibrary();

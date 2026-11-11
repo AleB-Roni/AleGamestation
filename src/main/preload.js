@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('api', {
   getLibrary: () => ipcRenderer.invoke('library:get'),
   refreshLibrary: () => ipcRenderer.invoke('library:refresh'),
   detectEmulators: () => ipcRenderer.invoke('emulators:detect'),
+  emulatorProfiles: () => ipcRenderer.invoke('emulators:profiles'),
 
   launch: (id) => ipcRenderer.invoke('game:launch', id),
   kill: () => ipcRenderer.invoke('game:kill'),

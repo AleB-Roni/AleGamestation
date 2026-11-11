@@ -211,8 +211,7 @@
           button('＋ Nur Emulator hinzufügen …', async () => {
             const exe = await api.pickFile({ filters: [{ name: 'Programme', extensions: ['exe'] }] });
             if (!exe) return;
-            const id = 'emu-' + Date.now();
-            C().emulators.push({ id, name: exe.split(/[\\/]/).pop().replace(/\.exe$/i, ''), exe, args: '"{rom}"' });
+            const id = App.newEmulator(exe);
             await commit(true);
             openEmulator(id);
           }),
@@ -223,6 +222,7 @@
             App.toast(r.changes.length ? `Gefunden: ${r.changes.map((c) => c.name).join(', ')}` : 'Keine neuen Emulatoren gefunden', r.changes.length ? 'ok' : 'info', 5000);
             render();
           }),
+          toggle('Spiele im Vollbild starten', () => C().general, 'emulatorFullscreen', 'Ergänzt bei bekannten Emulatoren automatisch das Vollbild-Argument (z.B. Switch: Eden/Ryujinx, Dolphin, PCSX2, RetroArch …)', { get: () => C().general.emulatorFullscreen !== false }),
           group('Deine Emulatoren', `${list.length}`)
         ];
         for (const e of list) {
@@ -484,6 +484,26 @@
     }
   ];
 
+  /** Vollbild-Infos zum Emulator: erkannt? welches Argument? empfohlene Start-Argumente übernehmen */
+  function fullscreenRows(o) {
+    const e = o();
+    const p = App.emuProfile(e.exe);
+    const globalOn = C().general.emulatorFullscreen !== false;
+    const already = p && p.has && new RegExp(p.has, p.hasFlags || '').test(e.args || '');
+    let desc;
+    if (!p) desc = 'Unbekannter Emulator – das Vollbild-Argument bitte selbst in die Start-Argumente eintragen (oder im Emulator „im Vollbild starten“ einschalten)';
+    else if (!p.fullscreen) desc = `Erkannt: ${p.name}. ${p.note}`;
+    else if (already) desc = `Erkannt: ${p.name} – Vollbild steht bereits in den Start-Argumenten`;
+    else desc = `Erkannt: ${p.name} – beim Start wird „${p.fullscreen.join(' ')}“ automatisch ergänzt`;
+    const rows = [
+      { ...toggle('Im Vollbild starten', o, 'fullscreen', desc), get: () => o().fullscreen !== false && globalOn, disabled: !globalOn }
+    ];
+    if (p && p.args && !/CORE_libretro/.test(p.args) && (e.args || '').trim() !== p.args) {
+      rows.push(button(`Empfohlene Start-Argumente übernehmen: ${p.args}`, async () => { o().args = p.args; await commit(false); App.toast('Start-Argumente übernommen', 'ok'); }));
+    }
+    return rows;
+  }
+
   function openEmulator(id) {
     openDetail(() => {
       const i = C().emulators.findIndex((e) => e.id === id);
@@ -497,6 +517,7 @@
           text('Name', o, 'name', '', { rescan: true }),
           pathRow('Programm (.exe)', o, 'exe', 'file', '', { rescan: true }),
           text('Start-Argumente', o, 'args', 'Platzhalter: {rom} {romName} {romDir} {emuDir} – z.B. -f "{rom}" für Vollbild'),
+          ...fullscreenRows(o),
           { type: 'info', label: 'Verwendet von', desc: used.length ? used.join(', ') : 'Keiner Konsole – über „Konsole hinzufügen“ zuordnen', get: () => '' },
           button('Emulator löschen', async () => {
             if (!(await App.confirm('Emulator löschen?', esc(e.name), 'Löschen'))) return;
