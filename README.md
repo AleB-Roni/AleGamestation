@@ -248,7 +248,7 @@ Vorbelegte Beispiele (anpassbar):
 - **Controller**: Die globale Beenden-Kombination funktioniert mit Xbox-Controllern (XInput) und PlayStation-Controllern (direkt per HID). Switch-Controller brauchen dafür Steam Input. In der Oberfläche selbst funktionieren alle gängigen Controller.
 - **Falscher Bildschirm?** In Einstellungen → Anzeige den Fernseher festlegen und „Beim Start“ auf „Nur Fernseher (ausgewählt)“ stellen.
 - **Bildschirm „nur TV“** setzt voraus, dass Windows den TV als zweiten Bildschirm erkennt. Klappt es nicht, im Menü → „Bildschirm umschalten“ testen und die Wartezeit in Einstellungen → Anzeige erhöhen.
-- **Ton auf den TV**: z. B. mit [NirCmd](https://www.nirsoft.net/utils/nircmd.html): Einstellungen → Anzeige → Befehle beim Start: `nircmd setdefaultsounddevice "LG TV"`.
+- **Ton auf den TV**: Einstellungen → Anzeige → **Tonausgabe im Konsolenmodus** – das Gerät wird beim Start umgestellt (auch wenn der Fernseher erst eingeschaltet wird) und beim Beenden zurückgestellt.
 - Spiel lässt sich nicht per Controller beenden? Bei eigenen Spielen „Beenden per Controller“ auf *Alle Prozesse aus dem Spielordner* oder *Nach Prozessname* stellen.
 - Alle Einstellungen liegen in `%APPDATA%\AleGamestation\config.json` (Menü → Einstellungen → Allgemein → „Konfigurationsdatei öffnen“).
 

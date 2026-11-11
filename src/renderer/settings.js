@@ -28,6 +28,25 @@
     const info = d.active === false ? 'gerade aus' : `${d.width}×${d.height}${d.hz ? ' · ' + d.hz + ' Hz' : ''}${d.primary ? ' · Hauptbildschirm' : ''}`;
     return `${n >= 0 ? n + 1 + '. ' : ''}${d.name} – ${info}`;
   }
+  /** Tonausgabe im Konsolenmodus; ein gespeichertes, gerade nicht verbundenes Gerät bleibt sichtbar */
+  function audioSelect() {
+    const cur = C().display.audioDevice;
+    const list = S.audio || [];
+    const label = (a) => `${a.name}${a.default ? ' · aktuell' : ''}${a.active ? '' : ' · nicht verbunden'}`;
+    const opts = [{ value: '', label: 'Nicht ändern' }].concat(list.map((a) => ({ value: a.id, label: label(a) })));
+    if (cur && !list.some((a) => a.id === cur.id)) opts.push({ value: cur.id, label: `${cur.name} (gerade nicht verfügbar)` });
+    return {
+      type: 'select', label: 'Tonausgabe im Konsolenmodus', options: opts,
+      desc: list.length ? 'Wird beim Start umgestellt – auch wenn der Fernseher erst eingeschaltet wird' : 'Keine Wiedergabegeräte gefunden (nur unter Windows)',
+      get: () => (C().display.audioDevice ? C().display.audioDevice.id : ''),
+      set: (v) => {
+        if (!v) { C().display.audioDevice = null; return; }
+        const a = list.find((x) => x.id === v);
+        if (a) C().display.audioDevice = { id: a.id, name: a.name, desc: a.desc };
+      }
+    };
+  }
+
   /** Auswahl des Fernsehers; ein gespeicherter, gerade nicht aktiver TV bleibt sichtbar */
   function tvSelect() {
     const tv = C().display.tv;
@@ -139,12 +158,20 @@
           App.toast(r && r.ok ? 'Fernseher ist jetzt der Hauptbildschirm – Spiele starten dort' : (r && r.error) || 'Umschalten fehlgeschlagen', r && r.ok ? 'ok' : 'error', 6000);
         }),
         button('Alle Bildschirme wieder einschalten', async () => { await api.restoreDisplays(); App.toast('Bildschirme wiederhergestellt', 'ok'); }),
-        group('Bildschirm umschalten (wie Win + P)'),
+        group('Ton', 'Auf welches Gerät der Ton im Konsolenmodus wechselt'),
+        audioSelect(),
+        toggle('Beim Beenden zurückstellen', () => C().display, 'restoreAudio', 'Danach wieder das vorherige Gerät (z.B. Kopfhörer am PC)', { get: () => C().display.restoreAudio !== false }),
+        button('Jetzt auf dieses Gerät umstellen', async () => {
+          const r = await api.applyAudio().catch((e) => ({ ok: false, error: String(e.message || e) }));
+          App.toast(r && r.ok ? `Ton kommt jetzt aus: ${r.name}` : (r && r.error) || 'Umstellen fehlgeschlagen', r && r.ok ? 'ok' : 'error', 6000);
+          S.audio = await api.listAudio().catch(() => []); render();
+        }),
+                group('Bildschirm umschalten (wie Win + P)'),
         select('Beim Start des Konsolenmodus', () => C().display, 'onStart', DISPLAY_OPTS, '„Nur Fernseher“ schaltet die Monitore ab, „als Hauptbildschirm“ lässt sie an – Spiele starten auf dem Hauptbildschirm'),
         select('Beim Beenden (zurück zum Desktop)', () => C().display, 'onExit', DISPLAY_OPTS.filter((o) => !['tvOnly', 'tvPrimary'].includes(o.value))),
         toggle('Vor Herunterfahren/Neustart wiederherstellen', () => C().display, 'restoreBeforeShutdown', 'Damit Windows beim nächsten Start wieder auf dem Monitor erscheint'),
         select('Wartezeit nach dem Umschalten', () => C().display, 'switchDelayMs', [1000, 1500, 2500, 4000, 6000].map((v) => ({ value: v, label: v / 1000 + ' s' }))),
-        group('Eigene Befehle', 'z.B. Audio auf TV umstellen mit NirCmd'),
+        group('Eigene Befehle', 'z.B. Programme oder Skripte beim Start ausführen'),
         listText('Befehle beim Start', () => C().display, 'customCommandsOnStart', 'Mehrere mit ; trennen. Beispiel: nircmd setdefaultsounddevice "TV"'),
         listText('Befehle beim Beenden', () => C().display, 'customCommandsOnExit'),
         group('Jetzt testen'),
@@ -885,6 +912,7 @@
     async open(sectionId) {
       if (sectionId) { S.section = Math.max(0, SECTIONS.findIndex((s) => s.id === sectionId)); S.focus = 0; S.detail = null; }
       try { S.displays = await api.listDisplays(); } catch { S.displays = []; }
+      try { S.audio = await api.listAudio(); } catch { S.audio = []; }
       try { S.spotify = await api.spotifyStatus(); } catch { S.spotify = {}; }
       try { S.aleclip = await api.aleclipStatus(); } catch { S.aleclip = {}; }
       try { S.update = await api.updateState(); } catch { S.update = {}; }

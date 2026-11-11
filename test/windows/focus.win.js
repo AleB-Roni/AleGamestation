@@ -56,6 +56,17 @@ function hwndOfPid(pid) {
     console.log(r3 === '0' ? '✔ Gesicherte Anordnung wiederhergestellt' : `⚠ Wiederherstellen meldet ${r3} (VM-Grafiktreiber?)`);
   }
 
+  // Tonausgabe: Geräte auflisten, aktuelles Standardgerät erneut setzen (= keine Änderung)
+  const audio = JSON.parse((await helper.request('audiodevs', 10000)) || '[]');
+  assert.ok(Array.isArray(audio), 'Tonausgabe-Liste ist kein Array');
+  const defAudio = audio.find((a) => a.default);
+  if (!defAudio) console.log(`⚠ Kein Standard-Wiedergabegerät (${audio.length} Geräte) – Umstellen nicht prüfbar`);
+  else {
+    const r = await helper.request(`audioset ${Buffer.from(defAudio.id).toString('base64')}`, 10000);
+    assert.strictEqual(r, '0', 'Tonausgabe setzen meldet ' + r);
+    console.log('✔ Tonausgabe: ' + audio.length + ' Gerät(e), Standardgerät setzen funktioniert');
+  }
+
   // 2) Zwei Fenster: A im Hintergrund, B im Vordergrund -> A per "front" nach vorne holen
   const notepad = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'notepad.exe');
   const a = spawn(notepad, [], { detached: true, stdio: 'ignore' });

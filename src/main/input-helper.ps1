@@ -14,6 +14,9 @@
 #   q <id> save            Aktuelle Anordnung sichern -> Base64
 #   q <id> restore <b64>   Gesicherte Anordnung wiederherstellen -> Ergebniscode
 #   q <id> extend          Alle Bildschirme erweitern -> Ergebniscode
+#   q <id> audiodevs       Wiedergabegeräte als JSON
+#   q <id> audiodefault    Aktuelles Standard-Wiedergabegerät (ID)
+#   q <id> audioset <b64>  Standard-Wiedergabegerät setzen (ID Base64) -> 0 = ok
 #   q <id> pidinfo <hwnd>  Prozess eines Fensters -> "pid name"
 #   q <id> suspend <pid>   Prozess anhalten (Spiel-Pause im Overlay) -> 0 = ok
 #   q <id> resume <pid>    Prozess fortsetzen -> 0 = ok
@@ -22,6 +25,107 @@ $ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @"
 using System;
 using System.Runtime.InteropServices;
+
+// ---------- Windows-Audio (Core Audio): Ausgabegeräte auflisten und Standardgerät setzen ----------
+[StructLayout(LayoutKind.Sequential)] public struct AgsPropKey { public Guid fmtid; public int pid; }
+[StructLayout(LayoutKind.Explicit, Size = 24)] public struct AgsPropVariant { [FieldOffset(0)] public short vt; [FieldOffset(8)] public IntPtr ptr; }
+[ComImport, Guid("886d8eeb-8cf2-4446-8d02-cdba1dbdcf99"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+public interface IAgsPropertyStore {
+  [PreserveSig] int GetCount(out int count);
+  [PreserveSig] int GetAt(int index, out AgsPropKey key);
+  [PreserveSig] int GetValue(ref AgsPropKey key, out AgsPropVariant value);
+  [PreserveSig] int SetValue(ref AgsPropKey key, ref AgsPropVariant value);
+  [PreserveSig] int Commit();
+}
+[ComImport, Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+public interface IAgsMMDevice {
+  [PreserveSig] int Activate(ref Guid iid, int clsCtx, IntPtr p, [MarshalAs(UnmanagedType.IUnknown)] out object iface);
+  [PreserveSig] int OpenPropertyStore(int access, out IAgsPropertyStore store);
+  [PreserveSig] int GetId([MarshalAs(UnmanagedType.LPWStr)] out string id);
+  [PreserveSig] int GetState(out int state);
+}
+[ComImport, Guid("0BD7A1BE-7A1A-44DB-8397-CC5392387B5E"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+public interface IAgsMMDeviceCollection {
+  [PreserveSig] int GetCount(out int count);
+  [PreserveSig] int Item(int index, out IAgsMMDevice device);
+}
+[ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+public interface IAgsMMDeviceEnumerator {
+  [PreserveSig] int EnumAudioEndpoints(int dataFlow, int stateMask, out IAgsMMDeviceCollection devices);
+  [PreserveSig] int GetDefaultAudioEndpoint(int dataFlow, int role, out IAgsMMDevice device);
+  [PreserveSig] int GetDevice([MarshalAs(UnmanagedType.LPWStr)] string id, out IAgsMMDevice device);
+  [PreserveSig] int RegisterEndpointNotificationCallback(IntPtr client);
+  [PreserveSig] int UnregisterEndpointNotificationCallback(IntPtr client);
+}
+[ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")] public class AgsMMDeviceEnumerator { }
+// Nicht offiziell dokumentiert, aber seit Windows 7 unverändert (so stellt auch Windows selbst das Standardgerät um)
+[ComImport, Guid("F8679F50-850A-41CF-9C72-430F290290C8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+public interface IAgsPolicyConfig {
+  [PreserveSig] int GetMixFormat([MarshalAs(UnmanagedType.LPWStr)] string id, IntPtr f);
+  [PreserveSig] int GetDeviceFormat([MarshalAs(UnmanagedType.LPWStr)] string id, int d, IntPtr f);
+  [PreserveSig] int ResetDeviceFormat([MarshalAs(UnmanagedType.LPWStr)] string id);
+  [PreserveSig] int SetDeviceFormat([MarshalAs(UnmanagedType.LPWStr)] string id, IntPtr a, IntPtr b);
+  [PreserveSig] int GetProcessingPeriod([MarshalAs(UnmanagedType.LPWStr)] string id, int d, IntPtr a, IntPtr b);
+  [PreserveSig] int SetProcessingPeriod([MarshalAs(UnmanagedType.LPWStr)] string id, IntPtr a);
+  [PreserveSig] int GetShareMode([MarshalAs(UnmanagedType.LPWStr)] string id, IntPtr m);
+  [PreserveSig] int SetShareMode([MarshalAs(UnmanagedType.LPWStr)] string id, IntPtr m);
+  [PreserveSig] int GetPropertyValue([MarshalAs(UnmanagedType.LPWStr)] string id, IntPtr k, IntPtr v);
+  [PreserveSig] int SetPropertyValue([MarshalAs(UnmanagedType.LPWStr)] string id, IntPtr k, IntPtr v);
+  [PreserveSig] int SetDefaultEndpoint([MarshalAs(UnmanagedType.LPWStr)] string id, int role);
+  [PreserveSig] int SetEndpointVisibility([MarshalAs(UnmanagedType.LPWStr)] string id, int visible);
+}
+[ComImport, Guid("870AF99C-171D-4F9E-AF0D-E63DF40C2BC9")] public class AgsPolicyConfigClient { }
+
+public static class AgsAudio {
+  [DllImport("ole32.dll")] static extern int PropVariantClear(ref AgsPropVariant pv);
+  static string Esc(string s) { return (s ?? "").Replace("\\", "\\\\").Replace("\"", "\\\""); }
+  static string Prop(IAgsPropertyStore store, string fmt, int pid) {
+    AgsPropKey k = new AgsPropKey(); k.fmtid = new Guid(fmt); k.pid = pid;
+    AgsPropVariant v;
+    if (store.GetValue(ref k, out v) != 0) return "";
+    string s = v.vt == 31 && v.ptr != IntPtr.Zero ? Marshal.PtrToStringUni(v.ptr) : "";
+    PropVariantClear(ref v);
+    return s ?? "";
+  }
+
+  /** Wiedergabegeräte (aktiv + ausgesteckt) als JSON: id, name (z.B. "LG TV (NVIDIA High Definition Audio)"), aktiv, Standard */
+  public static string List() {
+    IAgsMMDeviceEnumerator en = (IAgsMMDeviceEnumerator)new AgsMMDeviceEnumerator();
+    string def = "";
+    IAgsMMDevice d0;
+    if (en.GetDefaultAudioEndpoint(0, 1, out d0) == 0 && d0 != null) d0.GetId(out def);
+    IAgsMMDeviceCollection col;
+    if (en.EnumAudioEndpoints(0, 1 | 8, out col) != 0) return "[]";
+    int n; col.GetCount(out n);
+    var sb = new System.Text.StringBuilder("[");
+    for (int i = 0; i < n; i++) {
+      IAgsMMDevice d; if (col.Item(i, out d) != 0) continue;
+      string id; d.GetId(out id);
+      int state; d.GetState(out state);
+      IAgsPropertyStore st; d.OpenPropertyStore(0, out st);
+      string name = Prop(st, "a45c254e-df1c-4efd-8020-67d146a850e0", 14);   // Gerätename, z.B. "LG TV (NVIDIA High Definition Audio)"
+      string desc = Prop(st, "a45c254e-df1c-4efd-8020-67d146a850e0", 2);    // z.B. "LG TV"
+      if (sb.Length > 1) sb.Append(",");
+      sb.AppendFormat("{{\"id\":\"{0}\",\"name\":\"{1}\",\"desc\":\"{2}\",\"active\":{3},\"default\":{4}}}",
+        Esc(id), Esc(name), Esc(desc), state == 1 ? "true" : "false", id == def ? "true" : "false");
+    }
+    return sb.Append("]").ToString();
+  }
+  public static string Default() {
+    IAgsMMDeviceEnumerator en = (IAgsMMDeviceEnumerator)new AgsMMDeviceEnumerator();
+    IAgsMMDevice d; string id = "";
+    if (en.GetDefaultAudioEndpoint(0, 1, out d) == 0 && d != null) d.GetId(out id);
+    return id ?? "";
+  }
+  /** Standard-Wiedergabegerät für alle Rollen (Spiele, Musik, Telefonate) setzen; 0 = ok */
+  public static int SetDefault(string id) {
+    IAgsPolicyConfig pc = (IAgsPolicyConfig)new AgsPolicyConfigClient();
+    int r = 0;
+    for (int role = 0; role < 3; role++) { int x = pc.SetDefaultEndpoint(id, role); if (x != 0) r = x; }
+    return r;
+  }
+}
+
 public static class AgsInput {
   [StructLayout(LayoutKind.Sequential)] public struct MOUSEINPUT { public int dx; public int dy; public int mouseData; public uint dwFlags; public uint time; public IntPtr dwExtraInfo; }
   [StructLayout(LayoutKind.Sequential)] public struct KEYBDINPUT { public ushort wVk; public ushort wScan; public uint dwFlags; public uint time; public IntPtr dwExtraInfo; }
@@ -343,6 +447,9 @@ while ($true) {
         elseif ($p[2] -eq 'save') { $v = [AgsInput]::Save() }
         elseif ($p[2] -eq 'restore') { $v = [AgsInput]::Restore($p[3]) }
         elseif ($p[2] -eq 'extend') { $v = [AgsInput]::Extend() }
+        elseif ($p[2] -eq 'audiodevs') { $v = [AgsAudio]::List() }
+        elseif ($p[2] -eq 'audiodefault') { $v = [AgsAudio]::Default() }
+        elseif ($p[2] -eq 'audioset') { $v = [AgsAudio]::SetDefault([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($p[3]))) }
         elseif ($p[2] -eq 'pidinfo') { $v = [AgsInput]::PidInfo([long]$p[3]) }
         elseif ($p[2] -eq 'suspend') { $v = [AgsInput]::Suspend([uint32]$p[3], $false) }
         elseif ($p[2] -eq 'resume') { $v = [AgsInput]::Suspend([uint32]$p[3], $true) }

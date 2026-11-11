@@ -314,6 +314,56 @@ async function enterConsoleMode() {
       await new Promise((res) => setTimeout(res, d.switchDelayMs || 2500));
     }
   }
+  // Tonausgabe auf das gewählte Gerät (z.B. Fernseher) umstellen – nach dem Bildschirm, weil HDMI-Ton erst dann erscheint
+  if (d.audioDevice && d.audioDevice.id) {
+    applyAudio(true).then((r) => { if (!r.ok && r.error) send('toast', { type: 'error', text: r.error, ms: 6000 }); });
+  }
+}
+
+// ---------- Tonausgabe (Windows-Standardgerät) ----------
+let audioState = null; // { prevId } solange die Tonausgabe umgestellt ist
+async function listAudio() {
+  try { const j = await nativeHelper.request('audiodevs', 10000); return j ? JSON.parse(j) : []; } catch { return []; }
+}
+/** Gewähltes Gerät suchen (ID, sonst Name – IDs können sich beim Neuanschließen ändern) */
+function findAudio(list) {
+  const want = cfg().display.audioDevice;
+  if (!want) return null;
+  return list.find((x) => x.id === want.id) || list.find((x) => want.name && x.name === want.name) || list.find((x) => want.desc && x.desc === want.desc) || null;
+}
+/** @param {boolean} wait warten, bis das Gerät verfügbar ist (Fernseher wird gerade eingeschaltet) */
+async function applyAudio(wait = false) {
+  if (process.platform !== 'win32') return { ok: false, error: 'Tonausgabe umstellen geht nur unter Windows' };
+  const want = cfg().display.audioDevice;
+  if (!want) return { ok: false, error: 'Kein Gerät gewählt' };
+  let list = await listAudio();
+  let dev = findAudio(list);
+  const deadline = Date.now() + (wait ? (cfg().display.tvWaitSeconds || 15) * 1000 : 0);
+  while ((!dev || !dev.active) && Date.now() < deadline) {
+    await sleep(1500);
+    list = await listAudio();
+    dev = findAudio(list);
+  }
+  if (!dev || !dev.active) {
+    debug.warn('ton', 'Tonausgabe nicht verfügbar', { gesucht: want, gefunden: list.map((x) => x.name) });
+    return { ok: false, error: `Tonausgabe „${want.name}“ ist nicht verfügbar – ist das Gerät eingeschaltet?` };
+  }
+  if (dev.default) return { ok: true, name: dev.name, unchanged: true };
+  if (!audioState) {
+    const prev = list.find((x) => x.default);
+    audioState = { prevId: prev ? prev.id : '' };
+  }
+  const r = await nativeHelper.request(`audioset ${b64(dev.id)}`, 10000);
+  debug.info('ton', `Tonausgabe -> ${dev.name} (Code ${r})`);
+  if (r !== '0') return { ok: false, error: `Windows konnte die Tonausgabe nicht umstellen (Code ${r || 'keine Antwort'})` };
+  return { ok: true, name: dev.name };
+}
+async function restoreAudio() {
+  const st = audioState;
+  audioState = null;
+  if (!st || !st.prevId || cfg().display.restoreAudio === false) return;
+  const r = await nativeHelper.request(`audioset ${b64(st.prevId)}`, 10000);
+  debug.info('ton', `Tonausgabe zurückgestellt (Code ${r})`);
 }
 
 async function leaveConsoleMode(opts = {}) {
@@ -328,6 +378,7 @@ async function leaveConsoleMode(opts = {}) {
     await system.setDisplayMode(d.onExit);
     displaySwitched = false;
   }
+  await restoreAudio();
   await system.runCommands(d.customCommandsOnExit);
   if (!opts.restart) await ha.onExit({ shutdown: !!opts.shutdown }).catch(() => {});
 }
@@ -812,6 +863,9 @@ ipcMain.handle('system:power', async (_e, action) => {
 });
 ipcMain.handle('system:displayMode', (_e, mode) => system.setDisplayMode(mode));
 ipcMain.handle('displays:list', () => listDisplays());
+ipcMain.handle('audio:list', () => listAudio());
+ipcMain.handle('audio:apply', () => applyAudio(false));
+ipcMain.handle('audio:restore', async () => { await restoreAudio(); return true; });
 ipcMain.handle('displays:identify', () => identifyDisplays());
 ipcMain.handle('displays:tvOnly', (_e, mode) => applyTvOnly(true, mode === 'primary' ? 'primary' : 'only'));
 ipcMain.handle('displays:restore', async () => { await restoreDisplays('extend'); return true; });

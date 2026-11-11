@@ -69,6 +69,12 @@
     ],
     debugLog: async () => true, debugState: async () => ({ enabled: true, errors: 0, warnings: 0 }), debugReport: async () => 'C:\\Users\\Ale\\Desktop\\AleGamestation-Debugbericht.txt', debugOpenFolder: async () => true,
     onDebugEvent: () => () => {},
+    listAudio: async () => [
+      { id: '{0.0.0}.{a}', name: 'Lautsprecher (Realtek(R) Audio)', desc: 'Lautsprecher', active: true, default: true },
+      { id: '{0.0.0}.{b}', name: 'LG TV (NVIDIA High Definition Audio)', desc: 'LG TV', active: true, default: false },
+      { id: '{0.0.0}.{c}', name: 'Headset (Arctis 7)', desc: 'Headset', active: false, default: false }
+    ],
+    applyAudio: async () => ({ ok: true, name: 'LG TV (NVIDIA High Definition Audio)' }), restoreAudio: async () => true,
     identifyDisplays: async () => true, tvOnly: async () => ({ ok: true }), restoreDisplays: async () => true, info: async () => ({}),
     updateState: async () => ({ status: 'latest', version: '1.0.0' }), checkUpdate: async () => null, installUpdate: async () => false, onUpdateState: noop,
     recommendedPrograms: async () => [{ name: 'OneDrive', process: 'OneDrive.exe', action: 'close', note: 'Synchronisation' }, { name: 'Microsoft Teams', process: 'ms-teams.exe', action: 'close', note: 'Viel RAM' }],
