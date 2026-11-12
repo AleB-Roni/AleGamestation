@@ -643,3 +643,12 @@ test('Konsole mit mehreren Emulatoren: Standard + Emulator pro Spiel', () => {
   // Weiterer Emulator der Konsole erscheint nicht als eigene, nicht zugeordnete Kachel
   assert.ok(!lib.systems.some((s) => s.id === 'emu:ryu'));
 });
+
+test('Switch-2-Cover: Suchname bereinigen und Shop-Titel unscharf zuordnen', () => {
+  const { romTitle, titleScore } = require('../src/main/scraper');
+  assert.strictEqual(romTitle({ name: 'Super Mario Party Jamboree – Nintendo Switch 2 Edition + Jamboree TV [0100ABC][v0]' }), 'Super Mario Party Jamboree');
+  assert.ok(titleScore('Zelda Tears of the Kingdom', 'The Legend of Zelda: Tears of the Kingdom – Nintendo Switch 2 Edition') >= 0.75);
+  assert.ok(titleScore('Pokemon Legends Z-A', 'Pokémon Legends: Z-A – Nintendo Switch 2 Edition') >= 0.75);
+  assert.ok(titleScore('Mario Kart World', 'Super Mario Kart') < 0.75);
+  assert.ok(titleScore('Donkey Kong Bananza', 'Donkey Kong Country Returns HD') < 0.75);
+});

@@ -51,8 +51,30 @@ const NAME_SYSTEM = [
 /** Suchname für ein ROM: angezeigter Name ohne Klammer-Tags und Titel-IDs */
 function romTitle(game) {
   return String(game.name || path.basename(game.rom || '', path.extname(game.rom || '')))
-    .replace(/\s*[([].*?[)\]]/g, '').replace(/\s+v\d[\d.]*$/i, '').trim();
+    .replace(/\s*[([].*?[)\]]/g, '')
+    .replace(/\s*[-–—:+]?\s*(nintendo\s+)?switch\s*2\s+edition.*$/i, '') // "… – Nintendo Switch 2 Edition + …"
+    .replace(/\s*[-–—]\s*(ns2|nsw2)\b.*$/i, '')
+    .replace(/\s+v\d[\d.]*$/i, '').replace(/[_]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
 }
+
+/** Ähnlichkeit zweier Spielnamen 0…1 (Wörter, ohne Artikel/Satzzeichen) – "Zelda Tears of the Kingdom" ≈ "The Legend of Zelda: Tears of the Kingdom" */
+const STOP = new Set(['the', 'a', 'an', 'of', 'and', 'der', 'die', 'das', 'und', 'edition', 'nintendo', 'switch', 'deluxe']);
+function titleWords(s) {
+  // Akzente entfernen ("Pokémon" = "Pokemon"), Satzzeichen zu Leerzeichen
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ß/g, 'ss')
+    .replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').split(' ').filter((w) => w && !STOP.has(w));
+}
+function titleScore(a, b) {
+  if (normalize(a) === normalize(b)) return 1;
+  const A = titleWords(a); const B = new Set(titleWords(b));
+  if (!A.length || !B.size) return 0;
+  const hit = A.filter((w) => B.has(w)).length;
+  // Alle Wörter des Dateinamens kommen im Shop-Titel vor ("Zelda Tears Kingdom" ⊂ "Legend Zelda Tears Kingdom")
+  const cover = hit / A.length;
+  const both = hit / Math.max(A.length, B.size);
+  return Math.max(both, cover * 0.9);
+}
+const NINTENDO_SYSTEMS = new Set(['switch', '3ds', 'wiiu']);
 function systemFromName(name) {
   const hit = NAME_SYSTEM.find(([re]) => re.test(String(name || '')));
   return hit ? hit[1] : '';
@@ -254,8 +276,10 @@ class Scraper extends EventEmitter {
     if (!want.covers && !want.snaps) return { skipped: true };
     const result = { covers: false, snaps: false, source: '' };
     const sources = sc.source === 'libretro' ? ['libretro'] : sc.source === 'screenscraper' ? ['screenscraper'] : ['screenscraper', 'libretro'];
-    // SteamGridDB (kostenloser Schlüssel) als letzte Quelle – hat auch viele Switch-/neuere Konsolenspiele
+    // SteamGridDB (kostenloser Schlüssel) – hat auch viele Switch-/neuere Konsolenspiele
     if (sc.steamgriddbKey) sources.push('steamgriddb');
+    // Nintendo-Shop (ohne Schlüssel): Switch, Switch 2, 3DS, Wii U – auch ganz neue Spiele
+    if (NINTENDO_SYSTEMS.has(sysKey)) sources.push('nintendo');
     for (const src of sources) {
       if (!want.covers && !want.snaps) break;
       let got = {};
@@ -264,6 +288,8 @@ class Scraper extends EventEmitter {
         got = await this._screenscraper(game, sysKey, want, sc.screenscraper);
       } else if (src === 'steamgriddb') {
         got = await this.sgdb(romTitle(game), sc.steamgriddbKey, want).catch(() => ({}));
+      } else if (src === 'nintendo') {
+        got = await this.nintendo(romTitle(game), want).catch(() => ({}));
       } else {
         if (!LIBRETRO_SYSTEMS[sysKey]) continue; // z.B. Switch: libretro hat keine Bilder
         got = await this._libretro(game, sysKey, want);
@@ -323,7 +349,9 @@ class Scraper extends EventEmitter {
     if (!hit) return {};
     const out = {};
     if (want.covers) {
-      const g = await get(`/grids/game/${hit.id}?dimensions=600x900,342x482,660x930&types=static`);
+      let g = await get(`/grids/game/${hit.id}?dimensions=600x900,342x482,660x930&types=static`);
+      // Kein Hochformat-Cover (z.B. ganz neue Spiele): irgendein vorhandenes Bild nehmen
+      if (!(g && g.data && g.data.length)) g = await get(`/grids/game/${hit.id}?types=static`);
       const url = g && g.data && g.data[0] && g.data[0].url;
       if (url) try { out.covers = await this._get(url, true); } catch { /* ignore */ }
     }
@@ -333,6 +361,43 @@ class Scraper extends EventEmitter {
       if (url) try { out.snaps = await this._get(url, true); } catch { /* ignore */ }
     }
     return out;
+  }
+
+  /**
+   * Nintendo-Shop (öffentliche Suche von nintendo.com/eu): quadratisches Titelbild als Cover, breites Bild als Hintergrund.
+   * Kennt Switch-2-Spiele, für die es anderswo oft noch nichts gibt.
+   */
+  async nintendo(title, want) {
+    if (!title) return {};
+    const first = async (urls) => {
+      for (const u of urls.filter(Boolean)) {
+        try { return await this._get(u.startsWith('//') ? 'https:' + u : u, true); } catch { /* nächste */ }
+      }
+      return null;
+    };
+    for (const lang of ['en', 'de']) {
+      let docs = [];
+      try {
+        const url = `https://searching.nintendo-europe.com/${lang}/select?q=${encodeURIComponent(title)}&fq=type%3AGAME&rows=15&wt=json`;
+        docs = (JSON.parse(await this._get(url)).response || {}).docs || [];
+      } catch { continue; }
+      const isSwitch2 = (d) => (d.system_names_txt || []).some((x) => /switch 2/i.test(x));
+      const isSwitch = (d) => (d.system_names_txt || []).some((x) => /switch/i.test(x));
+      const ranked = docs.map((d) => ({ d, s: titleScore(title, d.title) + (isSwitch2(d) ? 0.03 : isSwitch(d) ? 0.02 : 0) }))
+        .sort((a, b) => b.s - a.s);
+      const best = ranked[0];
+      this.trace(`Nintendo-Shop (${lang}) „${title}“: ${best ? `„${best.d.title}“ (${best.s.toFixed(2)})` : 'kein Treffer'}`);
+      if (!best || best.s < 0.75) continue;
+      const d = best.d;
+      const out = {};
+      // Hochformat-Packshot (ältere Spiele), sonst quadratisches Titelbild
+      if (want.covers) out.covers = await first([/packshot|\/PS_/i.test(d.image_url || '') ? d.image_url : '', d.image_url_sq_s, d.image_url]);
+      if (want.snaps) out.snaps = await first([d.image_url_h16x9_s, d.image_url_h2x1_s]);
+      if (!out.covers) delete out.covers;
+      if (!out.snaps) delete out.snaps;
+      if (out.covers || out.snaps) { out.title = d.title; return out; }
+    }
+    return {};
   }
 
   /**
@@ -456,4 +521,4 @@ class Scraper extends EventEmitter {
   }
 }
 
-module.exports = { Scraper, normalize, bestMatch, LIBRETRO_SYSTEMS, SCREENSCRAPER_IDS, systemFromName, romTitle };
+module.exports = { Scraper, normalize, bestMatch, LIBRETRO_SYSTEMS, SCREENSCRAPER_IDS, systemFromName, romTitle, titleScore };

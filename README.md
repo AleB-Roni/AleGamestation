@@ -224,6 +224,7 @@ ROMs bekommen automatisch **Box-Art und Screenshots** (Screenshots erscheinen al
 
 - **libretro-thumbnails** – kostenlos, ohne Konto, sofort aktiv. Funktioniert am besten mit ROMs im üblichen No-Intro/Redump-Namensformat (z. B. `Super Mario World (USA).sfc`), erkennt aber auch unsaubere Namen wie `super_mario_world.sfc`
 - **ScreenScraper.fr** – optional, größte Datenbank, erkennt ROMs zusätzlich über Dateigröße und Prüfsumme. Benötigt ein kostenloses Konto **und** einen Entwickler-Zugang (devid/devpassword, im ScreenScraper-Forum zu beantragen). Eintragen unter **Einstellungen → Cover**
+- **Nintendo-Shop** (ohne Konto/Schlüssel) – für Switch, **Switch 2**, 3DS und Wii U: Titelbild und Hintergrund aus der Spielesuche von nintendo.com, auch für ganz neue Spiele (Zusätze wie „– Nintendo Switch 2 Edition“ werden beim Suchen ignoriert)
 
 Fehlende Cover werden beim Start automatisch im Hintergrund geladen. Manuell: **Menü → „Fehlende Cover herunterladen“**, pro System (Emulatoren-Tab → Y) oder pro Spiel (Details → „Cover herunterladen“). Der offizielle Spielname wird dabei gleich mit übernommen.
 Bilder liegen in `%APPDATA%\AleGamestation\media` (Speicherort änderbar). Eigene Bilder neben der ROM (`Spielname.png` oder `covers\Spielname.png`) haben Vorrang.
