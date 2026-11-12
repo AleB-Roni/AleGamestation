@@ -95,6 +95,9 @@ let displaySwitched = false;
 const isDev = process.argv.includes('--dev');
 // Startoption "--no-display-switch" überspringt das Umschalten (z.B. zum Testen am Schreibtisch)
 const skipDisplaySwitch = process.argv.includes('--no-display-switch');
+// Einrichtungsmodus ("--setup", Desktop-Verknüpfung): nur Einstellungen ändern – kein Fernseher, keine Bildschirm-/
+// Tonumschaltung, keine Hintergrundprogramme anhalten; Fenster auf dem Hauptbildschirm
+const setupMode = process.argv.includes('--setup');
 
 function cfg() {
   return store.get();
@@ -160,6 +163,7 @@ function findTv(list) {
 
 function targetDisplay() {
   const displays = screen.getAllDisplays();
+  if (setupMode) return screen.getPrimaryDisplay();
   const t = String(cfg().general.targetDisplay || 'primary');
   if (t === 'tv') {
     const tv = findTv(knownDisplays);
@@ -253,7 +257,7 @@ async function identifyDisplays() {
 function placeWindow() {
   if (!win || win.isDestroyed()) return;
   const { bounds } = targetDisplay();
-  const fullscreen = cfg().general.startFullscreen && !isDev;
+  const fullscreen = cfg().general.startFullscreen && !isDev && !setupMode;
   if (fullscreen) win.setFullScreen(false);
   win.setBounds(fullscreen ? bounds : { x: bounds.x + 60, y: bounds.y + 60, width: Math.min(1600, bounds.width - 120), height: Math.min(900, bounds.height - 120) });
   if (fullscreen) win.setFullScreen(true);
@@ -367,6 +371,7 @@ async function restoreAudio() {
 }
 
 async function leaveConsoleMode(opts = {}) {
+  if (setupMode) return; // im Einrichtungsmodus wurde nichts umgestellt
   debug.info('ablauf', 'Konsolenmodus beenden', opts);
   const d = cfg().display;
   mouseMode.setActive(false);
@@ -860,7 +865,7 @@ ipcMain.handle('system:power', async (_e, action) => {
     if (cfg().display.restoreBeforeShutdown) await leaveConsoleMode(opts);
     else {
       await perf.restore(true);
-      if (opts.shutdown) await ha.onExit({ shutdown: true }).catch(() => {});
+      if (opts.shutdown && !setupMode) await ha.onExit({ shutdown: true }).catch(() => {});
     }
   }
   return system.power(action);
@@ -875,6 +880,28 @@ ipcMain.handle('displays:tvOnly', (_e, mode) => applyTvOnly(true, mode === 'prim
 ipcMain.handle('displays:restore', async () => { await restoreDisplays('extend'); return true; });
 ipcMain.handle('system:displays', () => screen.getAllDisplays().map((d, i) => ({ index: i, label: d.label || `Bildschirm ${i + 1}`, width: d.size.width, height: d.size.height, primary: d.id === screen.getPrimaryDisplay().id })));
 ipcMain.handle('pad:hidCount', () => psWatcher.devices.size);
+
+// ---------- Einrichtungsmodus und Desktop-Verknüpfung ----------
+ipcMain.handle('app:mode', () => ({ setup: setupMode }));
+ipcMain.handle('app:setupShortcut', () => {
+  if (process.platform !== 'win32') throw new Error('Verknüpfungen gibt es nur unter Windows');
+  const file = path.join(app.getPath('desktop'), 'AleGamestation – Einrichten (ohne Fernseher).lnk');
+  const args = (app.isPackaged ? '' : `"${app.getAppPath()}" `) + '--setup --ags-debug';
+  const ok = shell.writeShortcutLink(file, 'create', {
+    target: process.execPath, args, cwd: path.dirname(process.execPath),
+    description: 'AleGamestation nur zum Einstellen öffnen – ohne Fernseher, Bildschirm- und Tonumschaltung (mit Debug-Protokoll)',
+    icon: process.execPath, iconIndex: 0
+  });
+  if (!ok) throw new Error('Verknüpfung konnte nicht erstellt werden');
+  debug.info('ablauf', 'Einrichten-Verknüpfung erstellt: ' + file);
+  return file;
+});
+// Aus dem Einrichtungsmodus richtig in den Konsolenmodus wechseln (Neustart ohne --setup)
+ipcMain.handle('app:startConsoleMode', () => {
+  app.relaunch({ args: process.argv.slice(1).filter((a) => a !== '--setup' && a !== '--ags-debug') });
+  app.exit(0);
+  return true;
+});
 // Bekannte Emulatoren (Vollbild-Argumente, empfohlene Start-Argumente) für die Oberfläche
 ipcMain.handle('emulators:profiles', () => require('./emulator-profiles').PROFILES.map((p) => ({
   id: p.id, match: p.match.source, name: p.name, fullscreen: p.fullscreen, has: p.has ? p.has.source : '', hasFlags: p.has ? p.has.flags : '', note: p.note || '', args: p.args
@@ -989,7 +1016,11 @@ ipcMain.handle('dialog:pickImage', async () => {
 // Nur für automatische Tests (AGS_TEST=1): Zugriff auf interne Objekte
 if (process.env.AGS_TEST === '1') global.__ags = { watcher, launcher, osd, overlay, psWatcher };
 
-app.on('second-instance', () => bringToFront());
+app.on('second-instance', (_e, argv) => {
+  bringToFront();
+  // Einrichten-Verknüpfung, während AleGamestation schon läuft: direkt die Einstellungen zeigen
+  if ((argv || []).includes('--setup')) send('app:openSettings', 'general');
+});
 
 app.whenReady().then(async () => {
   store.load();
@@ -999,13 +1030,14 @@ app.whenReady().then(async () => {
   // Bildschirmliste vorab laden, damit "Oberfläche auf dem Fernseher" den richtigen Monitor findet
   const listing = listDisplays().catch(() => []);
   if (cfg().general.targetDisplay === 'tv') await listing;
-  await enterConsoleMode();
+  if (setupMode) debug.info('ablauf', 'Einrichtungsmodus: Fernseher, Bildschirme, Ton und Leistungsmodus bleiben unverändert');
+  else await enterConsoleMode();
   refreshLibrary();
   createWindow();
   watcher.start();
   startPlayStationWatcher();
   // Hintergrundprogramme pausieren/schließen (läuft parallel, blockiert den Start nicht)
-  perfPromise = perf.apply(cfg()).then((list) => {
+  perfPromise = (setupMode ? Promise.resolve([]) : perf.apply(cfg())).then((list) => {
     if (list.length) send('toast', { type: 'info', text: `Leistungsmodus: ${list.join(', ')} pausiert/beendet` });
     return list;
   }).catch(() => []);
@@ -1037,7 +1069,7 @@ app.on('before-quit', async (e) => {
   nativeHelper.stop();
   osd.destroy();
   overlay.destroy();
-  if (!quitting && (displaySwitched || perf.applied.length || perf.previousPlan || ha.ready())) {
+  if (!quitting && !setupMode && (displaySwitched || perf.applied.length || perf.previousPlan || ha.ready())) {
     e.preventDefault();
     quitting = true;
     await leaveConsoleMode();

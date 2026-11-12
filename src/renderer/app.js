@@ -1274,6 +1274,14 @@
     updateNavBack();
     refreshDebug();
     api.onDebugEvent(() => refreshDebug());
+    // Einrichtungsmodus (Desktop-Verknüpfung): direkt die Einstellungen, ohne Fernseher & Co.
+    try { App.setupMode = !!(await api.appMode()).setup; } catch { App.setupMode = false; }
+    $('#setupBadge').classList.toggle('hidden', !App.setupMode);
+    if (App.setupMode) {
+      openSettings('general');
+      App.toast('Einrichtungsmodus: Fernseher, Bildschirme und Ton bleiben unverändert', 'info', 6000);
+    }
+    if (api.onOpenSettings) api.onOpenSettings((sec) => openSettings(sec || 'general'));
     window.addEventListener('error', (e) => App.log('oberfläche', `JS-Fehler: ${e.message} (${(e.filename || '').split('/').pop()}:${e.lineno})`, debugContext(), 'error'));
     window.addEventListener('unhandledrejection', (e) => App.log('oberfläche', 'Promise-Fehler: ' + ((e.reason && (e.reason.stack || e.reason.message)) || e.reason), debugContext(), 'error'));
     api.onScrapeProgress(showScrapeProgress);

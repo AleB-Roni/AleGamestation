@@ -64,6 +64,10 @@ contextBridge.exposeInMainWorld('api', {
   onToast: on('toast'),
   onWindowFocus: on('window:focus'),
   onNavCommand: on('nav:command'),
+  appMode: () => ipcRenderer.invoke('app:mode'),
+  createSetupShortcut: () => ipcRenderer.invoke('app:setupShortcut'),
+  startConsoleMode: () => ipcRenderer.invoke('app:startConsoleMode'),
+  onOpenSettings: on('app:openSettings'),
   onGamepadConnection: on('gamepad:connection'),
   onPadState: on('pad:state'),
   // Konsolen-Overlay

@@ -120,6 +120,10 @@ Die Änderungsliste im Update-Fenster wird automatisch aus den Commit-Nachrichte
 | M | Menü |
 | O | Einstellungen |
 
+## Einrichtungsmodus (ohne Fernseher)
+
+Einstellungen → Allgemein → **„Verknüpfung „Einrichten (ohne Fernseher)“ auf dem Desktop“** legt eine zweite Verknüpfung an. Darüber startet AleGamestation nur zum Einstellen: im Fenster auf dem PC-Monitor, direkt in den Einstellungen und **ohne** Fernseher/Home Assistant, Bildschirm- und Tonumschaltung, Leistungsmodus und AleClip-Start (mit Debug-Protokoll). Oben steht „EINRICHTEN“. „Jetzt in den Konsolenmodus wechseln“ startet danach normal neu. Startparameter: `--setup`.
+
 ## Debug-Modus (Fehlersuche)
 
 **Einstellungen → Info & Updates → Debug-Modus** einschalten (oder die App mit `--ags-debug` starten). Oben erscheint „DEBUG“ – bei Fehlern rot mit Anzahl.

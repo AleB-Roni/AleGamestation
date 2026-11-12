@@ -452,3 +452,5 @@ body.hide-cursor .card-actions { display: none; }
 /* Hinweisleiste über offenen Menüs (anklickbar) */
 #modalHints { position: absolute; right: 0; bottom: 0; display: flex; gap: 2rem; padding: 1rem 2.8rem 1.4rem; font-size: 0.95rem; color: var(--muted); }
 #modalHints span.hint { display: inline-flex; gap: 0.5rem; align-items: center; }
+
+.debug-badge.setup { background: rgba(34,211,238,0.16); color: #67e8f9; border-color: rgba(34,211,238,0.45); }
