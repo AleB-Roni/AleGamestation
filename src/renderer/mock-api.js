@@ -52,10 +52,12 @@
     launch: async () => ({ running: false }), kill: async () => true, gameStatus: async () => ({ running: false }),
     power: async () => {}, setDisplayMode: async () => {}, displays: async () => [{ index: 0, label: 'TV', width: 3840, height: 2160 }],
     listDisplays: async () => [
-      { key: 'mon-dell', name: 'DELL U2720Q', width: 2560, height: 1440, hz: 144, primary: true, active: true, electronId: 1 },
-      { key: 'mon-lg', name: 'LG TV SSCR2', width: 3840, height: 2160, hz: 60, primary: false, active: true, electronId: 2 },
-      { key: 'mon-old', name: 'BenQ GW2480', width: 0, height: 0, hz: 0, primary: false, active: false, electronId: null }
+      { key: 'mon-hp1', name: 'HP Z27n G2', width: 2560, height: 1440, hz: 60, x: 0, y: 0, primary: true, active: true, electronId: 1 },
+      { key: 'mon-asus', name: 'XG27ACDNG', width: 2560, height: 1440, hz: 360, x: 2560, y: 0, primary: false, active: true, electronId: 2 },
+      { key: 'mon-hp2', name: 'HP Z27n G2', width: 2560, height: 1440, hz: 75, x: 5120, y: 0, primary: false, active: true, electronId: 3 },
+      { key: 'mon-lg', name: 'LG TV', width: 3840, height: 2160, hz: 120, primary: false, active: false, electronId: null }
     ],
+    applyDisplayPlan: async () => ({ ok: true }), revertDisplays: async () => true,
     spotifyStatus: async () => ({ connected: true, user: 'Ale', product: 'premium', redirect: 'http://127.0.0.1:43821/callback' }),
     spotifyConnect: async () => ({ user: 'Ale', product: 'premium' }), spotifyDisconnect: async () => true, spotifyDashboard: async () => true,
     spotifyTest: async () => ({ title: 'Get Lucky', artist: 'Daft Punk' }),

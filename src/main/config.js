@@ -65,6 +65,10 @@ const DEFAULT_CONFIG = {
     tvWaitSeconds: 15,
     // Fernseher, der in Windows deaktiviert ist, beim Start einschalten (und beim Beenden wieder ausschalten)
     enableTv: true,
+    // Monitor-Auswahl beim Start/Beenden: { mode: 'custom', monitors: { <Kennung>: 'off'|'on'|'primary' }, names: { <Kennung>: 'LG TV' } }
+    // startPlan null = ältere Einstellung „onStart“; exitPlan null/„restore“ = vorherige Anordnung wiederherstellen
+    startPlan: null,
+    exitPlan: null,
     // Fernseher im Konsolenmodus zur Hauptanzeige machen (beim Beenden wird der Hauptmonitor wiederhergestellt)
     tvAsPrimary: false,
     // Tonausgabe im Konsolenmodus, z.B. { id, name: 'LG TV (NVIDIA High Definition Audio)' }; null = nicht ändern

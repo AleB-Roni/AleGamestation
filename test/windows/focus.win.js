@@ -50,6 +50,10 @@ function hwndOfPid(pid) {
     const ra = await helper.request(`activate ${Buffer.from(prim.key).toString('base64')}`, 10000);
     assert.strictEqual(ra, '0', 'Aktivieren eines aktiven Bildschirms meldet ' + ra);
     console.log('✔ Bildschirm in Windows einschalten (bereits aktiv = keine Änderung)');
+    // Monitor-Auswahl: alle aktiven an, bisherige Hauptanzeige bleibt (= keine Änderung)
+    const enc = (k) => Buffer.from(k).toString('base64');
+    const rp = await helper.request(`setplan ${enc(prim.key)}|${active.map((d) => enc(d.key)).join(',')}`, 15000);
+    console.log(rp === '0' ? '✔ Monitor-Auswahl anwenden funktioniert' : `⚠ Monitor-Auswahl meldet ${rp} (VM-Grafiktreiber?)`);
     if (active.length === 1) {
       // Nur ein Bildschirm: "nur dieser" = gleiche Anordnung, muss gelingen
       const r2 = await helper.request(`tvonly ${Buffer.from(prim.key).toString('base64')}`, 15000);

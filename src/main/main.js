@@ -144,11 +144,11 @@ async function listDisplays() {
       const generic = !w.name || /pnp|plug and play|generic/i.test(w.name);
       return {
         key: w.key, device: w.device, name: (!generic && w.name) || (e && e.label) || `Bildschirm ${i + 1}`,
-        width: w.w, height: w.h, hz: w.hz, primary: !!w.primary, active: w.active !== false, electronId: e ? e.id : null
+        width: w.w, height: w.h, hz: w.hz, x: w.x, y: w.y, primary: !!w.primary, active: w.active !== false, electronId: e ? e.id : null
       };
     });
   } else {
-    list = el.map((d, i) => ({ key: 'e:' + d.id, device: '', name: d.label || `Bildschirm ${i + 1}`, width: Math.round(d.size.width * d.scaleFactor), height: Math.round(d.size.height * d.scaleFactor), primary: d.id === primaryId, active: true, electronId: d.id }));
+    list = el.map((d, i) => ({ key: 'e:' + d.id, device: '', name: d.label || `Bildschirm ${i + 1}`, width: Math.round(d.size.width * d.scaleFactor), height: Math.round(d.size.height * d.scaleFactor), x: Math.round(d.bounds.x * d.scaleFactor), y: Math.round(d.bounds.y * d.scaleFactor), primary: d.id === primaryId, active: true, electronId: d.id }));
   }
   knownDisplays = list;
   return list;
@@ -245,6 +245,42 @@ async function activateTv(wait = false) {
 function askTvOffOnExit() {
   const H = cfg().homeassistant || {};
   return ha.ready() && !!H.tvEntity && H.askTvOffAtExit !== false;
+}
+
+/**
+ * Monitor-Auswahl anwenden: plan.monitors = { key: 'off' | 'on' | 'primary' }.
+ * Abgeschaltete Bildschirme werden eingeschaltet, nicht gewählte abgeschaltet, Lücken geschlossen.
+ * @param {boolean} wait warten, bis gewählte Bildschirme erscheinen (Fernseher wird gerade eingeschaltet)
+ */
+async function applyPlan(plan, wait = false) {
+  const entries = Object.entries((plan && plan.monitors) || {});
+  const want = entries.filter(([, v]) => v === 'on' || v === 'primary').map(([k]) => k);
+  const primary = (entries.find(([, v]) => v === 'primary') || [])[0] || '';
+  if (!want.length) return { ok: false, error: 'Kein Bildschirm ausgewählt – mindestens einer muss an sein' };
+  let list = await listDisplays();
+  const missing = () => want.filter((k) => !list.some((x) => x.key === k));
+  const deadline = Date.now() + (wait ? (cfg().display.tvWaitSeconds || 15) * 1000 : 0);
+  while (missing().length && Date.now() < deadline) {
+    await sleep(1500);
+    list = await listDisplays();
+  }
+  const avail = want.filter((k) => list.some((x) => x.key === k));
+  const names = (plan.names || {});
+  const missingNames = missing().map((k) => names[k] || 'Bildschirm');
+  if (!avail.length) return { ok: false, error: `Keiner der gewählten Bildschirme ist angeschlossen (${missingNames.join(', ')})` };
+  if (avail.some((k) => /^e:/.test(k))) return { ok: false, error: 'Bildschirme umschalten geht nur unter Windows' };
+  if (!tvOnlyState) {
+    const prev = list.find((x) => x.primary && x.active);
+    tvOnlyState = { mode: 'plan', saved: await nativeHelper.request('save', 10000), prevPrimary: prev ? prev.key : '' };
+  }
+  const spec = (primary && avail.includes(primary) ? b64(primary) : '') + '|' + avail.map(b64).join(',');
+  const r = await nativeHelper.request(`setplan ${spec}`, 20000);
+  debug.info('anzeige', `Monitor-Auswahl angewendet (Code ${r})`, { an: avail.map((k) => names[k] || k), haupt: names[primary] || primary });
+  if (r !== '0') return { ok: false, error: `Windows konnte die Bildschirme nicht umstellen (Code ${r || 'keine Antwort'})` };
+  displaySwitched = true;
+  await sleep(1200);
+  setTimeout(() => listDisplays().then(placeWindow).catch(() => {}), 600);
+  return { ok: true, missing: missingNames };
 }
 
 /** Zustand des Fernsehers: an/aus (Home Assistant), verbunden und in Windows aktiv? */
@@ -364,17 +400,26 @@ async function enterConsoleMode() {
   if (aleclip.enabled() && cfg().aleclip.autoStart !== false && aleclip.findExe()) {
     aleclip.status().then((st) => { if (st.offline) return aleclip.start(); return null; }).catch((err) => debug.warn('aleclip', err.message));
   }
+  // Neue Monitor-Auswahl (Einstellungen → Anzeige → Beim Start: Eigene Auswahl) ersetzt die älteren Optionen
+  const plan = d.startPlan && d.startPlan.mode === 'custom' ? d.startPlan : null;
+  if (!skipDisplaySwitch && plan) {
+    const r = await applyPlan(plan, true);
+    if (!r.ok) startupNotes.push({ type: 'error', text: r.error });
+    else if (r.missing && r.missing.length) startupNotes.push({ type: 'info', text: `Nicht angeschlossen: ${r.missing.join(', ')}` });
+  }
   // Fernseher in Windows deaktiviert (angesteckt, aber abgeschaltet)? Für den Konsolenmodus einschalten –
   // beim Beenden wird die vorherige Anordnung wiederhergestellt, der TV ist dann wieder aus
-  if (!skipDisplaySwitch && d.tv && d.enableTv !== false && !['tvOnly', 'tvPrimary'].includes(d.onStart)) {
+  if (!skipDisplaySwitch && !plan && d.tv && d.enableTv !== false && !['tvOnly', 'tvPrimary'].includes(d.onStart)) {
     const r = await activateTv(true);
     if (!r.ok) startupNotes.push({ type: 'error', text: r.error });
     else if (r.activated) startupNotes.push({ type: 'ok', text: `📺 ${d.tv.name} in Windows eingeschaltet` });
   }
-  if (!skipDisplaySwitch && (d.onStart === 'tvOnly' || d.onStart === 'tvPrimary')) {
+  if (plan || skipDisplaySwitch) {
+    // schon erledigt
+  } else if (d.onStart === 'tvOnly' || d.onStart === 'tvPrimary') {
     const r = await applyTvOnly(false, d.onStart === 'tvPrimary' ? 'primary' : 'only');
     if (!r.ok) startupNotes.push({ type: 'error', text: r.error });
-  } else if (!skipDisplaySwitch && d.onStart && d.onStart !== 'none') {
+  } else if (d.onStart && d.onStart !== 'none') {
     const r = await system.setDisplayMode(d.onStart);
     if (r.ok) {
       displaySwitched = true;
@@ -382,7 +427,7 @@ async function enterConsoleMode() {
     }
   }
   // Fernseher zusätzlich zur Hauptanzeige machen (Spiele starten dort); beim Beenden wird der Hauptmonitor wiederhergestellt
-  if (!skipDisplaySwitch && d.tv && d.tvAsPrimary && !['tvOnly', 'tvPrimary', 'internal'].includes(d.onStart)) {
+  if (!skipDisplaySwitch && !plan && d.tv && d.tvAsPrimary && !['tvOnly', 'tvPrimary', 'internal'].includes(d.onStart)) {
     const r = await applyTvOnly(false, 'primary');
     if (!r.ok) startupNotes.push({ type: 'error', text: r.error });
   }
@@ -445,8 +490,19 @@ async function leaveConsoleMode(opts = {}) {
   mouseMode.setActive(false);
   await perfPromise;
   await perf.restore(!!opts.shutdown);
-  if (tvOnlyState) {
-    await restoreDisplays(d.onExit);
+  const exitPlan = d.exitPlan || null;
+  if (exitPlan && exitPlan.mode === 'custom') {
+    // Eigene Auswahl für den Desktop (z.B. nur die drei Monitore, Hauptmonitor in der Mitte)
+    tvOnlyState = null;
+    const r = await applyPlan(exitPlan, false);
+    if (!r.ok) debug.warn('anzeige', 'Bildschirme beim Beenden: ' + r.error);
+    tvOnlyState = null;
+    displaySwitched = false;
+  } else if (exitPlan && exitPlan.mode === 'none') {
+    tvOnlyState = null;
+    displaySwitched = false;
+  } else if (tvOnlyState) {
+    await restoreDisplays(exitPlan && exitPlan.mode && exitPlan.mode !== 'restore' ? exitPlan.mode : d.onExit);
   } else if (displaySwitched && d.onExit && d.onExit !== 'none') {
     await system.setDisplayMode(d.onExit);
     displaySwitched = false;
@@ -947,6 +1003,14 @@ ipcMain.handle('system:power', async (_e, action, extra = {}) => {
 ipcMain.handle('system:displayMode', (_e, mode) => system.setDisplayMode(mode));
 ipcMain.handle('displays:list', () => listDisplays());
 ipcMain.handle('tv:status', () => tvStatus());
+// Test aus den Einstellungen: Plan für Start oder Beenden anwenden / vorherige Anordnung zurück
+ipcMain.handle('displays:applyPlan', (_e, which) => {
+  const d = cfg().display;
+  const plan = which === 'exit' ? d.exitPlan : d.startPlan;
+  if (!plan || plan.mode !== 'custom') return { ok: false, error: 'Keine eigene Auswahl eingestellt' };
+  return applyPlan(plan, false);
+});
+ipcMain.handle('displays:revert', async () => { if (!tvOnlyState) return false; await restoreDisplays('none'); return true; });
 ipcMain.handle('tv:activate', () => activateTv(false));
 ipcMain.handle('audio:list', () => listAudio());
 ipcMain.handle('audio:apply', () => applyAudio(false));

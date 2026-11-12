@@ -28,6 +28,8 @@ contextBridge.exposeInMainWorld('api', {
   displays: () => ipcRenderer.invoke('system:displays'),
   listDisplays: () => ipcRenderer.invoke('displays:list'),
   tvStatus: () => ipcRenderer.invoke('tv:status'),
+  applyDisplayPlan: (which) => ipcRenderer.invoke('displays:applyPlan', which),
+  revertDisplays: () => ipcRenderer.invoke('displays:revert'),
   activateTv: () => ipcRenderer.invoke('tv:activate'),
   listAudio: () => ipcRenderer.invoke('audio:list'),
   applyAudio: () => ipcRenderer.invoke('audio:apply'),

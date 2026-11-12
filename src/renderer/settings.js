@@ -28,8 +28,141 @@
     const info = d.active === false ? 'gerade aus' : `${d.width}×${d.height}${d.hz ? ' · ' + d.hz + ' Hz' : ''}${d.primary ? ' · Hauptbildschirm' : ''}`;
     return `${n >= 0 ? n + 1 + '. ' : ''}${d.name} – ${info}`;
   }
+  // ---------- Anzeige: Monitor-Auswahl wie bei AleVista ----------
+  const START_MODES = [
+    { value: 'custom', label: 'Eigene Auswahl je Bildschirm' }, { value: 'none', label: 'Nichts ändern' },
+    { value: 'extend', label: 'Windows: Erweitern' }, { value: 'external', label: 'Windows: Nur zweiter Bildschirm' },
+    { value: 'internal', label: 'Windows: Nur PC-Bildschirm' }, { value: 'clone', label: 'Windows: Duplizieren' }
+  ];
+  const EXIT_MODES = [
+    { value: 'restore', label: 'Vorherige Anordnung wiederherstellen' }, { value: 'custom', label: 'Eigene Auswahl je Bildschirm' },
+    { value: 'none', label: 'Nichts ändern' }, { value: 'extend', label: 'Windows: Erweitern' }, { value: 'internal', label: 'Windows: Nur PC-Bildschirm' }
+  ];
+  const STATES = [{ value: 'off', label: 'Aus' }, { value: 'on', label: 'An' }, { value: 'primary', label: 'An · Hauptanzeige' }];
+
+  /** Vorschlag für eine neue Auswahl: aktuelle Anordnung, ältere Einstellungen (nur TV / TV als Hauptanzeige) übernommen */
+  function defaultPlan(which) {
+    const d = C().display;
+    const tvKey = d.tv && d.tv.key;
+    const monitors = {}; const names = {};
+    for (const m of S.displays) {
+      names[m.key] = m.name;
+      monitors[m.key] = m.active ? (m.primary ? 'primary' : 'on') : 'off';
+    }
+    if (which === 'start' && tvKey) {
+      names[tvKey] = names[tvKey] || d.tv.name;
+      if (d.onStart === 'tvOnly') { for (const k of Object.keys(monitors)) monitors[k] = 'off'; monitors[tvKey] = 'primary'; }
+      else if (d.onStart === 'tvPrimary' || d.tvAsPrimary) { for (const k of Object.keys(monitors)) if (monitors[k] === 'primary') monitors[k] = 'on'; monitors[tvKey] = 'primary'; }
+      else if (d.enableTv !== false && monitors[tvKey] === 'off') monitors[tvKey] = 'on';
+    }
+    if (which === 'exit' && tvKey && monitors[tvKey] === 'primary') {
+      // nach dem Spielen wieder ein Monitor als Hauptanzeige
+      monitors[tvKey] = 'on';
+      const other = S.displays.find((m) => m.key !== tvKey && m.active);
+      if (other) monitors[other.key] = 'primary';
+    }
+    return { monitors, names };
+  }
+
+  function planSummary(plan) {
+    const m = (plan && plan.monitors) || {}; const n = (plan && plan.names) || {};
+    const on = Object.keys(m).filter((k) => m[k] !== 'off');
+    const prim = Object.keys(m).find((k) => m[k] === 'primary');
+    return `${on.length} an${prim ? ' · Hauptanzeige: ' + (n[prim] || 'Bildschirm') : ''}`;
+  }
+
+  /** Alle bekannten Bildschirme (angeschlossen + aus dem Plan) mit Nummer */
+  function monitorList(plan) {
+    const list = S.displays.map((m, i) => ({ ...m, num: i + 1, connected: true }));
+    for (const k of Object.keys((plan && plan.monitors) || {})) {
+      if (!list.some((m) => m.key === k)) list.push({ key: k, name: (plan.names || {})[k] || 'Bildschirm', num: list.length + 1, connected: false, active: false, width: 0, height: 0 });
+    }
+    return list;
+  }
+
+  /** Grafische Vorschau: Rechtecke in echter Anordnung, abgeschaltete gestrichelt, Hauptanzeige mit Stern */
+  function monitorPreview(plan, caption) {
+    const list = monitorList(plan);
+    if (!list.length) return `<div class="mon-preview empty">Keine Bildschirme gefunden – „Bildschirmliste aktualisieren“</div>`;
+    const tvKey = C().display.tv && C().display.tv.key;
+    // Position: aktive aus Windows, abgeschaltete rechts daneben
+    const placed = []; let maxRight = 0; let minX = Infinity; let minY = Infinity; let maxY = -Infinity;
+    for (const m of list.filter((x) => x.active && x.width)) {
+      placed.push({ m, x: m.x || 0, y: m.y || 0, w: m.width, h: m.height });
+    }
+    for (const p of placed) { maxRight = Math.max(maxRight, p.x + p.w); minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y + p.h); }
+    if (!placed.length) { maxRight = 0; minX = 0; minY = 0; maxY = 1080; }
+    let cursor = maxRight + 400;
+    for (const m of list.filter((x) => !(x.active && x.width))) {
+      const w = m.width || 1920; const h = m.height || 1080;
+      placed.push({ m, x: cursor, y: minY, w, h, detached: true });
+      cursor += w + 400; maxY = Math.max(maxY, minY + h);
+    }
+    const right = Math.max(...placed.map((p) => p.x + p.w));
+    const W = right - minX; const H = maxY - minY;
+    const state = (k) => (plan ? (plan.monitors || {})[k] || 'off' : null);
+    const tiles = placed.map(({ m, x, y, w, h, detached }) => {
+      const st = state(m.key) || (m.active ? (m.primary ? 'primary' : 'on') : 'off');
+      const cls = ['mon', st === 'off' ? 'off' : '', st === 'primary' ? 'primary' : '', !m.connected ? 'missing' : '', detached ? 'detached' : ''].join(' ');
+      const style = `left:${((x - minX) / W) * 100}%;top:${((y - minY) / H) * 100}%;width:${(w / W) * 100}%;height:${(h / H) * 100}%`;
+      const badges = `${st === 'primary' ? '<span class="mb prim">★ Haupt</span>' : ''}${m.key === tvKey ? '<span class="mb tv">TV</span>' : ''}${st === 'off' ? '<span class="mb">aus</span>' : ''}${!m.connected ? '<span class="mb">nicht verbunden</span>' : ''}`;
+      return `<div class="${cls}" style="${style}"><div class="mon-num">${m.num}</div><div class="mon-name">${esc(m.name)}</div>${m.width ? `<div class="mon-res">${m.width}×${m.height}</div>` : ''}<div class="mon-badges">${badges}</div></div>`;
+    }).join('');
+    return `<div class="mon-caption">${esc(caption || '')}</div><div class="mon-preview"><div class="mon-stage" style="aspect-ratio:${(W / H).toFixed(3)}">${tiles}</div></div>`;
+  }
+
+  /** Eine Auswahlzeile pro Bildschirm: Aus / An / An · Hauptanzeige */
+  function monitorRows(key) {
+    const plan = C().display[key];
+    if (!plan) return [];
+    plan.monitors = plan.monitors || {}; plan.names = plan.names || {};
+    const tvKey = C().display.tv && C().display.tv.key;
+    return monitorList(plan).map((m) => ({
+      type: 'select', label: `${m.num}. ${m.name}${m.key === tvKey ? ' (Fernseher)' : ''}`, options: STATES,
+      desc: !m.connected ? 'gerade nicht angeschlossen' : m.active ? `${m.width}×${m.height}${m.hz ? ' · ' + m.hz + ' Hz' : ''}${m.primary ? ' · jetzt Hauptanzeige' : ''}` : 'jetzt in Windows abgeschaltet',
+      get: () => plan.monitors[m.key] || 'off',
+      set: (v) => {
+        if (v === 'primary') for (const k of Object.keys(plan.monitors)) if (plan.monitors[k] === 'primary') plan.monitors[k] = 'on';
+        plan.monitors[m.key] = v;
+        plan.names[m.key] = m.name;
+      }
+    }));
+  }
+
+  /** Sofort umschalten, 15 Sekunden „Beibehalten?“ – sonst automatisch zurück (wie AleVista) */
+  async function testPlan(which) {
+    const plan = which === 'exit' ? C().display.exitPlan : C().display.startPlan;
+    const m = (plan && plan.monitors) || {};
+    if (!Object.values(m).some((v) => v !== 'off')) return App.toast('Mindestens ein Bildschirm muss an sein', 'error', 4000);
+    await App.save({ immediate: true });
+    App.toast('Schalte die Bildschirme um …', 'info', 2500);
+    const r = await api.applyDisplayPlan(which).catch((e) => ({ ok: false, error: String(e.message || e) }));
+    if (!r || !r.ok) { App.toast((r && r.error) || 'Umschalten fehlgeschlagen', 'error', 6000); return; }
+    let left = 15;
+    let done = false;
+    const finish = async (keep) => {
+      if (done) return; done = true; clearInterval(timer);
+      App.closeMenu();
+      if (!keep) { await api.revertDisplays().catch(() => {}); App.toast('Zurückgesetzt', 'info'); } else App.toast('Beibehalten – „Alle Bildschirme wieder einschalten“ setzt zurück', 'ok', 5000);
+      S.displays = await api.listDisplays().catch(() => S.displays); render();
+    };
+    App.menu({
+      title: 'Bildschirme beibehalten?', text: `Automatisch zurück in <b id="planCountdown">${left}</b> Sekunden`,
+      items: [
+        { label: 'Beibehalten', icon: 'check', action: () => finish(true) },
+        { label: 'Zurücksetzen', icon: 'undo', action: () => finish(false) }
+      ]
+    });
+    const timer = setInterval(() => {
+      left--;
+      const el = document.getElementById('planCountdown');
+      if (el) el.textContent = left;
+      if (left <= 0) finish(false);
+    }, 1000);
+  }
+
   /** Zustand des Fernsehers: an/aus, verbunden, in Windows aktiv/deaktiviert */
-  function tvStatusRows() {
+  function tvStatusRows(planActive) {
     const t = S.tv;
     if (!C().display.tv) return [];
     const parts = [];
@@ -39,7 +172,7 @@
     return [
       { type: 'item', label: 'Zustand', desc: t ? parts.join('  ·  ') : 'Wird ermittelt …', status, statusText: t ? (t.active ? 'bereit' : t.connected ? 'deaktiviert' : 'nicht verbunden') : '',
         action: async () => { S.tv = await api.tvStatus().catch(() => null); render(); App.toast('Zustand aktualisiert', 'info', 1200); } },
-      {
+      ...(planActive ? [] : [{
         ...toggle('Fernseher als Hauptanzeige', () => C().display, 'tvAsPrimary', 'Im Konsolenmodus wird der TV zur Hauptanzeige – Spiele starten dort. Beim Beenden wird wieder dein Hauptmonitor zur Hauptanzeige'),
         get: () => !!C().display.tvAsPrimary || C().display.onStart === 'tvPrimary' || C().display.onStart === 'tvOnly',
         set: (v) => {
@@ -47,8 +180,7 @@
           // „Fernseher als Hauptbildschirm“ als Startmodus passt nicht zu „aus“
           if (!v && C().display.onStart === 'tvPrimary') C().display.onStart = 'extend';
         }
-      },
-      { ...toggle('Deaktivierten Fernseher automatisch einschalten', () => C().display, 'enableTv', 'Ist der TV angesteckt, aber in Windows abgeschaltet, wird er beim Start eingeschaltet und beim Beenden wieder abgeschaltet'), get: () => C().display.enableTv !== false },
+      }, { ...toggle('Deaktivierten Fernseher automatisch einschalten', () => C().display, 'enableTv', 'Ist der TV angesteckt, aber in Windows abgeschaltet, wird er beim Start eingeschaltet und beim Beenden wieder abgeschaltet'), get: () => C().display.enableTv !== false }]),
       ...(t && t.connected && !t.active ? [button('Fernseher jetzt in Windows einschalten', async () => {
         const r = await api.activateTv().catch((e) => ({ ok: false, error: String(e.message || e) }));
         App.toast(r && r.ok ? 'Fernseher ist in Windows eingeschaltet' : (r && r.error) || 'Einschalten fehlgeschlagen', r && r.ok ? 'ok' : 'error', 6000);
@@ -190,41 +322,55 @@
       ]
     },
     {
-      id: 'display', title: 'Anzeige', rows: () => [
-        group('Fernseher', 'Welcher Bildschirm ist dein TV? „Identifizieren“ zeigt auf jedem Bildschirm eine Nummer'),
-        tvSelect(),
-        ...tvStatusRows(),
-        button('Bildschirme identifizieren', async () => { await api.identifyDisplays(); }, { desc: 'Zeigt 4 Sekunden lang Nummer und Name auf jedem Bildschirm' }),
-        button('↻ Bildschirmliste aktualisieren', async () => { S.displays = await api.listDisplays().catch(() => []); render(); App.toast(`${S.displays.length} Bildschirm(e) gefunden`, 'info'); }),
-        button('Jetzt nur den Fernseher verwenden', async () => {
-          App.toast('Schalte auf den Fernseher um …', 'info', 2500);
-          const r = await api.tvOnly().catch((e) => ({ ok: false, error: String(e.message || e) }));
-          App.toast(r && r.ok ? 'Nur noch der Fernseher ist aktiv' : (r && r.error) || 'Umschalten fehlgeschlagen', r && r.ok ? 'ok' : 'error', 6000);
-        }),
-        button('Jetzt Fernseher als Hauptbildschirm (Monitore bleiben an)', async () => {
-          const r = await api.tvOnly('primary').catch((e) => ({ ok: false, error: String(e.message || e) }));
-          App.toast(r && r.ok ? 'Fernseher ist jetzt der Hauptbildschirm – Spiele starten dort' : (r && r.error) || 'Umschalten fehlgeschlagen', r && r.ok ? 'ok' : 'error', 6000);
-        }),
-        button('Alle Bildschirme wieder einschalten', async () => { await api.restoreDisplays(); App.toast('Bildschirme wiederhergestellt', 'ok'); }),
-        group('Ton', 'Auf welches Gerät der Ton im Konsolenmodus wechselt'),
-        audioSelect(),
-        toggle('Beim Beenden zurückstellen', () => C().display, 'restoreAudio', 'Danach wieder das vorherige Gerät (z.B. Kopfhörer am PC)', { get: () => C().display.restoreAudio !== false }),
-        button('Jetzt auf dieses Gerät umstellen', async () => {
-          const r = await api.applyAudio().catch((e) => ({ ok: false, error: String(e.message || e) }));
-          App.toast(r && r.ok ? `Ton kommt jetzt aus: ${r.name}` : (r && r.error) || 'Umstellen fehlgeschlagen', r && r.ok ? 'ok' : 'error', 6000);
-          S.audio = await api.listAudio().catch(() => []); render();
-        }),
-                group('Bildschirm umschalten (wie Win + P)'),
-        select('Beim Start des Konsolenmodus', () => C().display, 'onStart', DISPLAY_OPTS, '„Nur Fernseher“ schaltet die Monitore ab, „als Hauptbildschirm“ lässt sie an – Spiele starten auf dem Hauptbildschirm'),
-        select('Beim Beenden (zurück zum Desktop)', () => C().display, 'onExit', DISPLAY_OPTS.filter((o) => !['tvOnly', 'tvPrimary'].includes(o.value))),
-        toggle('Vor Herunterfahren/Neustart wiederherstellen', () => C().display, 'restoreBeforeShutdown', 'Damit Windows beim nächsten Start wieder auf dem Monitor erscheint'),
-        select('Wartezeit nach dem Umschalten', () => C().display, 'switchDelayMs', [1000, 1500, 2500, 4000, 6000].map((v) => ({ value: v, label: v / 1000 + ' s' }))),
-        group('Eigene Befehle', 'z.B. Programme oder Skripte beim Start ausführen'),
-        listText('Befehle beim Start', () => C().display, 'customCommandsOnStart', 'Mehrere mit ; trennen. Beispiel: nircmd setdefaultsounddevice "TV"'),
-        listText('Befehle beim Beenden', () => C().display, 'customCommandsOnExit'),
-        group('Jetzt testen'),
-        ...DISPLAY_OPTS.filter((o) => !['none', 'tvOnly', 'tvPrimary'].includes(o.value)).map((o) => button('Test: ' + o.label, () => api.setDisplayMode(o.value)))
-      ]
+      id: 'display', title: 'Anzeige', rows: () => {
+        const D = () => C().display;
+        const startCustom = !!(D().startPlan && D().startPlan.mode === 'custom');
+        const exitMode = (D().exitPlan && D().exitPlan.mode) || 'restore';
+        return [
+          group('Beim Start des Konsolenmodus', startCustom ? planSummary(D().startPlan) : 'Windows-Modus'),
+          { type: 'preview', html: monitorPreview(startCustom ? D().startPlan : null, startCustom ? 'So wird es beim Start' : 'Aktuelle Anordnung') },
+          {
+            type: 'select', label: 'Bildschirme beim Start', options: START_MODES,
+            desc: startCustom ? 'Pro Bildschirm wählen: Aus, An oder Hauptanzeige (Spiele starten auf der Hauptanzeige)' : 'Wie Win + P – oder „Eigene Auswahl“ für volle Kontrolle',
+            get: () => (startCustom ? 'custom' : D().onStart === 'tvOnly' || D().onStart === 'tvPrimary' ? 'custom' : D().onStart || 'none'),
+            set: (v) => {
+              if (v === 'custom') D().startPlan = { mode: 'custom', ...defaultPlan('start') };
+              else { D().startPlan = null; D().onStart = v; }
+            }
+          },
+          ...(startCustom ? monitorRows('startPlan') : []),
+          ...(startCustom ? [button('Jetzt testen', () => testPlan('start'), { desc: 'Schaltet sofort um – ohne Bestätigung geht es nach 15 Sekunden automatisch zurück' })] : []),
+          group('Beim Beenden (zurück zum Desktop)', exitMode === 'custom' ? planSummary(D().exitPlan) : ''),
+          ...(exitMode === 'custom' ? [{ type: 'preview', html: monitorPreview(D().exitPlan, 'So wird es nach dem Beenden') }] : []),
+          {
+            type: 'select', label: 'Bildschirme beim Beenden', options: EXIT_MODES,
+            desc: exitMode === 'restore' ? 'Genau die Anordnung von vor dem Start – z.B. Fernseher wieder aus, Hauptmonitor wieder Hauptanzeige' : '',
+            get: () => exitMode,
+            set: (v) => { D().exitPlan = v === 'custom' ? { mode: 'custom', ...defaultPlan('exit') } : { mode: v }; }
+          },
+          ...(exitMode === 'custom' ? monitorRows('exitPlan') : []),
+          ...(exitMode === 'custom' ? [button('Jetzt testen', () => testPlan('exit'), { desc: 'Ohne Bestätigung geht es nach 15 Sekunden automatisch zurück' })] : []),
+          toggle('Vor Herunterfahren/Neustart wiederherstellen', D, 'restoreBeforeShutdown', 'Damit Windows beim nächsten Start wieder auf dem Monitor erscheint'),
+          select('Wartezeit nach dem Umschalten', D, 'switchDelayMs', [1000, 1500, 2500, 4000, 6000].map((v) => ({ value: v, label: v / 1000 + ' s' }))),
+          group('Fernseher', 'Für Home Assistant, Ton und „Oberfläche anzeigen auf: Fernseher“'),
+          tvSelect(),
+          ...tvStatusRows(startCustom),
+          button('Bildschirme identifizieren', async () => { await api.identifyDisplays(); }, { desc: 'Zeigt 4 Sekunden lang Nummer und Name auf jedem Bildschirm' }),
+          button('↻ Bildschirmliste aktualisieren', async () => { S.displays = await api.listDisplays().catch(() => []); render(); App.toast(`${S.displays.length} Bildschirm(e) gefunden`, 'info'); }),
+          button('Alle Bildschirme wieder einschalten', async () => { await api.restoreDisplays(); App.toast('Bildschirme wiederhergestellt', 'ok'); S.displays = await api.listDisplays().catch(() => S.displays); render(); }),
+          group('Ton', 'Auf welches Gerät der Ton im Konsolenmodus wechselt'),
+          audioSelect(),
+          toggle('Beim Beenden zurückstellen', D, 'restoreAudio', 'Danach wieder das vorherige Gerät (z.B. Kopfhörer am PC)', { get: () => D().restoreAudio !== false }),
+          button('Jetzt auf dieses Gerät umstellen', async () => {
+            const r = await api.applyAudio().catch((e) => ({ ok: false, error: String(e.message || e) }));
+            App.toast(r && r.ok ? `Ton kommt jetzt aus: ${r.name}` : (r && r.error) || 'Umstellen fehlgeschlagen', r && r.ok ? 'ok' : 'error', 6000);
+            S.audio = await api.listAudio().catch(() => []); render();
+          }),
+          group('Eigene Befehle', 'z.B. Programme oder Skripte beim Start ausführen'),
+          listText('Befehle beim Start', D, 'customCommandsOnStart', 'Mehrere mit ; trennen'),
+          listText('Befehle beim Beenden', D, 'customCommandsOnExit')
+        ];
+      }
     },
     {
       id: 'controller', title: 'Controller', rows: () => [
@@ -986,6 +1132,13 @@
         c.className = 's-crumb';
         c.innerHTML = `<span>${esc(r.label)}</span><span class="sep">${Icons.svg('chevron')}</span><b>${esc(r.title)}</b>${r.extra ? `<small>${esc(r.extra)}</small>` : ''}`;
         body.appendChild(c);
+        return;
+      }
+      if (r.type === 'preview') {
+        const pv = document.createElement('div');
+        pv.className = 's-preview';
+        pv.innerHTML = r.html;
+        body.appendChild(pv);
         return;
       }
       if (r.type === 'group') {

@@ -454,3 +454,22 @@ body.hide-cursor .card-actions { display: none; }
 #modalHints span.hint { display: inline-flex; gap: 0.5rem; align-items: center; }
 
 .debug-badge.setup { background: rgba(34,211,238,0.16); color: #67e8f9; border-color: rgba(34,211,238,0.45); }
+
+/* ---------- Anzeige: Monitor-Vorschau (wie AleVista) ---------- */
+.s-preview { margin: 0.2rem 0 0.6rem; }
+.mon-caption { font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 0 0.4rem 0.4rem; }
+.mon-preview { padding: 1.2rem 1.4rem; border-radius: 16px; background: rgba(255,255,255,0.03); border: 1px solid var(--line); display: flex; justify-content: center; }
+.mon-preview.empty { color: var(--muted); }
+.mon-stage { position: relative; width: 100%; max-height: 13rem; max-width: calc(13rem * 4.5); }
+.mon { position: absolute; box-sizing: border-box; border-radius: 8px; padding: 0.45rem 0.55rem; overflow: hidden; display: flex; flex-direction: column; gap: 0.1rem;
+  background: linear-gradient(150deg, color-mix(in srgb, var(--accent) 28%, #1a1a28), #12121c); border: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); box-shadow: 0 8px 22px rgba(0,0,0,0.35); }
+.mon .mon-num { font-size: 1.5rem; font-weight: 800; line-height: 1; }
+.mon .mon-name { font-size: 0.78rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mon .mon-res { font-size: 0.68rem; color: var(--muted); }
+.mon .mon-badges { margin-top: auto; display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.mon .mb { font-size: 0.62rem; font-weight: 700; padding: 0.08rem 0.4rem; border-radius: 999px; background: rgba(255,255,255,0.14); }
+.mon .mb.prim { background: #ffcc3d; color: #1a1406; }
+.mon .mb.tv { background: var(--accent-2); color: #04121a; }
+.mon.primary { border-color: #ffcc3d; box-shadow: 0 0 0 2px rgba(255,204,61,0.25), 0 8px 22px rgba(0,0,0,0.35); }
+.mon.off { background: rgba(255,255,255,0.03); border: 2px dashed rgba(255,255,255,0.22); box-shadow: none; opacity: 0.6; }
+.mon.missing { opacity: 0.4; }

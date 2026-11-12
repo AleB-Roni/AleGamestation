@@ -14,6 +14,7 @@
 #   q <id> save            Aktuelle Anordnung sichern -> Base64
 #   q <id> restore <b64>   Gesicherte Anordnung wiederherstellen -> Ergebniscode
 #   q <id> extend          Alle Bildschirme erweitern -> Ergebniscode
+#   q <id> setplan <prim>|<k1>,<k2>  Genau diese Bildschirme an (Kennungen Base64), prim = Hauptanzeige -> Ergebniscode
 #   q <id> activate <b64>  In Windows deaktivierten Bildschirm zusätzlich einschalten (erweitern) -> Ergebniscode
 #   q <id> audiodevs       Wiedergabegeräte als JSON
 #   q <id> audiodefault    Aktuelles Standard-Wiedergabegerät (ID)
@@ -354,6 +355,79 @@ public static class AgsInput {
     return SetDisplayConfig((uint)act.Length, act, (uint)modes.Length, modes, SET_FLAGS);
   }
 
+  /** Lücken schließen, die abgeschaltete Monitore hinterlassen (waagerecht bzw. senkrecht) */
+  static void Compact(MODE_INFO[] modes, System.Collections.Generic.List<uint> src, bool horizontal) {
+    if (src.Count < 2) return;
+    var ordered = new System.Collections.Generic.List<uint>(src);
+    ordered.Sort((a, b) => (horizontal ? modes[a].x : modes[a].y).CompareTo(horizontal ? modes[b].x : modes[b].y));
+    long maxEnd = long.MinValue, shift = 0;
+    var np = new System.Collections.Generic.Dictionary<uint, int>();
+    foreach (uint i in ordered) {
+      long pos = horizontal ? modes[i].x : modes[i].y;
+      long len = horizontal ? modes[i].width : modes[i].height;
+      if (maxEnd != long.MinValue && pos - shift > maxEnd) shift += (pos - shift) - maxEnd;
+      np[i] = (int)(pos - shift);
+      maxEnd = Math.Max(maxEnd, pos - shift + len);
+    }
+    foreach (var kv in np) { if (horizontal) modes[kv.Key].x = kv.Value; else modes[kv.Key].y = kv.Value; }
+  }
+
+  /**
+   * Monitor-Auswahl anwenden: genau diese Bildschirme an (ausgeschaltete werden eingeschaltet), alle anderen aus,
+   * primaryKey wird Hauptanzeige (leer = bisherige behalten). Lücken werden geschlossen. 0 = ok
+   */
+  public static int SetPlan(string primaryKey, string[] onKeys) {
+    var want = new System.Collections.Generic.HashSet<string>(onKeys, StringComparer.OrdinalIgnoreCase);
+    if (want.Count == 0) return -104;
+    PATH_INFO[] act; MODE_INFO[] modes;
+    // 1. Gewünschte, aber abgeschaltete Bildschirme einschalten
+    foreach (string k in onKeys) {
+      if (!Query(QDC_ACTIVE, out act, out modes)) return -102;
+      if (Find(act, k) >= 0) continue;
+      int r = Activate(k);
+      if (r != 0) return r;
+    }
+    if (!Query(QDC_ACTIVE, out act, out modes)) return -102;
+    // 2. Nur die gewünschten Pfade behalten, Modi neu durchnummerieren
+    var keep = new System.Collections.Generic.List<PATH_INFO>();
+    var newModes = new System.Collections.Generic.List<MODE_INFO>();
+    var map = new System.Collections.Generic.Dictionary<uint, uint>();
+    var srcModes = new System.Collections.Generic.List<uint>();
+    int primaryPath = -1;
+    foreach (PATH_INFO p0 in act) {
+      PATH_INFO p = p0;
+      string key = KeyOf(p.target);
+      if (!want.Contains(key)) continue;
+      if (p.source.modeInfoIdx != INVALID && p.source.modeInfoIdx < modes.Length) {
+        uint o = p.source.modeInfoIdx;
+        if (!map.ContainsKey(o)) { map[o] = (uint)newModes.Count; newModes.Add(modes[o]); srcModes.Add(map[o]); }
+        p.source.modeInfoIdx = map[o];
+      }
+      if (p.target.modeInfoIdx != INVALID && p.target.modeInfoIdx < modes.Length) {
+        uint o = p.target.modeInfoIdx;
+        if (!map.ContainsKey(o)) { map[o] = (uint)newModes.Count; newModes.Add(modes[o]); }
+        p.target.modeInfoIdx = map[o];
+      }
+      if (string.Equals(key, primaryKey, StringComparison.OrdinalIgnoreCase)) primaryPath = keep.Count;
+      keep.Add(p);
+    }
+    if (keep.Count == 0) return -100;
+    MODE_INFO[] nm = newModes.ToArray();
+    // 3. Lücken schließen
+    Compact(nm, srcModes, true);
+    Compact(nm, srcModes, false);
+    // 4. Hauptanzeige auf 0,0 (sonst die bisherige Hauptanzeige bzw. die erste behalten)
+    uint psrc = INVALID;
+    if (primaryPath >= 0) psrc = keep[primaryPath].source.modeInfoIdx;
+    if (psrc == INVALID) foreach (PATH_INFO p in keep) { uint i = p.source.modeInfoIdx; if (i != INVALID && modes.Length > 0) { foreach (var kv in map) if (kv.Value == i && modes[kv.Key].x == 0 && modes[kv.Key].y == 0) psrc = i; } }
+    if (psrc == INVALID) psrc = keep[0].source.modeInfoIdx;
+    if (psrc != INVALID) {
+      int dx = nm[psrc].x, dy = nm[psrc].y;
+      foreach (uint i in srcModes) { nm[i].x -= dx; nm[i].y -= dy; }
+    }
+    return SetDisplayConfig((uint)keep.Count, keep.ToArray(), (uint)nm.Length, nm, SET_FLAGS);
+  }
+
   /** Alle Bildschirme erweitern (wie Win + P → Erweitern) */
   public static int Extend() { return SetDisplayConfig(0, null, 0, null, SDC_APPLY | SDC_EXTEND); }
 
@@ -448,6 +522,12 @@ while ($true) {
         elseif ($p[2] -eq 'save') { $v = [AgsInput]::Save() }
         elseif ($p[2] -eq 'restore') { $v = [AgsInput]::Restore($p[3]) }
         elseif ($p[2] -eq 'extend') { $v = [AgsInput]::Extend() }
+        elseif ($p[2] -eq 'setplan') {
+          $dec = { param($b) if ($b) { [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($b)) } else { '' } }
+          $parts = $p[3].Split('|')
+          $on = @($parts[1].Split(',') | Where-Object { $_ } | ForEach-Object { & $dec $_ })
+          $v = [AgsInput]::SetPlan((& $dec $parts[0]), [string[]]$on)
+        }
         elseif ($p[2] -eq 'activate') { $v = [AgsInput]::Activate([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($p[3]))) }
         elseif ($p[2] -eq 'audiodevs') { $v = [AgsAudio]::List() }
         elseif ($p[2] -eq 'audiodefault') { $v = [AgsAudio]::Default() }
