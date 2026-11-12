@@ -426,7 +426,8 @@ function scanLibrary(cfg, opts = {}) {
     });
   }
   // Emulatoren, die (noch) keiner aktiven Konsole zugeordnet sind, trotzdem im Emulatoren-Tab zeigen
-  const used = new Set(cfg.systems.filter((s) => s.enabled !== false).map((s) => s.emulator));
+  // Standard- und weitere Emulatoren einer Konsole gelten als zugeordnet
+  const used = new Set(cfg.systems.filter((s) => s.enabled !== false).flatMap((s) => [s.emulator, ...(s.emulators || [])]));
   for (const e of cfg.emulators) {
     if (used.has(e.id)) continue;
     systems.push({

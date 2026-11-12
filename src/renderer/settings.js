@@ -92,7 +92,8 @@
    * ○ / Esc führt zurück zur Übersicht.
    */
   function openDetail(builder) {
-    S.detail = { builder, returnFocus: S.focus };
+    // Verschachtelt möglich (z.B. Konsole → Emulator pro Spiel): Zurück führt zur vorherigen Detailseite
+    S.detail = { builder, returnFocus: S.focus, parent: S.detail || null };
     S.focus = 1; // erstes Feld (0 = „Zurück zur Übersicht“)
     Sounds.play('open');
     render();
@@ -103,7 +104,7 @@
     const reopen = { builder: S.detail.builder, section: S.section };
     App.pushForward(() => { if (App.view !== 'settings') App.openSettings(SECTIONS[reopen.section].id); S.section = reopen.section; openDetail(reopen.builder); });
     S.focus = S.detail.returnFocus || 0;
-    S.detail = null;
+    S.detail = S.detail.parent || null;
     render();
     return true;
   }
@@ -627,7 +628,7 @@
         rows: [
           group('Spiele'),
           toggle('Aktiv', o, 'enabled', 'Ausgeschaltete Konsolen werden nicht angezeigt', { rescan: true }),
-          select('Emulator', o, 'emulator', emuOpts, 'Pro Spiel änderbar: Spiel → Details → „Starten mit“', { rescan: true }),
+          ...emulatorRows(id, o, count),
           listText('ROM-Ordner', o, 'romDirs', 'Mehrere mit ; trennen – Unterordner werden mit durchsucht', { rescan: true }),
           button('＋ ROM-Ordner hinzufügen …', async () => {
             const d = await api.pickFolder();
@@ -672,6 +673,100 @@
       ...shown.map((g) => button(`Einblenden: ${g.name}`, () => unhide(g), { desc: `${why[g.hiddenBy] || 'ausgeblendet'} · ${g.rom ? g.rom.split(/[\\/]/).slice(-2).join('/') : ''}` })),
       ...(hidden.length > shown.length ? [{ type: 'group', label: `… und ${hidden.length - shown.length} weitere` }] : [])
     ];
+  }
+
+  /** Emulatoren einer Konsole: Standard für alle Spiele, weitere Emulatoren, Emulator pro Spiel */
+  function consoleEmus(s) {
+    const ids = [s.emulator, ...(s.emulators || [])].filter((x, i, a) => x && a.indexOf(x) === i);
+    return ids.map((eid) => C().emulators.find((e) => e.id === eid)).filter(Boolean);
+  }
+  function emuLabel(e) {
+    const info = (App.library.emulators || []).find((x) => x.id === e.id);
+    return e.name + (info && !info.found ? ' (Programm fehlt)' : '');
+  }
+  function emulatorRows(id, o, count) {
+    const s = o();
+    const mine = consoleEmus(s);
+    const others = C().emulators.filter((e) => !mine.includes(e));
+    const games = App.library.games.filter((g) => g.system === id);
+    const custom = games.filter((g) => (C().gameOverrides[g.id] || {}).emulator).length;
+    return [
+      group('Emulatoren', mine.length > 1 ? `${mine.length} für diese Konsole` : ''),
+      select('Standard-Emulator (alle Spiele)', o, 'emulator', [...mine, ...others].map((e) => ({ value: e.id, label: emuLabel(e) + (mine.includes(e) ? '' : ' · andere Konsole') })), 'Gilt für jedes Spiel ohne eigene Wahl', {
+        rescan: true,
+        set: (v) => { o().emulator = v; o().emulators = [...new Set([...(o().emulators || []), v])]; }
+      }),
+      ...mine.filter((e) => e.id !== s.emulator).map((e) => button(`Entfernen: ${e.name}`, async () => {
+        o().emulators = (o().emulators || []).filter((x) => x !== e.id);
+        // Spiele dieser Konsole, die ihn nutzen, wieder auf den Standard stellen
+        for (const g of App.library.games.filter((x) => x.system === id)) {
+          const ov = C().gameOverrides[g.id];
+          if (ov && ov.emulator === e.id) { delete ov.emulator; if (!Object.keys(ov).length) delete C().gameOverrides[g.id]; }
+        }
+        await commit(true);
+      }, { desc: 'Weiterer Emulator dieser Konsole – Spiele, die ihn nutzen, starten danach mit dem Standard' })),
+      button('＋ Weiteren Emulator für diese Konsole …', () => addConsoleEmulator(o), { desc: 'Z.B. einen zweiten Switch-Emulator für bestimmte Spiele' }),
+      item('Emulator pro Spiel', count ? `${custom ? custom + ' Spiele mit eigenem Emulator' : 'Alle Spiele nutzen den Standard'}` : 'Noch keine Spiele gefunden', {
+        status: custom ? 'ok' : '', statusText: custom ? `${custom} eigene` : '', action: () => openGameEmulators(id)
+      })
+    ];
+  }
+  /** Weiteren Emulator hinzufügen: vorhandenen wählen oder neue .exe einrichten */
+  function addConsoleEmulator(o) {
+    const s = o();
+    const have = new Set([s.emulator, ...(s.emulators || [])]);
+    const add = async (eid) => {
+      App.closeMenu();
+      o().emulators = [...new Set([...(o().emulators || []), eid])];
+      await commit(true);
+      const e = C().emulators.find((x) => x.id === eid);
+      App.toast(`${e ? e.name : 'Emulator'} hinzugefügt – jetzt unter „Emulator pro Spiel“ zuordnen`, 'ok', 5000);
+    };
+    const items = C().emulators.filter((e) => !have.has(e.id)).map((e) => ({ label: emuLabel(e), icon: 'gamepad', action: () => add(e.id) }));
+    items.unshift({ label: 'Neuen Emulator auswählen (.exe) …', icon: 'plus', hint: 'Name & Start-Argumente werden erkannt', action: async () => {
+      const exe = await api.pickFile({ filters: [{ name: 'Programme', extensions: ['exe'] }] });
+      if (!exe) return;
+      const eid = App.newEmulator(exe);
+      await add(eid);
+    } });
+    App.menu({ title: `${s.short || s.name}: Emulator hinzufügen`, text: 'Welcher Emulator soll zusätzlich für diese Konsole bereitstehen?', items });
+  }
+  /** Unterseite: Emulator für jedes Spiel der Konsole */
+  function openGameEmulators(id) {
+    openDetail(() => {
+      const s = C().systems.find((x) => x.id === id);
+      if (!s) return null;
+      const mine = consoleEmus(s);
+      const others = C().emulators.filter((e) => !mine.includes(e));
+      const def = C().emulators.find((e) => e.id === s.emulator);
+      const games = App.library.games.filter((g) => g.system === id).sort((a, b) => a.name.localeCompare(b.name, 'de'));
+      const opts = [{ value: '', label: `Standard (${def ? def.name : '–'})` }]
+        .concat(mine.filter((e) => e.id !== s.emulator).map((e) => ({ value: e.id, label: emuLabel(e) })))
+        .concat(others.map((e) => ({ value: e.id, label: emuLabel(e) + ' · andere Konsole' })));
+      const custom = games.filter((g) => (C().gameOverrides[g.id] || {}).emulator);
+      const rows = [
+        group('Emulator pro Spiel', `${games.length} Spiele`),
+        { type: 'info', label: 'So geht’s', desc: '◀ ▶ wählt den Emulator für das Spiel. „Standard“ = der Standard-Emulator der Konsole. Weitere Emulatoren: eine Seite zurück → „Weiteren Emulator für diese Konsole“.', get: () => '' }
+      ];
+      if (custom.length) rows.push(button('Alle auf Standard zurücksetzen', async () => {
+        for (const g of custom) { const ov = C().gameOverrides[g.id]; delete ov.emulator; if (!Object.keys(ov).length) delete C().gameOverrides[g.id]; }
+        await commit(true);
+      }));
+      for (const g of games) {
+        rows.push({
+          type: 'select', label: g.name, options: opts, rescan: true,
+          desc: g.rom ? g.rom.split(/[\\/]/).pop() : '',
+          get: () => ((C().gameOverrides[g.id] || {}).emulator || ''),
+          set: (v) => {
+            const ov = (C().gameOverrides[g.id] = C().gameOverrides[g.id] || {});
+            if (v) ov.emulator = v; else delete ov.emulator;
+            if (!Object.keys(ov).length) delete C().gameOverrides[g.id];
+          }
+        });
+      }
+      if (!games.length) rows.push({ type: 'info', label: 'Noch keine Spiele', desc: 'ROM-Ordner festlegen und die Bibliothek neu einlesen', get: () => '' });
+      return { title: `${s.short || s.name}: Emulator pro Spiel`, extra: `${custom.length} eigene`, rows };
+    });
   }
 
   function openGame(id) {
@@ -835,7 +930,7 @@
     }
     const section = SECTIONS[S.section];
     S.rows = detail
-      ? [{ type: 'crumb', label: section.title, title: detail.title, extra: detail.extra }, button('‹ Zurück zur Übersicht', () => closeDetail()), ...detail.rows]
+      ? [{ type: 'crumb', label: section.title, title: detail.title, extra: detail.extra }, button(S.detail.parent ? '‹ Zurück' : '‹ Zurück zur Übersicht', () => closeDetail()), ...detail.rows]
       : section.rows();
     const body = $('#settingsBody');
     // Beim Neuaufbau derselben Seite die Scroll-Position behalten (kein Springen)

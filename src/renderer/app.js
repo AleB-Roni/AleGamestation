@@ -779,8 +779,11 @@
     ];
     if (game.type === 'rom') {
       const sysCfg = App.cfg.systems.find((s) => s.id === game.system);
+      // Emulatoren dieser Konsole zuerst (Standard + weitere), danach alle anderen
+      const mine = sysCfg ? [sysCfg.emulator, ...(sysCfg.emulators || [])] : [];
+      const ordered = App.library.emulators.slice().sort((a, b) => (mine.includes(a.id) ? 0 : 1) - (mine.includes(b.id) ? 0 : 1));
       const options = [{ value: '', label: `Standard (${(App.library.emulators.find((e) => e.id === (sysCfg && sysCfg.emulator)) || { name: '–' }).name})` }]
-        .concat(App.library.emulators.map((e) => ({ value: e.id, label: e.name + (e.found ? '' : ' (nicht gefunden)') })));
+        .concat(ordered.filter((e) => !sysCfg || e.id !== sysCfg.emulator).map((e) => ({ value: e.id, label: e.name + (e.found ? '' : ' (nicht gefunden)') + (mine.includes(e.id) ? '' : ' · andere Konsole') })));
       items.push({
         type: 'select', label: 'Starten mit', icon: 'gamepad', options, value: ov.emulator || '',
         onChange: (v) => { if (v) ov.emulator = v; else delete ov.emulator; cleanup(); App.save({ rescan: true }); }

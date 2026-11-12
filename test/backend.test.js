@@ -622,3 +622,24 @@ test('Cover-Suche: eigene Konsole am Namen erkennen (z.B. „Switch 1 & 2“)', 
   assert.strictEqual(systemFromName('Meine Sammlung'), '');
   assert.strictEqual(romTitle({ name: 'Mario Kart 8 Deluxe [0100152000022000][v0]' }), 'Mario Kart 8 Deluxe');
 });
+
+test('Konsole mit mehreren Emulatoren: Standard + Emulator pro Spiel', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ags-multi-'));
+  fs.writeFileSync(path.join(dir, 'Zelda.nsp'), '');
+  fs.writeFileSync(path.join(dir, 'Pokemon.nsp'), '');
+  const exe = path.join(dir, 'eden.exe'); fs.writeFileSync(exe, '');
+  const exe2 = path.join(dir, 'Ryujinx.exe'); fs.writeFileSync(exe2, '');
+  const cfg = mergeDefaults(DEFAULT_CONFIG, {
+    steam: { enabled: false }, stores: { epic: false, gog: false },
+    emulators: [{ id: 'eden', name: 'Eden', exe, args: '"{rom}"' }, { id: 'ryu', name: 'Ryujinx', exe: exe2, args: '"{rom}"' }],
+    systems: [{ id: 'switch', name: 'Switch', extensions: ['.nsp'], romDirs: [dir], emulator: 'eden', emulators: ['ryu'] }]
+  });
+  let lib = scanLibrary(cfg);
+  const poke = lib.games.find((g) => /Pokemon/.test(g.rom));
+  cfg.gameOverrides[poke.id] = { emulator: 'ryu' };
+  lib = scanLibrary(cfg);
+  assert.strictEqual(lib.games.find((g) => g.id === poke.id).emulatorName, 'Ryujinx');
+  assert.strictEqual(lib.games.find((g) => /Zelda/.test(g.rom)).emulatorName, 'Eden');
+  // Weiterer Emulator der Konsole erscheint nicht als eigene, nicht zugeordnete Kachel
+  assert.ok(!lib.systems.some((s) => s.id === 'emu:ryu'));
+});
