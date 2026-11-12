@@ -68,7 +68,7 @@
       { id: 'dolphin', match: '^dolphin', name: 'Dolphin (GameCube/Wii)', fullscreen: ['-C', 'Dolphin.Display.Fullscreen=True'], has: 'Display\\.Fullscreen', hasFlags: 'i', args: '-b -C Dolphin.Display.Fullscreen=True -e "{rom}"' }
     ],
     debugLog: async () => true, debugState: async () => ({ enabled: true, errors: 0, warnings: 0 }), debugReport: async () => 'C:\\Users\\Ale\\Desktop\\AleGamestation-Debugbericht.txt', debugOpenFolder: async () => true,
-    onDebugEvent: () => () => {}, onNavCommand: () => () => {}, onOpenSettings: () => () => {},
+    onDebugEvent: () => () => {}, onNavCommand: () => () => {}, onOpenSettings: () => () => {}, onAskExit: () => () => {},
     appMode: async () => ({ setup: /setup/.test(location.hash) }), createSetupShortcut: async () => 'C:\\Users\\Ale\\Desktop\\AleGamestation – Einrichten (ohne Fernseher).lnk', startConsoleMode: async () => true,
     listAudio: async () => [
       { id: '{0.0.0}.{a}', name: 'Lautsprecher (Realtek(R) Audio)', desc: 'Lautsprecher', active: true, default: true },

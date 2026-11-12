@@ -241,6 +241,12 @@ async function activateTv(wait = false) {
   return { ok: true, activated: true, name: entry.name };
 }
 
+/** Beim Beenden fragen, ob der Fernseher aus soll? (nur mit Home Assistant und gewähltem Fernseher) */
+function askTvOffOnExit() {
+  const H = cfg().homeassistant || {};
+  return ha.ready() && !!H.tvEntity && H.askTvOffAtExit !== false;
+}
+
 /** Zustand des Fernsehers: an/aus (Home Assistant), verbunden und in Windows aktiv? */
 async function tvStatus() {
   const d = cfg().display;
@@ -447,7 +453,7 @@ async function leaveConsoleMode(opts = {}) {
   }
   await restoreAudio();
   await system.runCommands(d.customCommandsOnExit);
-  if (!opts.restart) await ha.onExit({ shutdown: !!opts.shutdown }).catch(() => {});
+  if (!opts.restart) await ha.onExit({ shutdown: !!opts.shutdown, tvOff: opts.tvOff }).catch(() => {});
 }
 
 function mediaDir() {
@@ -526,6 +532,12 @@ function createWindow() {
   });
   if (isDev) win.webContents.openDevTools({ mode: 'detach' });
   win.on('closed', () => { win = null; osd.destroy(); overlay.destroy(); });
+  // Schließen (X, Alt+F4): erst in der Oberfläche fragen, ob der Fernseher aus soll
+  win.on('close', (e) => {
+    if (quitting || setupMode || !askTvOffOnExit()) return;
+    e.preventDefault();
+    send('app:askExit');
+  });
   win.webContents.on('did-finish-load', () => {
     setTimeout(() => { for (const n of startupNotes.splice(0)) send('toast', n); }, 1500);
   });
@@ -915,10 +927,10 @@ ipcMain.handle('game:launch', async (_e, id) => {
 ipcMain.handle('game:kill', () => launcher.kill());
 ipcMain.handle('game:status', () => launcher.status());
 
-ipcMain.handle('system:power', async (_e, action) => {
+ipcMain.handle('system:power', async (_e, action, extra = {}) => {
   if (action === 'exit') {
     quitting = true;
-    await leaveConsoleMode();
+    await leaveConsoleMode({ tvOff: typeof extra.tvOff === 'boolean' ? extra.tvOff : undefined });
     app.quit();
     return true;
   }
@@ -946,7 +958,7 @@ ipcMain.handle('system:displays', () => screen.getAllDisplays().map((d, i) => ({
 ipcMain.handle('pad:hidCount', () => psWatcher.devices.size);
 
 // ---------- Einrichtungsmodus und Desktop-Verknüpfung ----------
-ipcMain.handle('app:mode', () => ({ setup: setupMode }));
+ipcMain.handle('app:mode', () => ({ setup: setupMode, askTvOff: askTvOffOnExit() }));
 ipcMain.handle('app:setupShortcut', () => {
   if (process.platform !== 'win32') throw new Error('Verknüpfungen gibt es nur unter Windows');
   const file = path.join(app.getPath('desktop'), 'AleGamestation – Einrichten (ohne Fernseher).lnk');

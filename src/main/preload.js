@@ -23,7 +23,7 @@ contextBridge.exposeInMainWorld('api', {
   kill: () => ipcRenderer.invoke('game:kill'),
   gameStatus: () => ipcRenderer.invoke('game:status'),
 
-  power: (action) => ipcRenderer.invoke('system:power', action),
+  power: (action, extra) => ipcRenderer.invoke('system:power', action, extra),
   setDisplayMode: (mode) => ipcRenderer.invoke('system:displayMode', mode),
   displays: () => ipcRenderer.invoke('system:displays'),
   listDisplays: () => ipcRenderer.invoke('displays:list'),
@@ -70,6 +70,7 @@ contextBridge.exposeInMainWorld('api', {
   createSetupShortcut: () => ipcRenderer.invoke('app:setupShortcut'),
   startConsoleMode: () => ipcRenderer.invoke('app:startConsoleMode'),
   onOpenSettings: on('app:openSettings'),
+  onAskExit: on('app:askExit'),
   onGamepadConnection: on('gamepad:connection'),
   onPadState: on('pad:state'),
   // Konsolen-Overlay

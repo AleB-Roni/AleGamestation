@@ -652,3 +652,17 @@ test('Switch-2-Cover: Suchname bereinigen und Shop-Titel unscharf zuordnen', () 
   assert.ok(titleScore('Mario Kart World', 'Super Mario Kart') < 0.75);
   assert.ok(titleScore('Donkey Kong Bananza', 'Donkey Kong Country Returns HD') < 0.75);
 });
+
+test('Home Assistant: Antwort beim Beenden (Fernseher aus / anlassen) überschreibt die Einstellung', async () => {
+  const { HomeAssistant } = require('../src/main/homeassistant');
+  const calls = [];
+  const fetch = async (url, opts) => { calls.push(new URL(url).pathname); return { ok: true, status: 200, text: async () => '[]' }; };
+  const cfg = { homeassistant: { enabled: true, url: 'http://ha', token: 'T', tvEntity: 'media_player.tv', turnOffAtExit: false, sourceAtExit: '' } };
+  const ha = new HomeAssistant({ fetch, getConfig: () => cfg });
+  await ha.onExit({ tvOff: true });
+  assert.ok(calls.includes('/api/services/media_player/turn_off'), 'Ausschalten trotz turnOffAtExit=false');
+  calls.length = 0;
+  cfg.homeassistant.turnOffAtExit = true;
+  await ha.onExit({ tvOff: false });
+  assert.ok(!calls.includes('/api/services/media_player/turn_off'), 'Anlassen trotz turnOffAtExit=true');
+});

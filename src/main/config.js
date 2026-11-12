@@ -161,6 +161,8 @@ const DEFAULT_CONFIG = {
     turnOffAtExit: false,
     sourceAtExit: '',
     turnOffAtShutdown: true,
+    // Beim Beenden (zum Desktop) fragen: Fernseher ausschalten oder anlassen?
+    askTvOffAtExit: true,
     // Weitere Dienste, z.B. "script.gaming_licht", "scene.kino" oder "light.turn_off:light.wohnzimmer"
     startServices: [],
     exitServices: []

@@ -180,6 +180,8 @@ Beim Start schaltet AleGamestation den Fernseher über Home Assistant ein, warte
 3. Fernseher und HDMI-Eingang auswählen (die Eingangsliste kommt direkt vom Fernseher)
 
 Optional: Fernseher beim Herunterfahren / Zurückkehren zum Desktop ausschalten oder auf einen anderen Eingang schalten, und eigene Aktionen beim Start/Beenden (z. B. `scene.gaming`, `script.licht_dimmen`, `light.turn_off:light.decke`).
+**Beim Beenden fragen:** Mit Home Assistant fragt AleGamestation beim Zurückkehren zum Desktop und beim Schließen des Fensters, ob der Fernseher **ausgeschaltet** oder **angelassen** werden soll (abschaltbar unter Einstellungen → Home Assistant).
+
 **Fernseher lässt sich über Home Assistant nicht einschalten?** Viele Fernseher sind in Home Assistant „nicht verfügbar“, solange sie aus sind. Dann unter **Einstellungen → Home Assistant → Einschalten über** ein anderes Gerät wählen, z. B. den **Chromecast** am Fernseher (weckt den TV per HDMI-CEC) oder ein Skript. AleGamestation wartet, bis der Fernseher in Home Assistant auftaucht, wählt dann den eingestellten HDMI-Eingang und prüft, dass er dort bleibt (der Chromecast schaltet den TV beim Wecken oft auf seinen eigenen Eingang). Genauso gibt es **Ausschalten über**.
 
 Funktioniert mit allen Fernsehern, die Home Assistant als Mediaplayer kennt (LG webOS, Samsung, Sony Bravia, Android TV, Philips …). Ob ein ausgeschalteter Fernseher eingeschaltet werden kann, hängt von der jeweiligen Integration ab (bei LG z. B. per Wake-on-LAN-Automation).

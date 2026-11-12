@@ -166,11 +166,13 @@ class HomeAssistant {
     return result;
   }
 
-  async onExit({ shutdown = false } = {}) {
+  /** @param {{ shutdown?: boolean, tvOff?: boolean }} opts  tvOff: Antwort auf die Frage beim Beenden (überschreibt die Einstellung) */
+  async onExit({ shutdown = false, tvOff } = {}) {
     if (!this.ready()) return;
     const c = this.cfg();
     for (const e of c.exitServices || []) await this.runEntry(e).catch((err) => this.log(err.message));
-    if (shutdown ? c.turnOffAtShutdown : c.turnOffAtExit) await this.tvOff().catch((err) => this.log(err.message));
+    const off = typeof tvOff === 'boolean' ? tvOff : (shutdown ? c.turnOffAtShutdown : c.turnOffAtExit);
+    if (off) await this.tvOff().catch((err) => this.log(err.message));
     else if (!shutdown && c.sourceAtExit && c.tvEntity && c.tvEntity.startsWith('media_player.')) {
       await this.call('media_player', 'select_source', { entity_id: c.tvEntity, source: c.sourceAtExit }).catch(() => {});
     }
