@@ -73,8 +73,13 @@ class NativeHelper {
     if (hwnd) this.send(`top ${hwnd}`);
   }
 
+  /** Beenden: erst die Eingabe schließen (das Hilfsprogramm räumt auf, z.B. Taskleiste einblenden), dann notfalls hart */
   stop() {
-    if (this.proc) { try { this.proc.kill(); } catch { /* ignore */ } this.proc = null; }
+    const p = this.proc;
+    if (!p) return;
+    this.proc = null;
+    try { p.stdin.end(); } catch { /* ignore */ }
+    setTimeout(() => { try { p.kill(); } catch { /* ignore */ } }, 1500).unref();
   }
 }
 

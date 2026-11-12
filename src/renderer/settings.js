@@ -288,6 +288,9 @@
         toggle('Vollbild', () => C().general, 'startFullscreen'),
         select('Oberfläche anzeigen auf', () => C().general, 'targetDisplay', [{ value: 'primary', label: 'Hauptbildschirm' }, { value: 'tv', label: 'Fernseher (Einstellungen → Anzeige)' }].concat(S.displays.filter((d) => d.electronId != null && d.active !== false).map((d) => ({ value: 'id:' + d.electronId, label: displayLabel(d) }))), 'Bei „Nur Fernseher“ ist der TV automatisch der Hauptbildschirm'),
         group('Beim Spielen'),
+        select('Taskleiste ausblenden', () => C().general, 'hideTaskbar', [
+          { value: 'game', label: 'Während ein Spiel läuft' }, { value: 'console', label: 'Im ganzen Konsolenmodus' }, { value: 'off', label: 'Nie' }
+        ], 'Für Emulatoren, bei denen im Vollbild die Taskleiste sichtbar bleibt (z.B. Switch). Wird danach immer wieder eingeblendet', { get: () => C().general.hideTaskbar || 'game' }),
         toggle('Oberfläche minimieren, während ein Spiel läuft', () => C().general, 'minimizeOnLaunch'),
         toggle('Nach Spielende zurück in die Oberfläche', () => C().general, 'refocusAfterGame'),
         group('Darstellung'),

@@ -241,6 +241,17 @@ async function activateTv(wait = false) {
   return { ok: true, activated: true, name: entry.name };
 }
 
+// ---------- Taskleiste ausblenden (randlose Vollbild-Emulatoren würden sonst von ihr überdeckt) ----------
+let taskbarHidden = false;
+function taskbarMode() { return (cfg().general || {}).hideTaskbar || 'game'; } // 'off' | 'game' | 'console'
+function setTaskbar(show, why = '') {
+  if (process.platform !== 'win32' || setupMode) return;
+  if (show ? !taskbarHidden : taskbarHidden) return;
+  taskbarHidden = !show;
+  nativeHelper.send(`taskbar ${show ? 1 : 0}`);
+  debug.info('anzeige', `Taskleiste ${show ? 'eingeblendet' : 'ausgeblendet'}${why ? ' (' + why + ')' : ''}`);
+}
+
 /** Beim Beenden fragen, ob der Fernseher aus soll? (nur mit Home Assistant und gewähltem Fernseher) */
 function askTvOffOnExit() {
   const H = cfg().homeassistant || {};
@@ -431,6 +442,7 @@ async function enterConsoleMode() {
     const r = await applyTvOnly(false, 'primary');
     if (!r.ok) startupNotes.push({ type: 'error', text: r.error });
   }
+  if (taskbarMode() === 'console') setTaskbar(false, 'Konsolenmodus');
   // Tonausgabe auf das gewählte Gerät (z.B. Fernseher) umstellen – nach dem Bildschirm, weil HDMI-Ton erst dann erscheint
   if (d.audioDevice && d.audioDevice.id) {
     applyAudio(true).then((r) => { if (!r.ok && r.error) send('toast', { type: 'error', text: r.error, ms: 6000 }); });
@@ -507,6 +519,7 @@ async function leaveConsoleMode(opts = {}) {
     await system.setDisplayMode(d.onExit);
     displaySwitched = false;
   }
+  setTaskbar(true, 'Konsolenmodus beendet');
   await restoreAudio();
   await system.runCommands(d.customCommandsOnExit);
   if (!opts.restart) await ha.onExit({ shutdown: !!opts.shutdown, tvOff: opts.tvOff }).catch(() => {});
@@ -607,6 +620,8 @@ function createWindow() {
 
 // ---------- Launcher-Events ----------
 launcher.on('started', (s) => debug.info('spiel', 'gestartet', s));
+launcher.on('started', () => { if (taskbarMode() !== 'off') setTaskbar(false, 'Spiel läuft'); });
+launcher.on('exited', () => { if (taskbarMode() === 'game') setTaskbar(true, 'Spiel beendet'); });
 launcher.on('launching', (l) => debug.info('spiel', 'Startbefehl', l));
 launcher.on('exited', (i) => debug.info('spiel', 'beendet', i));
 launcher.on('error', (err) => debug.error('spiel', 'Startfehler: ' + ((err && err.stack) || err)));
@@ -1203,6 +1218,7 @@ app.whenReady().then(async () => {
 
 app.on('before-quit', async (e) => {
   if (pausedGame) { e.preventDefault(); await resumeGame(); app.quit(); return; }
+  setTaskbar(true, 'App beendet');
   watcher.stop();
   psWatcher.stop();
   mouseMode.stop();

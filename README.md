@@ -135,6 +135,8 @@ Protokolliert werden: jede Eingabe mit aktueller Ansicht und Auswahl, Fehler all
 
 ## Emulatoren im Vollbild starten
 
+**Taskleiste bleibt sichtbar?** Manche Emulatoren (z.B. Switch) nutzen ein randloses Vollbild, über dem die Windows-Taskleiste liegt. Einstellungen → Allgemein → **Taskleiste ausblenden**: „Während ein Spiel läuft“ (Standard) oder „Im ganzen Konsolenmodus“. Danach wird sie immer wieder eingeblendet – auch wenn AleGamestation abstürzt.
+
 Unter **Einstellungen → Emulatoren → „Spiele im Vollbild starten“** (Standard: an) ergänzt AleGamestation bei bekannten Emulatoren automatisch das Vollbild-Argument – auch wenn es nicht in den Start-Argumenten steht:
 
 | Emulator | Vollbild-Argument | Empfohlene Start-Argumente |

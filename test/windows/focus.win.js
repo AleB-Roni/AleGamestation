@@ -74,6 +74,23 @@ function hwndOfPid(pid) {
     console.log('✔ Tonausgabe: ' + audio.length + ' Gerät(e), Standardgerät setzen funktioniert');
   }
 
+  // Taskleiste aus-/einblenden; beim Beenden des Hilfsprogramms wird sie immer wieder eingeblendet
+  const tb0 = await helper.request('taskbarvisible', 5000);
+  if (tb0 === '-1' || tb0 === '') console.log('⚠ Keine Taskleiste gefunden (kein Explorer) – Test übersprungen');
+  else {
+    helper.send('taskbar 0'); await sleep(400);
+    assert.strictEqual(await helper.request('taskbarvisible', 5000), '0', 'Taskleiste sollte ausgeblendet sein');
+    helper.send('taskbar 1'); await sleep(400);
+    assert.strictEqual(await helper.request('taskbarvisible', 5000), '1', 'Taskleiste sollte wieder sichtbar sein');
+    // Absicherung: ausblenden, Hilfsprogramm beenden -> Taskleiste wieder da
+    const h2 = new NativeHelper();
+    await h2.request('fg', 15000);
+    h2.send('taskbar 0'); await sleep(400);
+    h2.stop(); await sleep(3000);
+    assert.strictEqual(await helper.request('taskbarvisible', 5000), '1', 'Taskleiste muss nach dem Beenden wieder sichtbar sein');
+    console.log('✔ Taskleiste aus-/einblenden, nach dem Beenden immer wieder sichtbar');
+  }
+
   // 2) Zwei Fenster: A im Hintergrund, B im Vordergrund -> A per "front" nach vorne holen
   const notepad = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'notepad.exe');
   const a = spawn(notepad, [], { detached: true, stdio: 'ignore' });

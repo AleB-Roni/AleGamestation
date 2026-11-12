@@ -7,6 +7,7 @@
 #   k <vk> <1|0>     Taste drücken / loslassen (Virtual-Key-Code)
 #   front <hwnd> <1|0>  Fenster in den Vordergrund holen (trotz Windows-Fokus-Sperre), 1 = ganz oben fixieren
 #   top <hwnd>       Fenster ganz nach oben legen, ohne Fokus (für Einblendungen)
+#   taskbar <1|0>    Taskleiste(n) einblenden / ausblenden (wird beim Beenden des Hilfsprogramms immer wieder eingeblendet)
 #   q <id> fg        Anfrage: aktuelles Vordergrundfenster -> Antwort "a <id> <hwnd>"
 #   q <id> displays        Anfrage: alle angeschlossenen Bildschirme als JSON (Windows-Anzeigekonfiguration)
 #   q <id> tvonly <b64>    Nur diesen Bildschirm verwenden (Kennung Base64) -> Ergebniscode (0 = ok)
@@ -491,6 +492,24 @@ public static class AgsInput {
     return r;
   }
 
+  // ---------- Taskleiste aus-/einblenden (randlose Vollbild-Emulatoren) ----------
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after, string cls, string title);
+  /** Haupt- und Zweit-Taskleisten zeigen (show) oder verstecken; Rückgabe = Anzahl Taskleisten */
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+  /** 1 = Haupt-Taskleiste sichtbar, 0 = ausgeblendet, -1 = keine Taskleiste (z.B. ohne Explorer) */
+  public static int TaskbarVisible() {
+    IntPtr h = FindWindowEx(IntPtr.Zero, IntPtr.Zero, "Shell_TrayWnd", null);
+    return h == IntPtr.Zero ? -1 : (IsWindowVisible(h) ? 1 : 0);
+  }
+  public static int Taskbar(bool show) {
+    int n = 0;
+    IntPtr h = FindWindowEx(IntPtr.Zero, IntPtr.Zero, "Shell_TrayWnd", null);
+    if (h != IntPtr.Zero) { ShowWindow(h, show ? 5 : 0); n++; }
+    IntPtr s = IntPtr.Zero;
+    while ((s = FindWindowEx(IntPtr.Zero, s, "Shell_SecondaryTrayWnd", null)) != IntPtr.Zero) { ShowWindow(s, show ? 5 : 0); n++; }
+    return n;
+  }
+
   public static void Top(long hwnd) {
     // ganz oben, ohne Fokus: SWP_NOSIZE|SWP_NOMOVE|SWP_NOACTIVATE|SWP_SHOWWINDOW
     SetWindowPos(new IntPtr(hwnd), new IntPtr(-1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010 | 0x0040);
@@ -513,6 +532,7 @@ while ($true) {
       'k' { [AgsInput]::Key([uint16]$p[1], $p[2] -eq '1') }
       'front' { [void][AgsInput]::Front([long]$p[1], $p[2] -eq '1') }
       'top' { [AgsInput]::Top([long]$p[1]) }
+      'taskbar' { $global:tbHidden = ($p[1] -ne '1'); [void][AgsInput]::Taskbar($p[1] -eq '1') }
       'q' {
         $v = ''
         if ($p[2] -eq 'fg') { $v = [AgsInput]::Fg() }
@@ -529,6 +549,7 @@ while ($true) {
           $v = [AgsInput]::SetPlan((& $dec $parts[0]), [string[]]$on)
         }
         elseif ($p[2] -eq 'activate') { $v = [AgsInput]::Activate([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($p[3]))) }
+        elseif ($p[2] -eq 'taskbarvisible') { $v = [AgsInput]::TaskbarVisible() }
         elseif ($p[2] -eq 'audiodevs') { $v = [AgsAudio]::List() }
         elseif ($p[2] -eq 'audiodefault') { $v = [AgsAudio]::Default() }
         elseif ($p[2] -eq 'audioset') { $v = [AgsAudio]::SetDefault([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($p[3]))) }
@@ -540,3 +561,5 @@ while ($true) {
     }
   } catch { }
 }
+# Sicherheit: Wird AleGamestation beendet (oder stürzt ab), die Taskleiste immer wieder einblenden
+if ($global:tbHidden) { [void][AgsInput]::Taskbar($true) }

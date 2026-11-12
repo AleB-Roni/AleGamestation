@@ -34,6 +34,8 @@ const DEFAULT_CONFIG = {
     autoDownloadUpdates: true,
     // Konsolen-Kacheln: Fotos der Konsolen (sonst Umriss-Zeichnungen)
     consolePhotos: true,
+    // Taskleiste ausblenden: 'game' = während ein Spiel läuft, 'console' = im ganzen Konsolenmodus, 'off' = nie
+    hideTaskbar: 'game',
     // Emulatoren automatisch im Vollbild starten (passendes Argument für bekannte Emulatoren wird ergänzt)
     emulatorFullscreen: true,
     // Debug-Modus: Protokoll mit Eingaben/Fehlern schreiben (Einstellungen → Info & Updates)
