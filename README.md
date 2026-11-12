@@ -13,6 +13,9 @@ Alle Spiele (Steam, Epic, GOG, eigene) und Emulator-Spiele in einer modernen Obe
 - Auf jeder Spielkachel und in den Details siehst du, **mit welchem Emulator** das Spiel startet – und kannst es **pro Spiel ändern**
 - **Eigene Spiele/Programme hinzufügen** (z. B. Kodi, Spiele ohne Launcher) direkt in der Oberfläche
 - ROM-Ordner werden durchsucht (inkl. Unterordner), Covers werden automatisch erkannt (`Spielname.png` im Ordner, in `covers/` oder `media/covers/`)
+- **Emulator-Tab**: alle Konsolen nebeneinander im Raster; Auswahl öffnet die Spieleseite der Konsole (Kopf mit Foto, Emulator und Anzahl, ROMs im großen Raster, ○ zurück). Konsolen umsortieren und ausblenden über △
+- **Sortieren & Filtern** (☰ Menü): A–Z, zuletzt gespielt, meiste Spielzeit, nach Konsole; alle / Favoriten / gespielt / noch nicht gespielt – gilt für alle Spiele-Raster und wird gemerkt
+- **Farbthemen** (Mitternacht, Polarlicht, Ozean, Sonnenuntergang, Synthwave, Graphit) und **Oberflächengröße** bis 200 % für weit entfernte Fernseher (Einstellungen → Allgemein)
 - **Konsolen als Foto**: Die Konsolen-Kacheln zeigen freigestellte Fotos der Konsolen (gemeinfrei, Evan Amos / Wikimedia Commons – siehe `licenses/console-photos.txt`); abschaltbar unter Einstellungen → Allgemein, eigene Bilder pro Konsole möglich
 - **Dateien ausblenden**: Update-, DLC- und Patch-Dateien (z. B. Switch-Updates `[v65536]`, `(Update)`, `[DLC]`, Ordner `Updates`) werden automatisch versteckt; eigene Regeln wie `Demo ; (Beta) ; Bonus` pro Konsole unter Einstellungen → Systeme & ROMs. Dort lassen sich einzelne Dateien auch wieder einblenden
 - **Konsolen-Sounds**: sanfte, glockenartige Menüklänge mit Hall (Thema „Modern“), alternativ „Retro (8-Bit)“, Lautstärke einstellbar, Start-Klang

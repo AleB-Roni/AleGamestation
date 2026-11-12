@@ -134,6 +134,7 @@
     ConsoleIcons.usePhotos(App.cfg.general.consolePhotos);
     const g = App.cfg.general;
     document.documentElement.style.setProperty('--accent', g.accentColor || '#7c5cff');
+    document.documentElement.dataset.theme = g.theme || 'midnight';
     document.documentElement.style.setProperty('--scale', g.uiScale || 1);
     Sounds.setTheme(g.uiSounds === false ? 'off' : g.soundTheme || 'modern');
     Sounds.setVolume(g.soundVolume ?? 0.7);
@@ -194,6 +195,51 @@
 
   // ---------------- Bibliothek: Abschnitte ----------------
   /** Abschnitt: { title, layout: 'strip'|'grid'|'systems', items: [ {kind:'game'|'action'|'system', ...} ] } */
+  // ---------- Sortieren & Filtern (Raster-Ansichten) ----------
+  const SORTS = [
+    { value: 'name', label: 'A–Z' }, { value: 'recent', label: 'Zuletzt gespielt' },
+    { value: 'playtime', label: 'Meiste Spielzeit' }, { value: 'system', label: 'Nach Konsole' }
+  ];
+  const FILTERS = [
+    { value: 'all', label: 'Alle Spiele' }, { value: 'favorites', label: 'Nur Favoriten' },
+    { value: 'played', label: 'Schon gespielt' }, { value: 'unplayed', label: 'Noch nicht gespielt' }
+  ];
+  const sortMode = () => App.cfg.general.sortMode || 'name';
+  const filterMode = () => App.cfg.general.filterMode || 'all';
+  function arrange(list) {
+    const pt = App.cfg.playtime || {};
+    const lp = App.cfg.lastPlayed || {};
+    const favs = new Set(App.cfg.favorites || []);
+    const f = filterMode();
+    let out = list.filter((g) => (f === 'favorites' ? favs.has(g.id) : f === 'played' ? (pt[g.id] || lp[g.id]) : f === 'unplayed' ? !(pt[g.id] || lp[g.id]) : true));
+    const byName = (a, b) => a.name.localeCompare(b.name, 'de');
+    const m = sortMode();
+    if (m === 'recent') out = out.sort((a, b) => (lp[b.id] || 0) - (lp[a.id] || 0) || byName(a, b));
+    else if (m === 'playtime') out = out.sort((a, b) => (pt[b.id] || 0) - (pt[a.id] || 0) || byName(a, b));
+    else if (m === 'system') out = out.sort((a, b) => systemOf(a.system).name.localeCompare(systemOf(b.system).name, 'de') || byName(a, b));
+    else out = out.sort(byName);
+    return out;
+  }
+  function arrangeLabel() {
+    const s = SORTS.find((x) => x.value === sortMode());
+    const f = FILTERS.find((x) => x.value === filterMode());
+    return `  ·  ${s ? s.label : ''}${filterMode() !== 'all' && f ? ' · ' + f.label : ''}`;
+  }
+  /** Menü „Sortieren & Filtern“ (gilt für Steam/Epic/GOG/Eigene, Alle Spiele und die Spiele einer Konsole) */
+  function arrangeMenu() {
+    const apply = async () => { const keep = App.focus.s; await App.save({ immediate: true }); renderHome(); setFocus(Math.min(keep, App.sections.length - 1), 0, true); };
+    App.menu({
+      title: 'Sortieren & Filtern',
+      text: 'Gilt für alle Spiele-Raster und wird gemerkt.',
+      items: [
+        { type: 'select', label: 'Sortieren', icon: 'list', options: SORTS, value: sortMode(), onChange: (v) => { App.cfg.general.sortMode = v; apply(); } },
+        { type: 'select', label: 'Anzeigen', icon: 'eye', options: FILTERS, value: filterMode(), onChange: (v) => { App.cfg.general.filterMode = v; apply(); } },
+        { label: 'Fertig', icon: 'check', action: () => App.closeMenu() }
+      ]
+    });
+  }
+  App.arrangeMenu = arrangeMenu;
+
   function buildSections() {
     const tab = App.tabs[App.tabIndex];
     const games = visibleGames();
@@ -212,25 +258,36 @@
         secs.push({ title, layout: 'strip', items: list.slice(0, 30).map(gi), more: list.length > 30 ? list.length : 0 });
       }
     } else if (tab.id.startsWith('store:')) {
-      const items = games.filter((g) => g.system === tab.system).map(gi);
+      const items = arrange(games.filter((g) => g.system === tab.system)).map(gi);
       if (tab.system === 'steam' && App.cfg.steam.showBigPictureTile) items.unshift({ kind: 'action', id: 'bigpicture', title: 'Steam Big Picture', sub: 'öffnen', icon: 'play' });
       if (tab.system === 'pc') items.unshift({ kind: 'action', id: 'addGame', title: 'Spiel hinzufügen', sub: '.exe / Verknüpfung', icon: 'plus' });
-      secs.push({ title: systemOf(tab.system).name, layout: 'grid', items });
+      secs.push({ title: systemOf(tab.system).name + arrangeLabel(), layout: 'grid', items, letterJump: sortMode() === 'name', emptyText: filterMode() !== 'all' ? 'Keine Spiele für diesen Filter – ☰ Menü → Sortieren & Filtern' : '' });
     } else if (tab.id === 'emulators') {
       const systems = emuTabSystems();
-      const sysItems = systems.map((s) => ({ kind: 'system', system: s }));
-      sysItems.push({ kind: 'action', id: 'addSystem', title: 'Konsole hinzufügen', sub: 'Emulator + ROM-Ordner', icon: 'plus' });
-      App.emuSystemIndex = Math.min(App.emuSystemIndex, sysItems.length - 1);
-      secs.push({ title: 'Emulatoren & Konsolen', layout: 'systems', items: sysItems });
-      const sys = systems[App.emuSystemIndex];
-      if (sys && sys.standalone) {
-        secs.push({ title: `${sys.name} – noch keiner Konsole zugeordnet`, layout: 'grid', items: [], emptyText: `Dieser Emulator gehört noch zu keiner Konsole. Wähle ihn oben aus und drücke die Auswahl-Taste: „Als Konsole einrichten“ (ROM-Ordner + Dateiendungen) oder den Emulator direkt starten.` });
-      } else if (sys) {
-        const list = games.filter((g) => g.system === sys.id).map(gi);
-        secs.push({ title: `${sys.name} – ${list.length} Spiele`, layout: 'grid', items: list, emptyText: sys.emulatorFound ? `Keine ROMs gefunden. Wähle oben ${sys.short} aus und drücke die Auswahl-Taste: ROM-Ordner öffnen, Ordner hinzufügen oder den Emulator ohne Spiel starten.` : `Emulator „${sys.emulatorName}“ wurde nicht gefunden. Pfad in Einstellungen → Emulatoren eintragen.` });
+      const open = App.emuOpen && App.library.systems.find((x) => x.id === App.emuOpen);
+      if (!open) {
+        App.emuOpen = null;
+        // Übersicht: alle Konsolen nebeneinander im Raster
+        const sysItems = systems.map((x) => ({ kind: 'system', system: x }));
+        sysItems.push({ kind: 'action', id: 'addSystem', title: 'Konsole hinzufügen', sub: 'Emulator + ROM-Ordner', icon: 'plus' });
+        secs.push({ title: `Konsolen & Emulatoren  ·  ${systems.length}`, layout: 'grid', cls: 'sysgrid', items: sysItems });
+      } else if (open.standalone) {
+        secs.push({ title: `${open.name} – noch keiner Konsole zugeordnet`, layout: 'grid', console: open,
+          items: [{ kind: 'action', id: 'sysMenu', title: open.short, sub: 'Als Konsole einrichten / starten', icon: 'settings' }],
+          emptyText: '' });
+      } else {
+        // Spieleseite einer Konsole
+        const list = arrange(games.filter((g) => g.system === open.id)).map(gi);
+        list.unshift({ kind: 'action', id: 'sysMenu', title: open.short, sub: 'Emulator starten, Ordner, Bilder …', icon: 'settings' });
+        secs.push({
+          title: `${open.name}  ·  ${list.length - 1} Spiele${arrangeLabel()}`, layout: 'grid', console: open, items: list, letterJump: sortMode() === 'name',
+          emptyText: ''
+        });
+        if (list.length === 1) secs[0].note = open.emulatorFound ? `Keine ROMs gefunden. Über „${open.short}“ den ROM-Ordner öffnen oder hinzufügen.` : `Emulator „${open.emulatorName}“ wurde nicht gefunden – Pfad in Einstellungen → Emulatoren eintragen.`;
       }
     } else if (tab.id === 'all') {
-      secs.push({ title: `Alle Spiele (${games.length})`, layout: 'grid', items: games.slice().sort((a, b) => a.name.localeCompare(b.name, 'de')).map(gi), letterJump: true });
+      const list = arrange(games);
+      secs.push({ title: `Alle Spiele (${list.length})${arrangeLabel()}`, layout: 'grid', items: list.map(gi), letterJump: sortMode() === 'name' });
     }
     return secs;
   }
@@ -252,8 +309,9 @@
   function startMoveSystem(s) {
     App.closeMenu();
     App.moveSystem = s.id;
-    App.focus = { s: 0, i: App.emuSystemIndex };
+    App.emuOpen = null;
     renderHome();
+    setFocus(0, Math.max(0, emuTabSystems().findIndex((x) => x.id === s.id)), true);
     App.toast(`${s.short}: mit ◀ ▶ verschieben, bestätigen zum Ablegen`, 'info', 4000);
   }
   async function moveSystemStep(dir) {
@@ -266,9 +324,8 @@
     const a = list.indexOf(visible[from]); const b = list.indexOf(visible[to]);
     [list[a], list[b]] = [list[b], list[a]];
     emuTab().order = list;
-    App.emuSystemIndex = to;
-    App.focus = { s: 0, i: to };
     renderHome();
+    setFocus(0, to, true);
     return true;
   }
   async function endMoveSystem() {
@@ -281,7 +338,7 @@
     App.closeMenu();
     const t = emuTab();
     t.hidden = [...new Set([...(t.hidden || []), s.id])];
-    App.emuSystemIndex = Math.max(0, App.emuSystemIndex - 1);
+    App.emuOpen = null;
     await App.save({ immediate: true });
     renderHome();
     App.toast(`${s.short} ausgeblendet – wieder einblenden unter Einstellungen → Systeme & ROMs`, 'info', 5000);
@@ -328,12 +385,13 @@
     // Fokus begrenzen
     if (App.focus.s >= App.sections.length) App.focus = { s: Math.max(0, App.sections.length - 1), i: 0 };
     App.sections.forEach((sec, si) => {
-      const secEl = el('section', 'shelf ' + sec.layout);
+      const secEl = el('section', 'shelf ' + sec.layout + (sec.cls ? ' ' + sec.cls : ''));
+      if (sec.console) secEl.appendChild(consoleBanner(sec.console));
       secEl.appendChild(el('h3', 'shelf-title', esc(sec.title) + (sec.more ? ` <small>+${sec.more - 30} weitere</small>` : '')));
+      if (sec.note) secEl.appendChild(el('div', 'shelf-empty', esc(sec.note)));
       const row = el('div', 'shelf-items' + (sec.wide ? ' wide' : ''));
       sec.items.forEach((item, ii) => {
         const card = el('div', 'card ' + (item.kind === 'system' ? 'system-card' : item.kind === 'action' ? 'action-card' : ''));
-        if (item.kind === 'system' && ii === App.emuSystemIndex) card.classList.add('current');
         if (item.kind === 'system' && item.system.id === App.moveSystem) card.classList.add('moving');
         card.innerHTML = cardHtml(item, sec.wide);
         card.onclick = () => { setFocus(si, ii); activate(); };
@@ -349,6 +407,32 @@
       [...wrap.children].forEach((sec, i) => { const r = sec.querySelector('.shelf-items'); if (r && keepLeft[i]) r.scrollLeft = keepLeft[i]; });
     }
     updateFocus(!sameTab);
+  }
+
+  /** Kopf der Spieleseite einer Konsole: Foto, Name, Emulator, Anzahl, Zurück-Hinweis */
+  function consoleBanner(c) {
+    const icon = c.logo ? `<img src="${esc(c.logo)}" alt="">` : ConsoleIcons.forSystem(c.id, c.name);
+    return el('div', 'console-banner', `<div class="cb-art" style="--c:${esc(c.color)}">${icon}</div>
+      <div class="cb-text"><div class="cb-crumb">Emulatoren › <b>${esc(c.short)}</b></div><h2>${esc(c.name)}</h2>
+      <div class="cb-meta"><span class="dot ${c.emulatorFound ? 'ok' : 'bad'}"></span>${esc(c.emulatorName)} · ${c.count} Spiele</div></div>
+      <div class="cb-back">${glyph('B')} Alle Konsolen</div>`);
+  }
+  function openConsole(sys) {
+    App.emuReturn = App.focus.i;
+    App.emuOpen = sys.id;
+    App.focus = { s: 0, i: 0 };
+    Sounds.play('accept');
+    renderHome();
+    // Erstes Spiel auswählen (Platz 0 ist die Konsolen-Kachel)
+    const sec = App.sections[0];
+    if (sec && sec.items.length > 1) setFocus(0, 1, true);
+    $('#grid').scrollTop = 0;
+  }
+  function closeConsole() {
+    App.emuOpen = null;
+    renderHome();
+    setFocus(0, Math.min(App.emuReturn || 0, App.sections[0].items.length - 1), true);
+    Sounds.play('back');
   }
 
   function focusedItem() {
@@ -574,15 +658,12 @@
     const item = focusedItem();
     if (!item) return;
     if (item.kind === 'game') return launch(item.game);
-    if (item.kind === 'system') {
-      // Mit Spielen: in die Spieleliste springen, sonst die Konsolen-Seite öffnen
-      if (item.system.count > 0) moveVertical(1); else systemDetails(item.system);
-      return;
-    }
+    if (item.kind === 'system') return openConsole(item.system);
     if (item.kind === 'action') {
       Sounds.play('accept');
       if (item.id === 'addGame') return addGameFlow();
       if (item.id === 'addSystem') return App.addSystemWizard();
+      if (item.id === 'sysMenu') { const c = App.library.systems.find((x) => x.id === App.emuOpen); if (c) systemDetails(c); return; }
       if (item.id === 'bigpicture') return launch({ id: 'steam-bigpicture', name: 'Steam Big Picture' });
     }
   }
@@ -750,7 +831,7 @@
       text: s.count ? `${s.count} Spiele · Emulator: ${esc(s.emulatorName)}` : 'Noch keine Spiele gefunden – lege ROMs in den ROM-Ordner und lies die Bibliothek neu ein.',
       className: 'system-details',
       items: [
-        ...(s.count ? [{ label: 'Spiele anzeigen', icon: 'list', action: () => { App.closeMenu(); moveVertical(1); } }] : []),
+        ...(s.count && App.emuOpen !== s.id ? [{ label: 'Spiele anzeigen', icon: 'list', action: () => { App.closeMenu(); openConsole(s); } }] : []),
         { label: `${s.emulatorName} ohne Spiel starten`, icon: 'play', hint: s.emulatorFound ? 'z.B. zum Einrichten' : 'Emulator nicht gefunden', action: async () => {
           App.closeMenu();
           try { const st = await api.launchEmulator(s.id); if (st && st.running) showRunning(st); } catch (e) { err(e); }
@@ -900,8 +981,8 @@
       renderTabs();
       showView('home');
       const systems = emuTabSystems();
-      App.emuSystemIndex = Math.max(0, systems.findIndex((s) => s.id === id));
-      App.focus = { s: 0, i: App.emuSystemIndex };
+      App.emuOpen = null;
+      App.focus = { s: 0, i: Math.max(0, systems.findIndex((s) => s.id === id)) };
       renderHome();
       const count = (systems.find((s) => s.id === id) || { count: 0 }).count;
       Sounds.play('accept');
@@ -932,6 +1013,7 @@
           { label: 'Fernseher einschalten / Eingang wählen', icon: 'tv', action: async () => { App.closeMenu(); try { await api.haTv(true); App.toast('Fernseher angesteuert', 'ok'); } catch (e) { App.toast(String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''), 'error', 6000); } } },
           { label: 'Fernseher ausschalten', icon: 'power', action: async () => { App.closeMenu(); try { await api.haTv(false); } catch (e) { App.toast(String(e.message || e), 'error'); } } }
         ] : []),
+        { label: 'Sortieren & Filtern …', icon: 'list', hint: SORTS.find((x) => x.value === sortMode()).label, action: () => { App.closeMenu(); arrangeMenu(); } },
         { label: 'Bildschirm umschalten …', icon: 'monitor', action: displayMenu },
         { label: 'Fehlende Cover herunterladen', icon: 'download', action: () => { App.closeMenu(); App.scrape({}); } },
         { label: 'Bibliothek neu einlesen', icon: 'refresh', action: async () => { App.closeMenu(); await App.refreshLibrary(); App.toast(`${App.library.games.length} Spiele gefunden`, 'ok'); } },
@@ -1013,9 +1095,10 @@
     else {
       const item = focusedItem();
       if (item && item.kind === 'game') html += hint(glyph('A'), 'Spielen') + hint(glyph('X'), 'Favorit') + hint(glyph('Y'), 'Details');
-      else if (item && item.kind === 'system') html += hint(glyph('A'), item.system.count ? 'Spiele' : 'Öffnen') + hint(glyph('Y'), 'Konsole');
+      else if (item && item.kind === 'system') html += hint(glyph('A'), 'Spiele anzeigen') + hint(glyph('Y'), 'Konsole');
       else if (item) html += hint(glyph('A'), 'Öffnen');
       html += hint(glyph('LB') + glyph('RB'), App.sections[App.focus.s] && App.sections[App.focus.s].letterJump ? 'Buchstabe' : 'Bereich');
+      if (App.emuOpen && App.tabs[App.tabIndex].id === 'emulators') html += hint(glyph('B'), 'Alle Konsolen');
       html += hint(glyph('LT') + glyph('RT'), 'Kategorie') + hint(glyph('START'), 'Menü');
     }
     h.innerHTML = html;
@@ -1049,7 +1132,8 @@
       case 'right': if (moveHorizontal(1)) Sounds.play('move'); break;
       case 'accept': activate(); break;
       case 'back':
-        if (App.tabIndex !== 0) switchTab(0);
+        if (App.emuOpen && App.tabs[App.tabIndex].id === 'emulators') closeConsole();
+        else if (App.tabIndex !== 0) switchTab(0);
         else if (App.focus.s || App.focus.i) { setFocus(0, 0); Sounds.play('back'); }
         break;
       case 'x': if (item && item.kind === 'game') toggleFavorite(item.game); break;

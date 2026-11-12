@@ -43,6 +43,11 @@ const DEFAULT_CONFIG = {
     confirmPowerActions: true,
     // Farbakzent der Oberfläche
     accentColor: '#7c5cff',
+    // Farbthema: midnight | aurora | ocean | sunset | synthwave | graphite
+    theme: 'midnight',
+    // Spiele-Raster: Sortierung (name | recent | playtime | system) und Filter (all | favorites | played | unplayed)
+    sortMode: 'name',
+    filterMode: 'all',
     // Skalierung der Oberfläche (1 = normal, 1.25 = größer für weit entfernte Fernseher)
     uiScale: 1
   },

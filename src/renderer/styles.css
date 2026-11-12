@@ -2,6 +2,9 @@
   --accent: #7c5cff;
   --accent-2: #22d3ee;
   --bg: #07070c;
+  --shade: 7, 7, 12;
+  --orb-a: var(--accent);
+  --orb-b: var(--accent-2);
   --panel: rgba(18, 18, 30, 0.62);
   --panel-solid: #14141f;
   --line: rgba(255, 255, 255, 0.09);
@@ -37,10 +40,10 @@ body.hide-cursor, body.hide-cursor * { cursor: none !important; }
   opacity: 0.9;
 }
 .bg-orb { position: absolute; width: 60vmax; height: 60vmax; border-radius: 50%; filter: blur(90px); opacity: 0.28; animation: drift 24s ease-in-out infinite alternate; }
-.orb-a { background: var(--accent); top: -25vmax; left: -15vmax; }
-.orb-b { background: var(--accent-2); bottom: -30vmax; right: -20vmax; animation-delay: -12s; opacity: 0.18; }
+.orb-a { background: var(--orb-a); top: -25vmax; left: -15vmax; }
+.orb-b { background: var(--orb-b); bottom: -30vmax; right: -20vmax; animation-delay: -12s; opacity: 0.18; }
 @keyframes drift { to { transform: translate(8vmax, 6vmax) scale(1.15); } }
-.bg-shade { position: absolute; inset: 0; background: radial-gradient(ellipse at 30% 20%, transparent 0%, rgba(7,7,12,0.55) 55%, rgba(7,7,12,0.92) 100%), linear-gradient(to bottom, rgba(7,7,12,0.2), rgba(7,7,12,0.85)); }
+.bg-shade { position: absolute; inset: 0; background: radial-gradient(ellipse at 30% 20%, transparent 0%, rgba(var(--shade),0.55) 55%, rgba(var(--shade),0.92) 100%), linear-gradient(to bottom, rgba(var(--shade),0.2), rgba(var(--shade),0.85)); }
 
 #app { position: relative; z-index: 1; height: 100%; display: flex; flex-direction: column; }
 
@@ -399,3 +402,27 @@ body.hide-cursor, body.hide-cursor * { cursor: none !important; }
 
 /* Konsole verschieben (Emulator-Tab) */
 .card.moving { outline: 3px dashed var(--accent); outline-offset: 5px; transform: translateY(-6px) scale(1.04); box-shadow: 0 18px 40px rgba(0,0,0,0.55); }
+
+/* ---------- Emulator-Tab: Konsolen-Raster und Spieleseite ---------- */
+.shelf.sysgrid .shelf-items { grid-template-columns: repeat(auto-fill, minmax(calc(var(--card-w) * 1.55), 1fr)); gap: 1.3rem; }
+.shelf.sysgrid .card { aspect-ratio: 16 / 10; }
+.shelf.sysgrid .card.action-card .placeholder { height: 100%; }
+.console-banner { display: flex; align-items: center; gap: 1.6rem; margin: 0.6rem 0.4rem 0.2rem; padding: 1rem 1.4rem; border-radius: 18px;
+  background: linear-gradient(110deg, color-mix(in srgb, var(--panel-solid) 60%, transparent), transparent); border: 1px solid var(--line); }
+.console-banner .cb-art { width: 11rem; height: 6.5rem; display: grid; place-items: center; border-radius: 14px; color: #fff; flex: none;
+  background: radial-gradient(circle at 30% 30%, color-mix(in srgb, var(--c) 70%, transparent), color-mix(in srgb, var(--c) 18%, #0b0b14)); }
+.console-banner .cb-art img, .console-banner .cb-art svg { max-width: 92%; max-height: 92%; object-fit: contain; filter: drop-shadow(0 8px 18px rgba(0,0,0,0.5)); }
+.console-banner .cb-text { flex: 1; min-width: 0; }
+.console-banner .cb-crumb { color: var(--muted); font-size: 0.85rem; letter-spacing: 0.04em; }
+.console-banner .cb-crumb b { color: var(--text); }
+.console-banner h2 { margin: 0.15rem 0 0.3rem; font-size: 1.8rem; }
+.console-banner .cb-meta { color: var(--muted); display: flex; align-items: center; gap: 0.5rem; }
+.console-banner .cb-back { color: var(--muted); display: flex; align-items: center; gap: 0.5rem; white-space: nowrap; }
+
+/* ---------- Farbthemen (Einstellungen → Allgemein → Farbthema) ---------- */
+:root[data-theme="aurora"] { --bg: #04100f; --shade: 4, 16, 15; --accent-2: #34d399; --orb-a: #10b981; --orb-b: #22d3ee; --panel: rgba(10, 30, 28, 0.62); --panel-solid: #0c1d1b; }
+:root[data-theme="sunset"] { --bg: #120709; --shade: 18, 7, 9; --accent-2: #fbbf24; --orb-a: #f43f5e; --orb-b: #fb923c; --panel: rgba(34, 14, 18, 0.62); --panel-solid: #22111a; }
+:root[data-theme="ocean"] { --bg: #040a14; --shade: 4, 10, 20; --accent-2: #38bdf8; --orb-a: #2563eb; --orb-b: #06b6d4; --panel: rgba(10, 20, 38, 0.62); --panel-solid: #0d1a2e; }
+:root[data-theme="synthwave"] { --bg: #0b0414; --shade: 11, 4, 20; --accent-2: #f472b6; --orb-a: #a21caf; --orb-b: #f97316; --panel: rgba(28, 10, 40, 0.62); --panel-solid: #1c0d2b; }
+:root[data-theme="graphite"] { --bg: #0a0a0b; --shade: 10, 10, 11; --accent-2: #a1a1aa; --orb-a: #3f3f46; --orb-b: #52525b; --panel: rgba(28, 28, 32, 0.66); --panel-solid: #18181b; }
+:root[data-theme="graphite"] .bg-orb { opacity: 0.16; }

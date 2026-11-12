@@ -307,6 +307,7 @@
       Sounds.setTheme(cfg.general.uiSounds === false ? 'off' : cfg.general.soundTheme || 'modern');
       Sounds.setVolume(cfg.general.soundVolume ?? 0.7);
       document.documentElement.style.setProperty('--accent', cfg.general.accentColor || '#7c5cff');
+      document.documentElement.dataset.theme = cfg.general.theme || 'midnight';
       Glyphs.configure({ style: cfg.controller.glyphStyle || 'auto', swapAB: cfg.controller.swapAB });
     } catch { /* Standardwerte */ }
     try { S.debug = !!(await api.debugState()).enabled; } catch { S.debug = false; }

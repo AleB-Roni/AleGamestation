@@ -118,11 +118,15 @@
         toggle('Nach Spielende zurück in die Oberfläche', () => C().general, 'refocusAfterGame'),
         group('Darstellung'),
         toggle('Konsolen als Foto zeigen', () => C().general, 'consolePhotos', 'Echte Konsolenfotos auf den Kacheln (sonst Umriss-Zeichnungen). Eigene Bilder: Einstellungen → Systeme & ROMs → Konsole → Logo', { get: () => C().general.consolePhotos !== false, rescan: true }),
+        select('Farbthema', () => C().general, 'theme', [
+          { value: 'midnight', label: 'Mitternacht' }, { value: 'aurora', label: 'Polarlicht' }, { value: 'ocean', label: 'Ozean' },
+          { value: 'sunset', label: 'Sonnenuntergang' }, { value: 'synthwave', label: 'Synthwave' }, { value: 'graphite', label: 'Graphit' }
+        ], 'Hintergrund und Lichtstimmung der Oberfläche', { get: () => C().general.theme || 'midnight' }),
         select('Akzentfarbe', () => C().general, 'accentColor', [
           { value: '#7c5cff', label: 'Violett' }, { value: '#22d3ee', label: 'Cyan' }, { value: '#3ddc84', label: 'Grün' },
           { value: '#ff4d6d', label: 'Rot' }, { value: '#ff9f1c', label: 'Orange' }, { value: '#3b82f6', label: 'Blau' }, { value: '#e5e5e5', label: 'Weiß' }
         ]),
-        select('Größe der Oberfläche', () => C().general, 'uiScale', [0.85, 1, 1.15, 1.3, 1.5].map((v) => ({ value: v, label: Math.round(v * 100) + ' %' })), 'Größer für weit entfernte Fernseher'),
+        select('Größe der Oberfläche', () => C().general, 'uiScale', [0.85, 1, 1.15, 1.3, 1.5, 1.75, 2].map((v) => ({ value: v, label: Math.round(v * 100) + ' %' })), 'Größer für weit entfernte Fernseher'),
         group('Sound'),
         {
           type: 'select', label: 'Menü-Sounds', desc: 'Modern = sanfte Konsolen-Klänge mit Hall',
