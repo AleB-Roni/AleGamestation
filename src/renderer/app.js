@@ -135,6 +135,7 @@
     const g = App.cfg.general;
     document.documentElement.style.setProperty('--accent', g.accentColor || '#7c5cff');
     document.documentElement.dataset.theme = g.theme || 'midnight';
+    Input.configure({ rightClickBack: g.rightClickBack !== false });
     document.documentElement.style.setProperty('--scale', g.uiScale || 1);
     Sounds.setTheme(g.uiSounds === false ? 'off' : g.soundTheme || 'modern');
     Sounds.setVolume(g.soundVolume ?? 0.7);
@@ -173,6 +174,7 @@
   }
 
   function switchTab(i) {
+    if (!App._navigatingForward) App.forwardStack = [];
     App.tabIndex = (i + App.tabs.length) % App.tabs.length;
     renderTabs();
     const tab = App.tabs[App.tabIndex];
@@ -191,6 +193,7 @@
     App.view = v;
     document.querySelectorAll('.view').forEach((x) => x.classList.toggle('active', x.id === v));
     renderHints();
+    if (App.updateNavBack) App.updateNavBack();
   }
 
   // ---------------- Bibliothek: Abschnitte ----------------
@@ -418,6 +421,7 @@
       <div class="cb-back">${glyph('B')} Alle Konsolen</div>`);
   }
   function openConsole(sys) {
+    if (!App._navigatingForward) App.forwardStack = [];
     App.emuReturn = App.focus.i;
     App.emuOpen = sys.id;
     App.focus = { s: 0, i: 0 };
@@ -429,6 +433,8 @@
     $('#grid').scrollTop = 0;
   }
   function closeConsole() {
+    const was = App.library.systems.find((x) => x.id === App.emuOpen);
+    if (was) App.pushForward(() => openConsole(was));
     App.emuOpen = null;
     renderHome();
     setFocus(0, Math.min(App.emuReturn || 0, App.sections[0].items.length - 1), true);
@@ -709,6 +715,7 @@
 
   function renderModal() {
     const m = App.modalStack[App.modalStack.length - 1];
+    if (App.updateNavBack) setTimeout(App.updateNavBack, 0);
     $('#overlay').classList.toggle('hidden', !m);
     renderHints();
     if (!m) return;
@@ -1055,6 +1062,29 @@
     SettingsView.open(section);
   }
   App.openSettings = openSettings;
+  // ---------- Vor/Zurück (Maus-Seitentasten, Alt+←/→, Zurück-Knopf) ----------
+  App.forwardStack = [];
+  App.pushForward = (fn) => { App.forwardStack.push(fn); if (App.forwardStack.length > 20) App.forwardStack.shift(); updateNavBack(); };
+  function navForward() {
+    const fn = App.forwardStack.pop();
+    if (!fn) return false;
+    App._navigatingForward = true;
+    try { fn(); } finally { App._navigatingForward = false; }
+    Sounds.play('move');
+    updateNavBack();
+    return true;
+  }
+  /** Gibt es etwas, wohin „Zurück“ führt? (für den Zurück-Knopf oben) */
+  function canGoBack() {
+    if (App.running) return false;
+    return !!(App.modalStack.length || App.moveSystem || App.view === 'settings' || App.emuOpen && App.tabs[App.tabIndex].id === 'emulators' || App.tabIndex !== 0);
+  }
+  function updateNavBack() {
+    const b = $('#navBack');
+    if (b) b.classList.toggle('hidden', !canGoBack());
+  }
+  App.updateNavBack = updateNavBack;
+
   App.backToLibrary = function () {
     App.tabIndex = 0;
     renderTabs();
@@ -1106,8 +1136,10 @@
   App.renderHints = renderHints;
 
   // ---------------- Eingabe ----------------
+  Input.on(() => setTimeout(updateNavBack, 0));
   Input.on((a, src) => {
     if (App.debug) App.log('eingabe', `${a} (${src || '?'})`, debugContext());
+    if (a === 'forward') { if (!App.modalStack.length && !App.running && !App.moveSystem) navForward(); return; }
     if (App.recording) return;
     if (App.running) {
       if (a === 'accept') api.kill();
@@ -1133,7 +1165,7 @@
       case 'accept': activate(); break;
       case 'back':
         if (App.emuOpen && App.tabs[App.tabIndex].id === 'emulators') closeConsole();
-        else if (App.tabIndex !== 0) switchTab(0);
+        else if (App.tabIndex !== 0) { const prev = App.tabIndex; switchTab(0); App.pushForward(() => switchTab(prev)); }
         else if (App.focus.s || App.focus.i) { setFocus(0, 0); Sounds.play('back'); }
         break;
       case 'x': if (item && item.kind === 'game') toggleFavorite(item.game); break;
@@ -1201,6 +1233,16 @@
     api.onGameStatus((s) => (s.running ? showRunning(s) : hideRunning()));
     api.onConfigChanged((c) => { App.cfg = c; refreshDebug(); if (App.view === 'home') { const f = { ...App.focus }; renderHome(); setFocus(Math.min(f.s, Math.max(0, App.sections.length - 1)), 0, true); } });
     api.onToast((t) => App.toast(t.text, t.type, t.ms));
+    // Maus: Zurück-Knopf oben und Mausrad in den Spiele-Rastern
+    $('#navBack').onclick = () => Input.trigger('back', 'mouse');
+    if (api.onNavCommand) api.onNavCommand((a) => setTimeout(() => Input.navCommand(a), 60));
+    $('#gridWrap').addEventListener('wheel', (e) => {
+      const row = e.target.closest && e.target.closest('.shelf.strip .shelf-items');
+      if (row && (e.shiftKey || Math.abs(e.deltaX) > Math.abs(e.deltaY))) row.scrollBy({ left: e.deltaX || e.deltaY, behavior: 'auto' });
+      else $('#grid').scrollBy({ top: e.deltaY, behavior: 'auto' });
+      e.preventDefault();
+    }, { passive: false });
+    updateNavBack();
     refreshDebug();
     api.onDebugEvent(() => refreshDebug());
     window.addEventListener('error', (e) => App.log('oberfläche', `JS-Fehler: ${e.message} (${(e.filename || '').split('/').pop()}:${e.lineno})`, debugContext(), 'error'));

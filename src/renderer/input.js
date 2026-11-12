@@ -41,6 +41,11 @@
     m: 'start', f1: 'start', o: 'select', f2: 'select'
   };
   window.addEventListener('keydown', (ev) => {
+    if ((ev.altKey && (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight')) || ev.key === 'BrowserBack' || ev.key === 'BrowserForward') {
+      ev.preventDefault();
+      emit(ev.key === 'ArrowLeft' || ev.key === 'BrowserBack' ? 'back' : 'forward', 'keyboard');
+      return;
+    }
     const t = ev.target;
     const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA');
     if (typing) {
@@ -132,8 +137,28 @@
   // Fester Takt statt Bildwiederholung: wird bei verdeckten/transparenten Fenstern nicht gedrosselt
   setInterval(poll, 16);
 
+  // ---------- Maus: Seitentasten zurück/vor, Rechtsklick = zurück ----------
+  const isTyping = (t) => t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT');
+  window.addEventListener('mousedown', (ev) => { if (ev.button === 3 || ev.button === 4) ev.preventDefault(); });
+  window.addEventListener('mouseup', (ev) => {
+    if (ev.button === 3 || ev.button === 4) {
+      ev.preventDefault();
+      state.lastMouseNav = performance.now();
+      emit(ev.button === 3 ? 'back' : 'forward', 'mouse');
+    }
+  });
+  window.addEventListener('contextmenu', (ev) => {
+    if (isTyping(ev.target)) return; // in Textfeldern das normale Menü (Einfügen …)
+    ev.preventDefault();
+    if (state.rightClickBack !== false) emit('back', 'mouse');
+  });
+
   window.Input = {
     on: (fn) => listeners.push(fn),
+    /** Aktion auslösen, als käme sie vom Controller (z.B. Zurück-Knopf in der Oberfläche) */
+    trigger: (action, source = 'mouse') => emit(action, source),
+    /** Seitentaste über Windows gemeldet: nur, wenn sie nicht schon als Mausklick ankam */
+    navCommand: (action) => { if (performance.now() - (state.lastMouseNav || 0) > 400) emit(action, 'mouse'); },
     configure: (opts) => Object.assign(state, opts),
     setPaused: (v) => { state.paused = !!v; held.clear(); },
     /** aktuell gedrückte Tasten als Namen (für Kombinations-Aufnahme) */

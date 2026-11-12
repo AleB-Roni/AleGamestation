@@ -99,6 +99,9 @@
   }
   function closeDetail() {
     if (!S.detail) return false;
+    // Für „Vor“ (Maus-Seitentaste): diese Detailseite wieder öffnen können
+    const reopen = { builder: S.detail.builder, section: S.section };
+    App.pushForward(() => { if (App.view !== 'settings') App.openSettings(SECTIONS[reopen.section].id); S.section = reopen.section; openDetail(reopen.builder); });
     S.focus = S.detail.returnFocus || 0;
     S.detail = null;
     render();
@@ -141,6 +144,7 @@
         toggle('Spielstart-Animation', () => C().general, 'launchAnimation', 'Cover zoomt heran, bevor das Spiel startet'),
         toggle('Uhr anzeigen', () => C().general, 'showClock'),
         toggle('Mauszeiger ausblenden', () => C().general, 'hideCursor'),
+        toggle('Rechtsklick = Zurück', () => C().general, 'rightClickBack', 'Maus: Rechtsklick und die Seitentasten gehen zurück/vor, Mausrad scrollt', { get: () => C().general.rightClickBack !== false }),
         toggle('Herunterfahren usw. bestätigen', () => C().general, 'confirmPowerActions'),
         group('Konfiguration'),
         button('Konfigurationsdatei (JSON) öffnen', () => api.openConfigFile(), { desc: 'Für fortgeschrittene Einstellungen' })
@@ -943,7 +947,7 @@
         // L1/R1: Bereiche der Einstellungen wechseln
         case 'lb': S.detail = null; S.section = (S.section + SECTIONS.length - 1) % SECTIONS.length; S.focus = 0; render(); Sounds.play('tab'); break;
         case 'rb': S.detail = null; S.section = (S.section + 1) % SECTIONS.length; S.focus = 0; render(); Sounds.play('tab'); break;
-        case 'back': Sounds.play('back'); if (!closeDetail()) App.backToLibrary(); break;
+        case 'back': Sounds.play('back'); if (!closeDetail()) { const sec = SECTIONS[S.section].id; App.backToLibrary(); App.pushForward(() => App.openSettings(sec)); } break;
         case 'select': Sounds.play('back'); S.detail = null; App.backToLibrary(); break;
         default: act(a);
       }

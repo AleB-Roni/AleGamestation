@@ -426,3 +426,8 @@ body.hide-cursor, body.hide-cursor * { cursor: none !important; }
 :root[data-theme="synthwave"] { --bg: #0b0414; --shade: 11, 4, 20; --accent-2: #f472b6; --orb-a: #a21caf; --orb-b: #f97316; --panel: rgba(28, 10, 40, 0.62); --panel-solid: #1c0d2b; }
 :root[data-theme="graphite"] { --bg: #0a0a0b; --shade: 10, 10, 11; --accent-2: #a1a1aa; --orb-a: #3f3f46; --orb-b: #52525b; --panel: rgba(28, 28, 32, 0.66); --panel-solid: #18181b; }
 :root[data-theme="graphite"] .bg-orb { opacity: 0.16; }
+
+/* Zurück-Knopf für die Maus (oben links) */
+.brand-wrap { display: flex; align-items: center; gap: 0.9rem; }
+.nav-back { font: inherit; font-size: 0.95rem; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 0.4rem 0.95rem; cursor: pointer; backdrop-filter: blur(20px); transition: background 0.15s, transform 0.15s; }
+.nav-back:hover { background: rgba(255,255,255,0.14); transform: translateX(-2px); }

@@ -45,6 +45,8 @@ const DEFAULT_CONFIG = {
     accentColor: '#7c5cff',
     // Farbthema: midnight | aurora | ocean | sunset | synthwave | graphite
     theme: 'midnight',
+    // Maus: Rechtsklick geht zurück (Seitentasten zurück/vor funktionieren immer)
+    rightClickBack: true,
     // Spiele-Raster: Sortierung (name | recent | playtime | system) und Filter (all | favorites | played | unplayed)
     sortMode: 'name',
     filterMode: 'all',

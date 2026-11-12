@@ -63,6 +63,7 @@ contextBridge.exposeInMainWorld('api', {
   onConfigChanged: on('config:changed'),
   onToast: on('toast'),
   onWindowFocus: on('window:focus'),
+  onNavCommand: on('nav:command'),
   onGamepadConnection: on('gamepad:connection'),
   onPadState: on('pad:state'),
   // Konsolen-Overlay

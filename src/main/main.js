@@ -462,6 +462,10 @@ function createWindow() {
   win.webContents.on('did-finish-load', () => {
     setTimeout(() => { for (const n of startupNotes.splice(0)) send('toast', n); }, 1500);
   });
+  // Maus-Seitentasten / Browser-Tasten der Tastatur (Windows meldet sie als „App-Befehl“)
+  win.on('app-command', (_e, cmd) => {
+    if (cmd === 'browser-backward' || cmd === 'browser-forward') send('nav:command', cmd === 'browser-backward' ? 'back' : 'forward');
+  });
   win.on('focus', () => send('window:focus', true));
   win.on('blur', () => send('window:focus', false));
 }
