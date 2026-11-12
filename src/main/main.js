@@ -375,6 +375,11 @@ async function enterConsoleMode() {
       await new Promise((res) => setTimeout(res, d.switchDelayMs || 2500));
     }
   }
+  // Fernseher zusätzlich zur Hauptanzeige machen (Spiele starten dort); beim Beenden wird der Hauptmonitor wiederhergestellt
+  if (!skipDisplaySwitch && d.tv && d.tvAsPrimary && !['tvOnly', 'tvPrimary', 'internal'].includes(d.onStart)) {
+    const r = await applyTvOnly(false, 'primary');
+    if (!r.ok) startupNotes.push({ type: 'error', text: r.error });
+  }
   // Tonausgabe auf das gewählte Gerät (z.B. Fernseher) umstellen – nach dem Bildschirm, weil HDMI-Ton erst dann erscheint
   if (d.audioDevice && d.audioDevice.id) {
     applyAudio(true).then((r) => { if (!r.ok && r.error) send('toast', { type: 'error', text: r.error, ms: 6000 }); });

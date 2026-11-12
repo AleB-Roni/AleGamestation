@@ -39,6 +39,15 @@
     return [
       { type: 'item', label: 'Zustand', desc: t ? parts.join('  ·  ') : 'Wird ermittelt …', status, statusText: t ? (t.active ? 'bereit' : t.connected ? 'deaktiviert' : 'nicht verbunden') : '',
         action: async () => { S.tv = await api.tvStatus().catch(() => null); render(); App.toast('Zustand aktualisiert', 'info', 1200); } },
+      {
+        ...toggle('Fernseher als Hauptanzeige', () => C().display, 'tvAsPrimary', 'Im Konsolenmodus wird der TV zur Hauptanzeige – Spiele starten dort. Beim Beenden wird wieder dein Hauptmonitor zur Hauptanzeige'),
+        get: () => !!C().display.tvAsPrimary || C().display.onStart === 'tvPrimary' || C().display.onStart === 'tvOnly',
+        set: (v) => {
+          C().display.tvAsPrimary = v;
+          // „Fernseher als Hauptbildschirm“ als Startmodus passt nicht zu „aus“
+          if (!v && C().display.onStart === 'tvPrimary') C().display.onStart = 'extend';
+        }
+      },
       { ...toggle('Deaktivierten Fernseher automatisch einschalten', () => C().display, 'enableTv', 'Ist der TV angesteckt, aber in Windows abgeschaltet, wird er beim Start eingeschaltet und beim Beenden wieder abgeschaltet'), get: () => C().display.enableTv !== false },
       ...(t && t.connected && !t.active ? [button('Fernseher jetzt in Windows einschalten', async () => {
         const r = await api.activateTv().catch((e) => ({ ok: false, error: String(e.message || e) }));
