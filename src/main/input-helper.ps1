@@ -14,6 +14,7 @@
 #   q <id> save            Aktuelle Anordnung sichern -> Base64
 #   q <id> restore <b64>   Gesicherte Anordnung wiederherstellen -> Ergebniscode
 #   q <id> extend          Alle Bildschirme erweitern -> Ergebniscode
+#   q <id> activate <b64>  In Windows deaktivierten Bildschirm zusätzlich einschalten (erweitern) -> Ergebniscode
 #   q <id> audiodevs       Wiedergabegeräte als JSON
 #   q <id> audiodefault    Aktuelles Standard-Wiedergabegerät (ID)
 #   q <id> audioset <b64>  Standard-Wiedergabegerät setzen (ID Base64) -> 0 = ok
@@ -294,7 +295,7 @@ public static class AgsInput {
   }
 
   /** Ausgeschalteten Bildschirm zusätzlich einschalten (erweitern); Windows wählt Auflösung und Position */
-  static int Activate(string key) {
+  public static int Activate(string key) {
     PATH_INFO[] act, all; MODE_INFO[] modes, allModes;
     if (!Query(QDC_ACTIVE, out act, out modes) || !Query(QDC_ALL, out all, out allModes)) return -102;
     if (Find(act, key) >= 0) return 0;
@@ -447,6 +448,7 @@ while ($true) {
         elseif ($p[2] -eq 'save') { $v = [AgsInput]::Save() }
         elseif ($p[2] -eq 'restore') { $v = [AgsInput]::Restore($p[3]) }
         elseif ($p[2] -eq 'extend') { $v = [AgsInput]::Extend() }
+        elseif ($p[2] -eq 'activate') { $v = [AgsInput]::Activate([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($p[3]))) }
         elseif ($p[2] -eq 'audiodevs') { $v = [AgsAudio]::List() }
         elseif ($p[2] -eq 'audiodefault') { $v = [AgsAudio]::Default() }
         elseif ($p[2] -eq 'audioset') { $v = [AgsAudio]::SetDefault([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($p[3]))) }

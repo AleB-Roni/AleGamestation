@@ -63,6 +63,8 @@ const DEFAULT_CONFIG = {
     tv: null,
     // So lange auf den Fernseher warten, falls er beim Start noch aus ist
     tvWaitSeconds: 15,
+    // Fernseher, der in Windows deaktiviert ist, beim Start einschalten (und beim Beenden wieder ausschalten)
+    enableTv: true,
     // Tonausgabe im Konsolenmodus, z.B. { id, name: 'LG TV (NVIDIA High Definition Audio)' }; null = nicht ändern
     audioDevice: null,
     // Beim Beenden wieder auf das vorherige Gerät umstellen

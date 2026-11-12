@@ -76,6 +76,8 @@
       { id: '{0.0.0}.{c}', name: 'Headset (Arctis 7)', desc: 'Headset', active: false, default: false }
     ],
     applyAudio: async () => ({ ok: true, name: 'LG TV (NVIDIA High Definition Audio)' }), restoreAudio: async () => true,
+    tvStatus: async () => ({ configured: true, name: 'LG TV', windows: 'in Windows deaktiviert', connected: true, active: false, power: 'an', source: 'PC' }),
+    activateTv: async () => ({ ok: true, activated: true }),
     identifyDisplays: async () => true, tvOnly: async () => ({ ok: true }), restoreDisplays: async () => true, info: async () => ({}),
     updateState: async () => ({ status: 'latest', version: '1.0.0' }), checkUpdate: async () => null, installUpdate: async () => false, onUpdateState: noop,
     recommendedPrograms: async () => [{ name: 'OneDrive', process: 'OneDrive.exe', action: 'close', note: 'Synchronisation' }, { name: 'Microsoft Teams', process: 'ms-teams.exe', action: 'close', note: 'Viel RAM' }],

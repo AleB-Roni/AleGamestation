@@ -213,6 +213,56 @@ async function applyTvOnly(manual = false, mode = 'only') {
   return { ok: true, name: entry.name };
 }
 
+/** Fernseher in Windows einschalten (erweitern), falls er deaktiviert ist. @param {boolean} wait warten, bis er erkannt wird */
+async function activateTv(wait = false) {
+  const d = cfg().display;
+  if (!d.tv) return { ok: false, error: 'Kein Fernseher ausgewählt (Einstellungen → Anzeige)' };
+  let list = await listDisplays();
+  let entry = findTv(list);
+  const deadline = Date.now() + (wait ? (d.tvWaitSeconds || 15) * 1000 : 0);
+  while (!entry && Date.now() < deadline) {
+    await sleep(1500);
+    list = await listDisplays();
+    entry = findTv(list);
+  }
+  if (!entry) return { ok: false, error: `Fernseher „${d.tv.name}“ ist nicht verbunden oder ausgeschaltet` };
+  if (entry.active) return { ok: true, already: true };
+  if (/^e:/.test(entry.key)) return { ok: false, error: 'Aktivieren geht nur unter Windows' };
+  if (!tvOnlyState) {
+    const prev = list.find((x) => x.primary && x.active);
+    tvOnlyState = { mode: 'activate', saved: await nativeHelper.request('save', 10000), prevPrimary: prev ? prev.key : '' };
+  }
+  const r = await nativeHelper.request(`activate ${b64(entry.key)}`, 15000);
+  if (r !== '0') return { ok: false, error: `Windows konnte den Fernseher nicht einschalten (Code ${r || 'keine Antwort'})` };
+  displaySwitched = true;
+  debug.info('anzeige', `Fernseher in Windows eingeschaltet: ${entry.name}`);
+  await sleep(1500);
+  setTimeout(() => listDisplays().then(placeWindow).catch(() => {}), 500);
+  return { ok: true, activated: true, name: entry.name };
+}
+
+/** Zustand des Fernsehers: an/aus (Home Assistant), verbunden und in Windows aktiv? */
+async function tvStatus() {
+  const d = cfg().display;
+  const list = await listDisplays().catch(() => []);
+  const entry = d.tv ? findTv(list) : null;
+  let power = '';
+  let source = '';
+  const H = cfg().homeassistant || {};
+  if (ha.ready() && H.tvEntity) {
+    const st = await ha.state(H.tvEntity).catch(() => null);
+    if (!st) power = 'unbekannt';
+    else if (['off', 'standby'].includes(st.state)) power = 'aus';
+    else if (['unavailable', 'unknown'].includes(st.state)) power = 'aus (nicht erreichbar)';
+    else { power = 'an'; source = (st.attributes && st.attributes.source) || ''; }
+  }
+  return {
+    configured: !!d.tv, name: d.tv ? d.tv.name : '',
+    windows: !d.tv ? '' : !entry ? 'nicht verbunden' : entry.active ? (entry.primary ? 'aktiv · Hauptbildschirm' : 'aktiv') : 'in Windows deaktiviert',
+    connected: !!entry, active: !!(entry && entry.active), power, source
+  };
+}
+
 /** Alle Bildschirme wieder einschalten und den vorherigen Hauptbildschirm zurücksetzen */
 async function restoreDisplays(onExit = 'extend') {
   const state = tvOnlyState;
@@ -307,6 +357,13 @@ async function enterConsoleMode() {
   // AleClip im Hintergrund mitstarten (für Clips aus dem Overlay)
   if (aleclip.enabled() && cfg().aleclip.autoStart !== false && aleclip.findExe()) {
     aleclip.status().then((st) => { if (st.offline) return aleclip.start(); return null; }).catch((err) => debug.warn('aleclip', err.message));
+  }
+  // Fernseher in Windows deaktiviert (angesteckt, aber abgeschaltet)? Für den Konsolenmodus einschalten –
+  // beim Beenden wird die vorherige Anordnung wiederhergestellt, der TV ist dann wieder aus
+  if (!skipDisplaySwitch && d.tv && d.enableTv !== false && !['tvOnly', 'tvPrimary'].includes(d.onStart)) {
+    const r = await activateTv(true);
+    if (!r.ok) startupNotes.push({ type: 'error', text: r.error });
+    else if (r.activated) startupNotes.push({ type: 'ok', text: `📺 ${d.tv.name} in Windows eingeschaltet` });
   }
   if (!skipDisplaySwitch && (d.onStart === 'tvOnly' || d.onStart === 'tvPrimary')) {
     const r = await applyTvOnly(false, d.onStart === 'tvPrimary' ? 'primary' : 'only');
@@ -872,6 +929,8 @@ ipcMain.handle('system:power', async (_e, action) => {
 });
 ipcMain.handle('system:displayMode', (_e, mode) => system.setDisplayMode(mode));
 ipcMain.handle('displays:list', () => listDisplays());
+ipcMain.handle('tv:status', () => tvStatus());
+ipcMain.handle('tv:activate', () => activateTv(false));
 ipcMain.handle('audio:list', () => listAudio());
 ipcMain.handle('audio:apply', () => applyAudio(false));
 ipcMain.handle('audio:restore', async () => { await restoreAudio(); return true; });

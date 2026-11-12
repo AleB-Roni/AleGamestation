@@ -47,6 +47,9 @@ function hwndOfPid(pid) {
     const r1 = await helper.request(`primary ${Buffer.from(prim.key).toString('base64')}`, 10000);
     assert.strictEqual(r1, '0', 'Hauptbildschirm setzen meldet ' + r1);
     console.log('✔ Hauptbildschirm setzen funktioniert');
+    const ra = await helper.request(`activate ${Buffer.from(prim.key).toString('base64')}`, 10000);
+    assert.strictEqual(ra, '0', 'Aktivieren eines aktiven Bildschirms meldet ' + ra);
+    console.log('✔ Bildschirm in Windows einschalten (bereits aktiv = keine Änderung)');
     if (active.length === 1) {
       // Nur ein Bildschirm: "nur dieser" = gleiche Anordnung, muss gelingen
       const r2 = await helper.request(`tvonly ${Buffer.from(prim.key).toString('base64')}`, 15000);

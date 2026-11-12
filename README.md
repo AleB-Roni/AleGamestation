@@ -33,6 +33,7 @@ Alle Spiele (Steam, Epic, GOG, eigene) und Emulator-Spiele in einer modernen Obe
 **Konsolenmodus**
 - **Leistungsmodus**: Hintergrundprogramme beim Start pausieren oder beenden und beim Verlassen wiederherstellen – z. B. Wallpaper Engine (voreingestellt), OneDrive, Teams, iCUE … Empfehlungen per Klick, oder aus den laufenden Programmen wählen. Optional Energieplan „Höchstleistung“
 - Beim Start **Bildschirm umschalten** (nur TV / nur PC-Monitor / duplizieren / erweitern – wie Win + P), beim Beenden wiederherstellen
+- **Fernseher-Zustand und automatisch einschalten**: Einstellungen → Anzeige zeigt, ob der TV an ist (über Home Assistant), angesteckt ist und in Windows aktiv oder deaktiviert ist. Ist er angesteckt, aber in Windows abgeschaltet, schaltet AleGamestation ihn beim Start ein und beim Beenden wieder ab – am Schreibtisch bleibt er aus
 - **Fernseher festlegen**: Einstellungen → Anzeige → „Mein Fernseher“ (mit „Bildschirme identifizieren“). „Nur Fernseher“ schaltet genau diesen Bildschirm als einzigen ein – auch bei mehreren Monitoren. „Fernseher als Hauptbildschirm“ lässt alle Monitore an und macht nur den TV zur Hauptanzeige, damit Spiele dort starten (beim Beenden wird der alte Hauptbildschirm zurückgesetzt)
 - Eigene Befehle beim Start/Beenden (z. B. Tonausgabe auf den TV umstellen)
 - **Herunterfahren, Neustart, Energiesparen, zurück zum Desktop** direkt per Controller

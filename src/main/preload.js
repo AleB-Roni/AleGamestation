@@ -27,6 +27,8 @@ contextBridge.exposeInMainWorld('api', {
   setDisplayMode: (mode) => ipcRenderer.invoke('system:displayMode', mode),
   displays: () => ipcRenderer.invoke('system:displays'),
   listDisplays: () => ipcRenderer.invoke('displays:list'),
+  tvStatus: () => ipcRenderer.invoke('tv:status'),
+  activateTv: () => ipcRenderer.invoke('tv:activate'),
   listAudio: () => ipcRenderer.invoke('audio:list'),
   applyAudio: () => ipcRenderer.invoke('audio:apply'),
   restoreAudio: () => ipcRenderer.invoke('audio:restore'),

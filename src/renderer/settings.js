@@ -28,6 +28,26 @@
     const info = d.active === false ? 'gerade aus' : `${d.width}×${d.height}${d.hz ? ' · ' + d.hz + ' Hz' : ''}${d.primary ? ' · Hauptbildschirm' : ''}`;
     return `${n >= 0 ? n + 1 + '. ' : ''}${d.name} – ${info}`;
   }
+  /** Zustand des Fernsehers: an/aus, verbunden, in Windows aktiv/deaktiviert */
+  function tvStatusRows() {
+    const t = S.tv;
+    if (!C().display.tv) return [];
+    const parts = [];
+    if (t && t.power) parts.push(`Fernseher: ${t.power}${t.source ? ' · Eingang ' + t.source : ''}`);
+    if (t) parts.push(`Windows: ${t.windows}`);
+    const status = t ? (t.active ? 'ok' : t.connected ? 'off' : 'bad') : '';
+    return [
+      { type: 'item', label: 'Zustand', desc: t ? parts.join('  ·  ') : 'Wird ermittelt …', status, statusText: t ? (t.active ? 'bereit' : t.connected ? 'deaktiviert' : 'nicht verbunden') : '',
+        action: async () => { S.tv = await api.tvStatus().catch(() => null); render(); App.toast('Zustand aktualisiert', 'info', 1200); } },
+      { ...toggle('Deaktivierten Fernseher automatisch einschalten', () => C().display, 'enableTv', 'Ist der TV angesteckt, aber in Windows abgeschaltet, wird er beim Start eingeschaltet und beim Beenden wieder abgeschaltet'), get: () => C().display.enableTv !== false },
+      ...(t && t.connected && !t.active ? [button('Fernseher jetzt in Windows einschalten', async () => {
+        const r = await api.activateTv().catch((e) => ({ ok: false, error: String(e.message || e) }));
+        App.toast(r && r.ok ? 'Fernseher ist in Windows eingeschaltet' : (r && r.error) || 'Einschalten fehlgeschlagen', r && r.ok ? 'ok' : 'error', 6000);
+        S.tv = await api.tvStatus().catch(() => null); render();
+      })] : [])
+    ];
+  }
+
   /** Tonausgabe im Konsolenmodus; ein gespeichertes, gerade nicht verbundenes Gerät bleibt sichtbar */
   function audioSelect() {
     const cur = C().display.audioDevice;
@@ -164,6 +184,7 @@
       id: 'display', title: 'Anzeige', rows: () => [
         group('Fernseher', 'Welcher Bildschirm ist dein TV? „Identifizieren“ zeigt auf jedem Bildschirm eine Nummer'),
         tvSelect(),
+        ...tvStatusRows(),
         button('Bildschirme identifizieren', async () => { await api.identifyDisplays(); }, { desc: 'Zeigt 4 Sekunden lang Nummer und Name auf jedem Bildschirm' }),
         button('↻ Bildschirmliste aktualisieren', async () => { S.displays = await api.listDisplays().catch(() => []); render(); App.toast(`${S.displays.length} Bildschirm(e) gefunden`, 'info'); }),
         button('Jetzt nur den Fernseher verwenden', async () => {
@@ -1045,6 +1066,8 @@
       if (sectionId) { S.section = Math.max(0, SECTIONS.findIndex((s) => s.id === sectionId)); S.focus = 0; S.detail = null; }
       try { S.displays = await api.listDisplays(); } catch { S.displays = []; }
       try { S.audio = await api.listAudio(); } catch { S.audio = []; }
+      S.tv = null;
+      api.tvStatus().then((t) => { S.tv = t; if (SECTIONS[S.section].id === 'display' && !S.detail) render(); }).catch(() => {});
       try { S.spotify = await api.spotifyStatus(); } catch { S.spotify = {}; }
       try { S.aleclip = await api.aleclipStatus(); } catch { S.aleclip = {}; }
       try { S.update = await api.updateState(); } catch { S.update = {}; }
