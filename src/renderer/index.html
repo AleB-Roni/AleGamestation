@@ -38,12 +38,13 @@
   <div id="app">
     <header id="topbar">
       <div class="brand-wrap"><button id="navBack" class="nav-back hidden" title="Zurück (Maus-Seitentaste, Rechtsklick oder Alt+←)">‹ Zurück</button><div class="brand"><span class="brand-mark">◆</span> Ale<b>Gamestation</b></div></div>
-      <nav id="tabs">
+      <nav id="tabs" class="mouse-keys">
         <span class="glyph bumper" id="tabL">LB</span>
         <div id="tabList"></div>
         <span class="glyph bumper" id="tabR">RB</span>
       </nav>
       <div class="status">
+        <button id="menuBtn" class="nav-back icon-btn" title="Menü (Herunterfahren, Sortieren, Bildschirm …)">☰</button>
         <span id="debugBadge" class="debug-badge hidden" title="Debug-Modus: Protokoll wird geschrieben">DEBUG</span>
         <span id="padStatus" class="pad-status" title="Controller">🎮</span>
         <span id="updateBadge" class="update-badge hidden">⬆ Update</span>
@@ -76,12 +77,13 @@
       <div id="settingsBody"></div>
     </main>
 
-    <footer id="hints"></footer>
+    <footer id="hints" class="mouse-keys"></footer>
   </div>
 
   <!-- Overlays -->
   <div id="overlay" class="overlay hidden">
     <div class="modal" id="modal"></div>
+    <footer id="modalHints" class="mouse-keys"></footer>
   </div>
 
   <div id="running" class="running hidden">

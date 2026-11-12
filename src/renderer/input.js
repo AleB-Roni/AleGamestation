@@ -153,6 +153,22 @@
     if (state.rightClickBack !== false) emit('back', 'mouse');
   });
 
+  // ---------- Maus: Tasten-Symbole anklicken (Hinweisleiste, Reiter-Pfeile, Zurück-Hinweise) ----------
+  const KEY_ACTION = { A: 'accept', B: 'back', X: 'x', Y: 'y', LB: 'lb', RB: 'rb', LT: 'lt', RT: 'rt', START: 'start', BACK: 'select', GUIDE: 'guide', LEFT: 'left', RIGHT: 'right', UP: 'up', DOWN: 'down' };
+  window.addEventListener('click', (ev) => {
+    const t = ev.target && ev.target.closest ? ev.target : null;
+    if (!t) return;
+    const scope = t.closest('.mouse-keys');
+    if (!scope) return;
+    let k = t.closest('[data-k]');
+    // Klick auf den Text eines Hinweises mit genau einem Symbol: dieses Symbol
+    if (!k) { const h = t.closest('.hint'); const ks = h ? h.querySelectorAll('[data-k]') : []; if (ks.length === 1) k = ks[0]; }
+    const a = k && KEY_ACTION[k.dataset.k];
+    if (!a) return;
+    ev.preventDefault(); ev.stopPropagation();
+    emit(a, 'mouse');
+  }, true);
+
   window.Input = {
     on: (fn) => listeners.push(fn),
     /** Aktion auslösen, als käme sie vom Controller (z.B. Zurück-Knopf in der Oberfläche) */

@@ -397,6 +397,20 @@
         const card = el('div', 'card ' + (item.kind === 'system' ? 'system-card' : item.kind === 'action' ? 'action-card' : ''));
         if (item.kind === 'system' && item.system.id === App.moveSystem) card.classList.add('moving');
         card.innerHTML = cardHtml(item, sec.wide);
+        // Maus: kleine Knöpfe beim Darüberfahren (Favorit, Details / Konsolen-Menü)
+        if (item.kind === 'game' || item.kind === 'system') {
+          const acts = el('div', 'card-actions', item.kind === 'game'
+            ? `<button data-a="x" title="Favorit">${Icons.svg('star', isFav(item.game.id) ? 'filled' : '')}</button><button data-a="y" title="Details">${Icons.svg('info')}</button>`
+            : `<button data-a="y" title="Konsole: Emulator, Ordner, Bilder …">${Icons.svg('settings')}</button>`);
+          acts.onclick = (e) => {
+            const b = e.target.closest('button');
+            e.stopPropagation();
+            if (!b) return;
+            setFocus(si, ii, true);
+            Input.trigger(b.dataset.a, 'mouse');
+          };
+          card.appendChild(acts);
+        }
         card.onclick = () => { setFocus(si, ii); activate(); };
         card.onmouseenter = () => setFocus(si, ii, true);
         row.appendChild(card);
@@ -418,7 +432,7 @@
     return el('div', 'console-banner', `<div class="cb-art" style="--c:${esc(c.color)}">${icon}</div>
       <div class="cb-text"><div class="cb-crumb">Emulatoren › <b>${esc(c.short)}</b></div><h2>${esc(c.name)}</h2>
       <div class="cb-meta"><span class="dot ${c.emulatorFound ? 'ok' : 'bad'}"></span>${esc(c.emulatorName)} · ${c.count} Spiele</div></div>
-      <div class="cb-back">${glyph('B')} Alle Konsolen</div>`);
+      <div class="cb-back mouse-keys hint">${glyph('B')} Alle Konsolen</div>`);
   }
   function openConsole(sys) {
     if (!App._navigatingForward) App.forwardStack = [];
@@ -735,7 +749,13 @@
       } else {
         b.innerHTML = `<span class="ico">${(Icons.has(it.icon) ? Icons.svg(it.icon) : esc(it.icon || ''))}</span><span class="grow">${esc(it.label)}</span>${it.hint ? `<small>${esc(it.hint)}</small>` : ''}`;
       }
-      b.onclick = () => { m.focus = i; modalAction('accept'); };
+      b.onclick = (e) => {
+        m.focus = i;
+        const arrow = e.target.closest && e.target.closest('.arrow');
+        if (arrow && it.type === 'select') return modalAction(arrow.textContent.includes('◀') ? 'left' : 'right');
+        modalAction('accept');
+      };
+      b.onmouseenter = () => { if (m.focus !== i) { m.focus = i; list.querySelectorAll('.btn').forEach((x) => x.classList.remove('focused')); b.classList.add('focused'); } };
       list.appendChild(b);
     });
     box.appendChild(list);
@@ -1124,7 +1144,7 @@
     if (App.running) html = hint(glyph('A'), 'Spiel beenden');
     else if (App.modalStack.length) html = hint(glyph('A'), 'Auswählen') + hint(glyph('B'), 'Zurück');
     else if (App.view === 'settings') html = SettingsView.hints(hint, glyph);
-    else if (App.moveSystem) html = hint('◀ ▶', 'Verschieben') + hint(glyph('A'), 'Ablegen');
+    else if (App.moveSystem) html = hint(Glyphs.arrows(), 'Verschieben') + hint(glyph('A'), 'Ablegen');
     else {
       const item = focusedItem();
       if (item && item.kind === 'game') html += hint(glyph('A'), 'Spielen') + hint(glyph('X'), 'Favorit') + hint(glyph('Y'), 'Details');
@@ -1135,6 +1155,9 @@
       html += hint(glyph('LT') + glyph('RT'), 'Kategorie') + hint(glyph('START'), 'Menü');
     }
     h.innerHTML = html;
+    // Über offenen Menüs liegt eine eigene, anklickbare Hinweisleiste
+    const mh = $('#modalHints');
+    if (mh) mh.innerHTML = App.modalStack.length ? html : '';
   }
   App.renderHints = renderHints;
 
@@ -1238,6 +1261,9 @@
     api.onToast((t) => App.toast(t.text, t.type, t.ms));
     // Maus: Zurück-Knopf oben und Mausrad in den Spiele-Rastern
     $('#navBack').onclick = () => Input.trigger('back', 'mouse');
+    $('#menuBtn').onclick = () => { if (!App.modalStack.length && !App.running) powerMenu(); };
+    // Klick neben ein Menü (auf den abgedunkelten Hintergrund) = Zurück
+    $('#overlay').addEventListener('click', (e) => { if (e.target === $('#overlay')) Input.trigger('back', 'mouse'); });
     if (api.onNavCommand) api.onNavCommand((a) => setTimeout(() => Input.navCommand(a), 60));
     $('#gridWrap').addEventListener('wheel', (e) => {
       const row = e.target.closest && e.target.closest('.shelf.strip .shelf-items');

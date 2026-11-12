@@ -963,9 +963,15 @@
       row.innerHTML = `<div class="s-label"><b>${icon ? Icons.svg(icon) : ''}${esc(icon && !r.icon ? lab.text : r.label)}</b>${r.desc ? `<small>${esc(r.desc)}</small>` : ''}</div><div class="s-value">${valueHtml(r)}</div>`;
       const idx = focusables.length;
       row.onclick = (e) => {
-        S.focus = idx; updateFocus();
-        if (e.target.tagName !== 'INPUT') act('accept');
+        S.focus = idx; updateFocus(true);
+        if (e.target.tagName === 'INPUT') return;
+        // Maus: ◀ / ▶ einzeln anklickbar
+        const arrow = e.target.closest && e.target.closest('.arrow');
+        if (arrow && r.type === 'select') return act(arrow.textContent.includes('◀') ? 'left' : 'right');
+        act('accept');
       };
+      // Nur markieren, nicht scrollen (sonst springt die Liste beim Mausrad)
+      row.onmouseenter = () => { if (S.focus !== idx) { S.focus = idx; (S.focusables || []).forEach((x, i) => x.el.classList.toggle('focused', i === idx)); } };
       const input = row.querySelector('input');
       if (input) {
         input.addEventListener('change', () => { r.set(input.value); commit(!!r.rescan); });
@@ -1050,7 +1056,7 @@
     refreshUpdate,
     rerender: () => render(),
     hints(hint, glyph) {
-      return hint(glyph('A'), S.detail ? 'Ändern' : 'Öffnen / Ändern') + hint('◀ ▶', 'Wert') + hint(glyph('LB') + glyph('RB'), 'Bereich') + hint(glyph('LT') + glyph('RT'), 'Kategorie') + hint(glyph('B'), S.detail ? 'Übersicht' : 'Zurück');
+      return hint(glyph('A'), S.detail ? 'Ändern' : 'Öffnen / Ändern') + hint(Glyphs.arrows(), 'Wert') + hint(glyph('LB') + glyph('RB'), 'Bereich') + hint(glyph('LT') + glyph('RT'), 'Kategorie') + hint(glyph('B'), S.detail ? 'Übersicht' : 'Zurück');
     }
   };
 })();

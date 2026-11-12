@@ -63,8 +63,9 @@
     const st = pad ? padStyle() : style();
     const k = raw || st === 'keyboard' ? String(key).toUpperCase() : physical(String(key).toUpperCase());
     const def = STYLES[st][k];
-    if (!def) return `<span class="glyph pill">${key}</span>`;
-    return `<span class="glyph ${def[1]}">${def[0]}</span>`;
+    const dk = String(key).toUpperCase().replace(/[^A-Z0-9_]/g, '');
+    if (!def) return `<span class="glyph pill" data-k="${dk}">${key}</span>`;
+    return `<span class="glyph ${def[1]}" data-k="${dk}">${def[0]}</span>`;
   }
 
   /** "BACK+START" -> Symbole des aktuellen Controllers */
@@ -96,7 +97,11 @@
     if (style() !== before) listeners.forEach((fn) => fn(style(), 'method'));
   }
 
+  /** ◀ ▶ als anklickbare Pfeile (Maus) */
+  const arrows = () => '<span class="click-arrow" data-k="LEFT">◀</span><span class="click-arrow" data-k="RIGHT">▶</span>';
+
   window.Glyphs = {
+    arrows,
     html, label, comboHtml, comboLabel, style, padStyle, typeFromId, setDetected, setInputMethod,
     inputMethod: () => method,
     detected: () => ({ type: detected, name: detectedName, label: NAMES[detected] }),

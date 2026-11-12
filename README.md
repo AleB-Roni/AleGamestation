@@ -104,7 +104,7 @@ Die Änderungsliste im Update-Fenster wird automatisch aus den Commit-Nachrichte
 | **BACK + START halten** | Laufendes Spiel beenden | |
 | **PS- / Xbox-Taste** (im Spiel) | Schnellmenü: ✕ Spiel beenden · △ Zur Oberfläche · ○ Weiterspielen | |
 
-**Maus**: Seitentasten **zurück/vor** wechseln zwischen den Menüs (auch Alt + ← / →), **Rechtsklick** = zurück (abschaltbar unter Einstellungen → Allgemein), **„‹ Zurück“** oben links, **Mausrad** scrollt die Spiele, Klick auf Reiter, Kacheln und Einstellungen.
+**Maus** (alles bedienbar): Seitentasten **zurück/vor** wechseln zwischen den Menüs (auch Alt + ← / →), **Rechtsklick** = zurück (abschaltbar unter Einstellungen → Allgemein), **„‹ Zurück“** und **☰ Menü** oben, **Mausrad** scrollt. Klick auf eine Kachel startet bzw. öffnet sie, beim Darüberfahren erscheinen **★ Favorit** und **ⓘ Details** (bei Konsolen **⚙**). Die **Tasten-Symbole in der Hinweisleiste unten sind anklickbar** (z.B. LB/RB, LT/RT, Menü), ebenso **◀ ▶** in Auswahlfeldern; ein Klick neben ein Menü schließt es.
 
 **Tastatur** (komplett bedienbar, Symbole wechseln automatisch zwischen Tastatur und Controller):
 
