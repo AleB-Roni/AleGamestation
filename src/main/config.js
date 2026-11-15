@@ -12,6 +12,8 @@ const DEFAULT_CONFIG = {
   general: {
     language: 'de',
     startFullscreen: true,
+    // Vollbild auch im Einrichtungsmodus (Desktop-Verknüpfung ohne Fernseher)
+    setupFullscreen: false,
     // Bildschirm, auf dem die Oberfläche erscheint: "primary" oder Index (0, 1, 2 ...)
     targetDisplay: 'primary',
     autostartWithWindows: false,

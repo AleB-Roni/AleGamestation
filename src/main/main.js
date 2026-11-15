@@ -364,13 +364,34 @@ async function identifyDisplays() {
   return list;
 }
 
+// Vollbild laut Einstellung: Konsolenmodus „Vollbild“, Einrichtungsmodus „Vollbild im Einrichtungsmodus“
+function configuredFullscreen(c = cfg()) {
+  if (isDev) return false;
+  return setupMode ? !!c.general.setupFullscreen : !!c.general.startFullscreen;
+}
+// Mit F11 umgeschaltet (gilt bis zum Beenden bzw. bis die Einstellung geändert wird)
+let fullscreenOverride = null;
+
 function placeWindow() {
   if (!win || win.isDestroyed()) return;
   const { bounds } = targetDisplay();
-  const fullscreen = cfg().general.startFullscreen && !isDev && !setupMode;
-  if (fullscreen) win.setFullScreen(false);
-  win.setBounds(fullscreen ? bounds : { x: bounds.x + 60, y: bounds.y + 60, width: Math.min(1600, bounds.width - 120), height: Math.min(900, bounds.height - 120) });
+  const fullscreen = fullscreenOverride ?? configuredFullscreen();
+  const windowed = { x: bounds.x + 60, y: bounds.y + 60, width: Math.min(1600, bounds.width - 120), height: Math.min(900, bounds.height - 120) };
+  if (!fullscreen && win.isFullScreen()) {
+    // Vollbild verlassen; die Fenstergröße erst danach setzen (manche Systeme verlassen es verzögert)
+    win.once('leave-full-screen', () => { if (win && !win.isDestroyed() && !win.isFullScreen()) win.setBounds(windowed); });
+  }
+  win.setFullScreen(false);
+  win.setBounds(fullscreen ? bounds : windowed);
   if (fullscreen) win.setFullScreen(true);
+}
+
+function toggleFullscreen() {
+  if (!win || win.isDestroyed()) return false;
+  fullscreenOverride = !win.isFullScreen();
+  debug.info('fenster', `Vollbild ${fullscreenOverride ? 'an' : 'aus'} (F11)`);
+  placeWindow();
+  return fullscreenOverride;
 }
 
 function bringToFront() {
@@ -630,6 +651,14 @@ function createWindow() {
   });
   win.removeMenu();
   placeWindow();
+  // F11: Vollbild an/aus – auch im Einrichtungsmodus
+  win.webContents.on('before-input-event', (e, input) => {
+    if (input.type === 'keyDown' && input.key === 'F11' && !input.isAutoRepeat && !input.control && !input.alt && !input.meta) {
+      e.preventDefault();
+      const on = toggleFullscreen();
+      win.webContents.send('window:fullscreen', on);
+    }
+  });
   win.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
   win.once('ready-to-show', () => {
     win.show();
@@ -1007,7 +1036,9 @@ psWatcher.on('connection', (c) => send('gamepad:connection', { ...c, source: 'hi
 ipcMain.handle('config:get', () => store.get());
 ipcMain.handle('config:defaults', () => DEFAULT_CONFIG);
 ipcMain.handle('config:save', (_e, data) => {
+  const before = configuredFullscreen();
   const saved = store.save(data);
+  if (configuredFullscreen(saved) !== before) fullscreenOverride = null; // Einstellung geändert → gilt wieder
   applyCombos();
   if (saved.controller.playstationHid === false) psWatcher.stop(); else psWatcher.start();
   applyAutostart();
@@ -1081,6 +1112,7 @@ ipcMain.handle('bt:pair', () => btPair.run({ rounds: 3, timeout: 8 }));
 ipcMain.handle('bt:running', () => btPair.running);
 
 // ---------- Einrichtungsmodus und Desktop-Verknüpfung ----------
+ipcMain.handle('window:toggleFullscreen', () => toggleFullscreen());
 ipcMain.handle('app:mode', () => ({ setup: setupMode, askTvOff: askTvOffOnExit() }));
 ipcMain.handle('app:setupShortcut', () => {
   if (process.platform !== 'win32') throw new Error('Verknüpfungen gibt es nur unter Windows');

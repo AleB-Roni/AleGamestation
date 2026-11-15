@@ -58,6 +58,8 @@ contextBridge.exposeInMainWorld('api', {
   downloadUpdate: () => ipcRenderer.invoke('update:download'),
   openUpdatePage: (url) => ipcRenderer.invoke('update:openPage', url),
   onUpdateState: on('update:state'),
+  toggleFullscreen: () => ipcRenderer.invoke('window:toggleFullscreen'),
+  onFullscreen: on('window:fullscreen'),
 
   pickFile: (opts) => ipcRenderer.invoke('dialog:pickFile', opts),
   pickFolder: () => ipcRenderer.invoke('dialog:pickFolder'),

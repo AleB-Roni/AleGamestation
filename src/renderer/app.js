@@ -1110,6 +1110,7 @@
         ] : []),
         { label: 'Sortieren & Filtern …', icon: 'list', hint: SORTS.find((x) => x.value === sortMode()).label, action: () => { App.closeMenu(); arrangeMenu(); } },
         { label: 'Bildschirm umschalten …', icon: 'monitor', action: displayMenu },
+        { label: 'Vollbild an / aus', icon: 'extend', hint: 'F11', action: async () => { App.closeMenu(); const on = await api.toggleFullscreen(); App.toast(on ? 'Vollbild an' : 'Vollbild aus – mit F11 wieder an', 'ok'); } },
         { label: 'Fehlende Cover herunterladen', icon: 'download', action: () => { App.closeMenu(); App.scrape({}); } },
         { label: 'Bibliothek neu einlesen', icon: 'refresh', action: async () => { App.closeMenu(); await App.refreshLibrary(); App.toast(`${App.library.games.length} Spiele gefunden`, 'ok'); } },
         ...(App.debug ? [{ label: 'Debug-Bericht erstellen', icon: 'bolt', hint: 'Datei auf dem Desktop', action: () => { App.closeMenu(); App.debugReport(); } }] : []),
@@ -1388,6 +1389,7 @@
     updateBadge();
     let announced = '';
     let announcedAvail = '';
+    if (api.onFullscreen) api.onFullscreen((on) => App.toast(on ? 'Vollbild an' : 'Vollbild aus – mit F11 wieder an', 'ok', 1800));
     api.onUpdateState((u) => {
       App.update = u;
       updateBadge();

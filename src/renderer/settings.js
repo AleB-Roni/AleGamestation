@@ -285,7 +285,8 @@
         button('Verknüpfung „Einrichten (ohne Fernseher)“ auf dem Desktop', async () => {
           try { const f = await api.createSetupShortcut(); App.toast(`Verknüpfung erstellt: ${f.split(/[\\/]/).pop().replace(/\.lnk$/, '')}`, 'ok', 6000); } catch (e) { App.toast(cleanErr(e), 'error', 6000); }
         }, { desc: 'Öffnet AleGamestation nur zum Einstellen: im Fenster auf dem PC-Monitor, ohne Fernseher, Bildschirm-/Tonumschaltung und Leistungsmodus – mit Debug-Protokoll' }),
-        toggle('Vollbild', () => C().general, 'startFullscreen'),
+        toggle('Vollbild', () => C().general, 'startFullscreen', 'Mit F11 jederzeit an- und ausschalten'),
+        toggle('Vollbild im Einrichtungsmodus', () => C().general, 'setupFullscreen', 'Auch beim Start über „Einrichten (ohne Fernseher)“ im Vollbild – z.B. um direkt am PC zu spielen. F11 schaltet um'),
         select('Oberfläche anzeigen auf', () => C().general, 'targetDisplay', [{ value: 'primary', label: 'Hauptbildschirm' }, { value: 'tv', label: 'Fernseher (Einstellungen → Anzeige)' }].concat(S.displays.filter((d) => d.electronId != null && d.active !== false).map((d) => ({ value: 'id:' + d.electronId, label: displayLabel(d) }))), 'Bei „Nur Fernseher“ ist der TV automatisch der Hauptbildschirm'),
         group('Beim Spielen'),
         select('Taskleiste ausblenden', () => C().general, 'hideTaskbar', [
