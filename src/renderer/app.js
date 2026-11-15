@@ -135,6 +135,7 @@
     const g = App.cfg.general;
     document.documentElement.style.setProperty('--accent', g.accentColor || '#7c5cff');
     document.documentElement.dataset.theme = g.theme || 'midnight';
+    document.documentElement.classList.toggle('card-names', g.cardNames !== false);
     Input.configure({ rightClickBack: g.rightClickBack !== false });
     document.documentElement.style.setProperty('--scale', g.uiScale || 1);
     Sounds.setTheme(g.uiSounds === false ? 'off' : g.soundTheme || 'modern');
@@ -281,7 +282,7 @@
       } else {
         // Spieleseite einer Konsole
         const list = arrange(games.filter((g) => g.system === open.id)).map(gi);
-        list.unshift({ kind: 'action', id: 'sysMenu', title: open.short, sub: 'Emulator starten, Ordner, Bilder …', icon: 'settings' });
+        list.unshift({ kind: 'action', id: 'sysMenu', title: open.short, sub: 'Emulatoren starten, Ordner, Bilder …', icon: 'settings' });
         secs.push({
           title: `${open.name}  ·  ${list.length - 1} Spiele${arrangeLabel()}`, layout: 'grid', console: open, items: list, letterJump: sortMode() === 'name',
           emptyText: ''
@@ -371,7 +372,8 @@
       ? `<div class="card-blur" style="background-image:url('${esc(img).replace(/'/g, '%27')}')"></div><img src="${esc(img)}" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'placeholder',innerHTML:this.dataset.ph}))" data-ph="${esc(`<div class='ph-sys'>${esc(sys.short)}</div><div class='ph-name'>${esc(g.name)}</div>`)}">`
       : `<div class="placeholder" style="--c:${esc(sys.color)}"><div class="ph-sys">${esc(sys.short)}</div><div class="ph-name">${esc(g.name)}</div></div>`;
     const badge = g.type === 'rom' && img ? `<span class="badge">${esc(sys.short)}</span>` : '';
-    return inner + badge + (isFav(g.id) ? `<span class="fav-star">${Icons.svg('star', 'filled')}</span>` : '');
+    const banner = img ? `<div class="card-name"><span>${esc(g.name)}</span></div>` : '';
+    return inner + banner + badge + (isFav(g.id) ? `<span class="fav-star">${Icons.svg('star', 'filled')}</span>` : '');
   }
 
   function renderHome() {
@@ -862,10 +864,14 @@
       className: 'system-details',
       items: [
         ...(s.count && App.emuOpen !== s.id ? [{ label: 'Spiele anzeigen', icon: 'list', action: () => { App.closeMenu(); openConsole(s); } }] : []),
-        { label: `${s.emulatorName} ohne Spiel starten`, icon: 'play', hint: s.emulatorFound ? 'z.B. zum Einrichten' : 'Emulator nicht gefunden', action: async () => {
-          App.closeMenu();
-          try { const st = await api.launchEmulator(s.id); if (st && st.running) showRunning(st); } catch (e) { err(e); }
-        } },
+        // Jeden der Konsole zugeordneten Emulator einzeln starten (Haupt-Emulator zuerst)
+        ...[...new Set([sysCfg.emulator, ...(sysCfg.emulators || [])].filter(Boolean))].map((id, n) => {
+          const e = App.library.emulators.find((x) => x.id === id) || { id, name: id, found: false };
+          return { label: `${e.name} starten`, icon: 'play', hint: !e.found ? 'Emulator nicht gefunden' : n === 0 ? 'Haupt-Emulator · ohne Spiel' : 'ohne Spiel', action: async () => {
+            App.closeMenu();
+            try { const st = await api.launchEmulator(s.id, e.id); if (st && st.running) showRunning(st); } catch (er) { err(er); }
+          } };
+        }),
         { label: 'ROM-Ordner öffnen', icon: 'folder', hint: (sysCfg.romDirs || [])[0] || '', action: async () => {
           App.closeMenu();
           try { const d = await api.openRomDir(s.id); App.toast(`Ordner geöffnet: ${d}`, 'ok'); } catch (e) { err(e); }

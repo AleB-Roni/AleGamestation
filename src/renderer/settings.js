@@ -303,6 +303,7 @@
           { value: '#7c5cff', label: 'Violett' }, { value: '#22d3ee', label: 'Cyan' }, { value: '#3ddc84', label: 'Grün' },
           { value: '#ff4d6d', label: 'Rot' }, { value: '#ff9f1c', label: 'Orange' }, { value: '#3b82f6', label: 'Blau' }, { value: '#e5e5e5', label: 'Weiß' }
         ]),
+        { ...toggle('Spielnamen auf den Covern', () => C().general, 'cardNames', 'Zeigt den Namen als Banner unten auf jedem Cover'), get: () => C().general.cardNames !== false },
         select('Größe der Oberfläche', () => C().general, 'uiScale', [0.85, 1, 1.15, 1.3, 1.5, 1.75, 2].map((v) => ({ value: v, label: Math.round(v * 100) + ' %' })), 'Größer für weit entfernte Fernseher'),
         group('Sound'),
         {

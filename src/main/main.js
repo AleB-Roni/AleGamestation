@@ -1143,11 +1143,14 @@ ipcMain.handle('debug:report', async () => {
 });
 ipcMain.handle('ha:test', () => ha.test());
 // Emulator eines Systems ohne Spiel starten (z.B. zum Einrichten)
-ipcMain.handle('emulator:launch', (_e, systemId) => {
+ipcMain.handle('emulator:launch', (_e, systemId, emulatorId) => {
   const c = cfg();
   // "emu:<id>" = Emulator ohne Konsole
   const sys = String(systemId).startsWith('emu:') ? { emulator: String(systemId).slice(4) } : c.systems.find((s) => s.id === systemId);
-  const emu = sys && c.emulators.find((e) => e.id === sys.emulator);
+  // Optional ein bestimmter der Konsole zugeordneten Emulatoren (Haupt- oder Zusatz-Emulator)
+  const allowed = sys ? [sys.emulator, ...(sys.emulators || [])] : [];
+  const pick = emulatorId && allowed.includes(emulatorId) ? emulatorId : sys && sys.emulator;
+  const emu = pick && c.emulators.find((e) => e.id === pick);
   if (!emu || !emu.exe) throw new Error('Für dieses System ist kein Emulator eingestellt');
   if (!fs.existsSync(emu.exe)) throw new Error(`Emulator nicht gefunden: ${emu.exe}`);
   return launcher.launch({ id: 'emu-' + emu.id, type: 'pc', system: systemId, name: emu.name, exe: emu.exe, args: '', cwd: path.dirname(emu.exe), killMode: 'dir' });

@@ -53,7 +53,9 @@ const DEFAULT_CONFIG = {
     sortMode: 'name',
     filterMode: 'all',
     // Skalierung der Oberfläche (1 = normal, 1.25 = größer für weit entfernte Fernseher)
-    uiScale: 1
+    uiScale: 1,
+    // Spielname als Banner unten auf den Covern
+    cardNames: true
   },
 
   display: {

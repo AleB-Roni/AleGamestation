@@ -78,7 +78,7 @@ body.hide-cursor, body.hide-cursor * { cursor: none !important; }
 #hero { padding: 1.4rem 2.8rem 0.8rem; min-height: 10.5rem; }
 .hero-system { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); }
 .hero-system .dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--accent); box-shadow: 0 0 12px currentColor; }
-#heroTitle { font-size: 3rem; margin: 0.4rem 0 0.6rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.05; text-shadow: 0 4px 30px rgba(0,0,0,0.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#heroTitle { font-size: 3rem; margin: 0.4rem 0 0.6rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.25; padding-bottom: 0.08em; text-shadow: 0 4px 30px rgba(0,0,0,0.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hero-meta { display: flex; gap: 0.6rem; flex-wrap: wrap; }
 .chip { padding: 0.3rem 0.75rem; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); font-size: 0.85rem; color: var(--muted); backdrop-filter: blur(10px); }
 .chip.fav { color: #ffcc3d; }
@@ -473,3 +473,10 @@ body.hide-cursor .card-actions { display: none; }
 .mon.primary { border-color: #ffcc3d; box-shadow: 0 0 0 2px rgba(255,204,61,0.25), 0 8px 22px rgba(0,0,0,0.35); }
 .mon.off { background: rgba(255,255,255,0.03); border: 2px dashed rgba(255,255,255,0.22); box-shadow: none; opacity: 0.6; }
 .mon.missing { opacity: 0.4; }
+
+/* Spielname als Banner unten auf dem Cover */
+.card .card-name { display: none; position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; padding: 1.6rem 0.6rem 0.5rem; background: linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.6) 55%, transparent 100%); pointer-events: none; }
+.card .card-name span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 0.82rem; font-weight: 600; line-height: 1.3; padding-bottom: 0.1em; text-align: center; text-shadow: 0 1px 4px rgba(0,0,0,0.9); word-break: break-word; }
+.card-names .card .card-name { display: block; }
+.card-names .card .badge { bottom: auto; top: 0.5rem; z-index: 2; }
+.card .fav-star { z-index: 2; }
