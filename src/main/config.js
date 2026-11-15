@@ -12,6 +12,11 @@ const DEFAULT_CONFIG = {
   general: {
     language: 'de',
     startFullscreen: true,
+    // Beim Start: "ask" (fragen: Fernseher oder am PC), "tv" (immer Konsolenmodus), "pc" (immer am PC, nichts umstellen)
+    startMode: 'ask',
+    // Ohne Antwort nach so vielen Sekunden automatisch startAskDefault wählen (0 = warten)
+    startAskSeconds: 10,
+    startAskDefault: 'tv',
     // Vollbild auch im Einrichtungsmodus (Desktop-Verknüpfung ohne Fernseher)
     setupFullscreen: false,
     // Bildschirm, auf dem die Oberfläche erscheint: "primary" oder Index (0, 1, 2 ...)

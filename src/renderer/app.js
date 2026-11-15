@@ -1063,9 +1063,70 @@
   };
 
   /** Konsolenmodus beenden – mit Home Assistant vorher fragen: Fernseher aus oder an lassen? */
+  /** Oben rechts: „EINRICHTEN“ (Einrichten-Verknüpfung) bzw. „AM PC“ */
+  function updateModeBadge() {
+    const b = $('#setupBadge');
+    b.classList.toggle('hidden', !App.setupMode && !App.pcMode);
+    b.textContent = App.pcMode ? 'AM PC' : 'EINRICHTEN';
+    b.title = App.pcMode ? 'Am PC: Fernseher, Bildschirme, Hauptbildschirm und Ton bleiben unverändert' : 'Einrichtungsmodus: Fernseher, Bildschirm- und Tonumschaltung bleiben aus';
+  }
+
+  /** Beim Start: Fernseher (Konsolenmodus) oder am PC (alles bleibt, wie es ist)? Mit Countdown zur Standardauswahl */
+  App.startChoice = async function (ask) {
+    // Erst nach der Start-Animation zeigen
+    for (let i = 0; i < 40 && document.getElementById('boot'); i++) await new Promise((r) => setTimeout(r, 100));
+    let left = Number(ask.seconds) || 0;
+    let done = false;
+    let timer = null;
+    const defLabel = ask.def === 'pc' ? 'am PC' : 'auf dem Fernseher';
+    const countdownText = () => (left > 0 ? `Ohne Auswahl geht es in <b id="startCountdown">${left}</b> Sekunden ${defLabel} weiter.` : 'Wähle aus, wo du spielen möchtest.');
+    const stopCountdown = () => {
+      if (!timer) return;
+      clearInterval(timer); timer = null;
+      const t = document.querySelector('#modal .modal-text');
+      if (t) t.textContent = 'Wähle aus, wo du spielen möchtest.';
+    };
+    const finish = async (choice) => {
+      if (done) return;
+      done = true;
+      clearInterval(timer); timer = null;
+      App.closeMenu();
+      if (choice === 'pc') {
+        App.pcMode = true;
+        updateModeBadge();
+        App.toast('Am PC – Fernseher, Bildschirme und Ton bleiben, wie sie sind', 'info', 4000);
+      } else {
+        App.toast(`Schalte auf ${ask.tv || 'den Fernseher'} um …`, 'info', 4000);
+      }
+      Sounds.play('accept');
+      await api.chooseStart(choice);
+    };
+    App.menu({
+      title: 'Wo möchtest du spielen?',
+      text: countdownText(),
+      className: 'start-choice',
+      items: [
+        { label: 'Auf dem Fernseher', icon: 'tv', hint: ask.tv ? ask.tv + ' · Konsolenmodus' : 'Konsolenmodus', focus: ask.def !== 'pc', action: () => finish('tv') },
+        { label: 'Am PC', icon: 'monitor', hint: 'Bildschirme & Hauptbildschirm bleiben wie jetzt', focus: ask.def === 'pc', action: () => finish('pc') }
+      ],
+      onClose: () => finish(ask.def)
+    });
+    if (left > 0) {
+      timer = setInterval(() => {
+        left--;
+        const el = document.getElementById('startCountdown');
+        if (el) el.textContent = left;
+        if (left <= 0) finish(ask.def);
+      }, 1000);
+    }
+    // Wer sich bewegt, entscheidet selbst: Countdown anhalten
+    Input.on((action) => { if (!done && ['up', 'down', 'left', 'right'].includes(action)) stopCountdown(); });
+    window.addEventListener('mousedown', () => { if (!done) stopCountdown(); }, { once: true });
+  };
+
   App.exitFlow = async function () {
     const H = App.cfg.homeassistant || {};
-    const ask = !App.setupMode && H.enabled && H.tvEntity && H.askTvOffAtExit !== false;
+    const ask = !App.setupMode && !App.pcMode && H.enabled && H.tvEntity && H.askTvOffAtExit !== false;
     if (!ask) {
       if (App.cfg.general.confirmPowerActions && !(await App.confirm('Konsolenmodus beenden?', 'Bist du sicher?', 'Beenden'))) return;
       App.toast('Konsolenmodus beenden …');
@@ -1109,6 +1170,10 @@
           { label: 'Fernseher ausschalten', icon: 'power', action: async () => { App.closeMenu(); try { await api.haTv(false); } catch (e) { App.toast(String(e.message || e), 'error'); } } }
         ] : []),
         { label: 'Sortieren & Filtern …', icon: 'list', hint: SORTS.find((x) => x.value === sortMode()).label, action: () => { App.closeMenu(); arrangeMenu(); } },
+        ...(App.pcMode ? [{ label: 'Auf den Fernseher wechseln', icon: 'tv', hint: 'Konsolenmodus', action: async () => {
+          App.closeMenu();
+          if (await App.confirm('Auf den Fernseher wechseln?', 'AleGamestation startet neu – mit Fernseher, Bildschirm- und Tonumschaltung.', 'Wechseln')) api.startConsoleMode();
+        } }] : []),
         { label: 'Bildschirm umschalten …', icon: 'monitor', action: displayMenu },
         { label: 'Vollbild an / aus', icon: 'extend', hint: 'F11', action: async () => { App.closeMenu(); const on = await api.toggleFullscreen(); App.toast(on ? 'Vollbild an' : 'Vollbild aus – mit F11 wieder an', 'ok'); } },
         { label: 'Fehlende Cover herunterladen', icon: 'download', action: () => { App.closeMenu(); App.scrape({}); } },
@@ -1341,9 +1406,13 @@
     refreshDebug();
     api.onDebugEvent(() => refreshDebug());
     // Einrichtungsmodus (Desktop-Verknüpfung): direkt die Einstellungen, ohne Fernseher & Co.
-    try { App.setupMode = !!(await api.appMode()).setup; } catch { App.setupMode = false; }
-    $('#setupBadge').classList.toggle('hidden', !App.setupMode);
-    if (App.setupMode) {
+    let mode = {};
+    try { mode = (await api.appMode()) || {}; } catch { mode = {}; }
+    App.setupMode = !!mode.setup;
+    App.pcMode = !!mode.pc;
+    updateModeBadge();
+    if (mode.ask) App.startChoice(mode.ask);
+    else if (App.setupMode) {
       openSettings('general');
       App.toast('Einrichtungsmodus: Fernseher, Bildschirme und Ton bleiben unverändert', 'info', 6000);
     }

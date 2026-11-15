@@ -71,6 +71,7 @@ contextBridge.exposeInMainWorld('api', {
   onWindowFocus: on('window:focus'),
   onNavCommand: on('nav:command'),
   appMode: () => ipcRenderer.invoke('app:mode'),
+  chooseStart: (choice) => ipcRenderer.invoke('app:chooseStart', choice),
   createSetupShortcut: () => ipcRenderer.invoke('app:setupShortcut'),
   startConsoleMode: () => ipcRenderer.invoke('app:startConsoleMode'),
   onOpenSettings: on('app:openSettings'),

@@ -125,6 +125,12 @@ Die Änderungsliste im Update-Fenster wird automatisch aus den Commit-Nachrichte
 
 ## Einrichtungsmodus (ohne Fernseher)
 
+**Beim Start fragt AleGamestation: „Wo möchtest du spielen?“**
+- **Auf dem Fernseher**: Konsolenmodus wie gewohnt (Fernseher, Bildschirm-/Tonumschaltung, Leistungsmodus)
+- **Am PC**: alles bleibt, wie es ist – Bildschirme, Hauptbildschirm, Ton. Oben steht „AM PC“; über ☰ → „Auf den Fernseher wechseln“ geht es später auf den TV.
+
+Ohne Auswahl geht es nach 10 Sekunden automatisch weiter (Standard: Fernseher). Wer mit dem Controller etwas bewegt, hält den Countdown an. Einstellbar unter Einstellungen → Allgemein → **Beim Start** (Fragen / Immer Fernseher / Immer am PC), **Ohne Antwort** und **Automatisch nach**. Startparameter: `--tv` bzw. `--pc` überspringen die Frage.
+
 Einstellungen → Allgemein → **„Verknüpfung „Einrichten (ohne Fernseher)“ auf dem Desktop“** legt eine zweite Verknüpfung an. Darüber startet AleGamestation nur zum Einstellen: im Fenster auf dem PC-Monitor, direkt in den Einstellungen und **ohne** Fernseher/Home Assistant, Bildschirm- und Tonumschaltung, Leistungsmodus und AleClip-Start (mit Debug-Protokoll). Oben steht „EINRICHTEN“. „Jetzt in den Konsolenmodus wechseln“ startet danach normal neu. Startparameter: `--setup`.
 
 Mit **„Vollbild im Einrichtungsmodus“** (Einstellungen → Allgemein) startet auch dieser Modus im Vollbild – praktisch, um direkt am PC zu spielen, ohne den Fernseher. **F11** schaltet das Vollbild der Oberfläche in jedem Modus an und aus (auch im Menü ☰ → „Vollbild an / aus“).

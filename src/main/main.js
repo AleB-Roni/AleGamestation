@@ -106,7 +106,15 @@ const isDev = process.argv.includes('--dev');
 const skipDisplaySwitch = process.argv.includes('--no-display-switch');
 // Einrichtungsmodus ("--setup", Desktop-Verknüpfung): nur Einstellungen ändern – kein Fernseher, keine Bildschirm-/
 // Tonumschaltung, keine Hintergrundprogramme anhalten; Fenster auf dem Hauptbildschirm
-const setupMode = process.argv.includes('--setup');
+// „--pc“ / Auswahl „Am PC“ beim Start: wie Einrichtungsmodus (nichts umstellen), aber ganz normal die Bibliothek zum Spielen
+// „--tv“: ohne Rückfrage direkt in den Konsolenmodus (z.B. nach „Auf den Fernseher wechseln“)
+const forceTv = process.argv.includes('--tv');
+let pcMode = process.argv.includes('--pc');
+let setupMode = process.argv.includes('--setup') || pcMode;
+// Beim Start fragen „Fernseher oder am PC?“ – solange die Frage offen ist, bleibt alles unverändert
+let choosing = false;
+let startChoice = null; // { resolve, fallback }
+function startMode() { return cfg().general.startMode || 'ask'; } // 'ask' | 'tv' | 'pc'
 
 function cfg() {
   return store.get();
@@ -172,7 +180,7 @@ function findTv(list) {
 
 function targetDisplay() {
   const displays = screen.getAllDisplays();
-  if (setupMode) return screen.getPrimaryDisplay();
+  if (setupMode || choosing) return screen.getPrimaryDisplay();
   const t = String(cfg().general.targetDisplay || 'primary');
   if (t === 'tv') {
     const tv = findTv(knownDisplays);
@@ -369,7 +377,8 @@ async function identifyDisplays() {
 // Vollbild laut Einstellung: Konsolenmodus „Vollbild“, Einrichtungsmodus „Vollbild im Einrichtungsmodus“
 function configuredFullscreen(c = cfg()) {
   if (isDev) return false;
-  return setupMode ? !!c.general.setupFullscreen : !!c.general.startFullscreen;
+  // Am PC spielen: wie im Konsolenmodus; Einrichten-Verknüpfung: eigene Einstellung
+  return setupMode && !pcMode ? !!c.general.setupFullscreen : !!c.general.startFullscreen;
 }
 // Mit F11 umgeschaltet (gilt bis zum Beenden bzw. bis die Einstellung geändert wird)
 let fullscreenOverride = null;
@@ -702,7 +711,7 @@ function createWindow() {
   win.on('closed', () => { win = null; osd.destroy(); overlay.destroy(); });
   // Schließen (X, Alt+F4): erst in der Oberfläche fragen, ob der Fernseher aus soll
   win.on('close', (e) => {
-    if (quitting || setupMode || !askTvOffOnExit()) return;
+    if (quitting || setupMode || choosing || !askTvOffOnExit()) return;
     e.preventDefault();
     send('app:askExit');
   });
@@ -1148,7 +1157,19 @@ ipcMain.handle('bt:running', () => btPair.running);
 
 // ---------- Einrichtungsmodus und Desktop-Verknüpfung ----------
 ipcMain.handle('window:toggleFullscreen', () => toggleFullscreen());
-ipcMain.handle('app:mode', () => ({ setup: setupMode, askTvOff: askTvOffOnExit() }));
+ipcMain.handle('app:mode', () => {
+  // Oberfläche zeigt die Start-Frage selbst (mit Countdown) – Sicherheitsnetz abschalten
+  if (choosing && startChoice) clearTimeout(startChoice.fallback);
+  const g = cfg().general;
+  return {
+    setup: setupMode && !pcMode, pc: pcMode, askTvOff: askTvOffOnExit(),
+    ask: choosing ? { seconds: g.startAskSeconds ?? 10, def: g.startAskDefault === 'pc' ? 'pc' : 'tv', tv: (cfg().display.tv || {}).name || '' } : null
+  };
+});
+ipcMain.handle('app:chooseStart', (_e, choice) => {
+  if (startChoice) startChoice.resolve(choice === 'pc' ? 'pc' : 'tv');
+  return true;
+});
 ipcMain.handle('app:setupShortcut', () => {
   if (process.platform !== 'win32') throw new Error('Verknüpfungen gibt es nur unter Windows');
   const file = path.join(app.getPath('desktop'), 'AleGamestation – Einrichten (ohne Fernseher).lnk');
@@ -1164,7 +1185,7 @@ ipcMain.handle('app:setupShortcut', () => {
 });
 // Aus dem Einrichtungsmodus richtig in den Konsolenmodus wechseln (Neustart ohne --setup)
 ipcMain.handle('app:startConsoleMode', () => {
-  app.relaunch({ args: process.argv.slice(1).filter((a) => a !== '--setup' && a !== '--ags-debug') });
+  app.relaunch({ args: [...process.argv.slice(1).filter((a) => !['--setup', '--pc', '--tv', '--ags-debug'].includes(a)), '--tv'] });
   app.exit(0);
   return true;
 });
@@ -1300,13 +1321,43 @@ app.whenReady().then(async () => {
   // Erst einen evtl. übrig gebliebenen Stand (plötzlich beendet) zurückstellen – sonst würde der falsche Stand gemerkt
   await recoverAfterCrash();
   const listing = listDisplays().catch(() => []);
-  if (cfg().general.targetDisplay === 'tv') await listing;
-  if (setupMode) debug.info('ablauf', 'Einrichtungsmodus: Fernseher, Bildschirme, Ton und Leistungsmodus bleiben unverändert');
-  else await enterConsoleMode();
-  refreshLibrary();
-  createWindow();
-  watcher.start();
-  startPlayStationWatcher();
+  if (!setupMode && !forceTv && startMode() === 'pc') { pcMode = true; setupMode = true; }
+  if (!setupMode && !forceTv && startMode() === 'ask') {
+    // Erst fragen (auf dem aktuellen Hauptbildschirm), dann ggf. auf den Fernseher umschalten
+    choosing = true;
+    debug.info('ablauf', 'Frage beim Start: Fernseher oder am PC?');
+    refreshLibrary();
+    createWindow();
+    watcher.start();
+    startPlayStationWatcher();
+    const choice = await new Promise((resolve) => {
+      // Sicherheitsnetz, falls die Oberfläche die Frage nie zeigt
+      startChoice = { resolve, fallback: setTimeout(() => resolve(cfg().general.startAskDefault === 'pc' ? 'pc' : 'tv'), 60000) };
+    });
+    clearTimeout(startChoice.fallback);
+    startChoice = null;
+    choosing = false;
+    debug.info('ablauf', `Start-Auswahl: ${choice === 'pc' ? 'am PC' : 'Fernseher'}`);
+    if (choice === 'pc') {
+      pcMode = true; setupMode = true;
+      placeWindow();
+    } else {
+      if (cfg().general.targetDisplay === 'tv') await listing;
+      await enterConsoleMode();
+      await listDisplays().catch(() => []);
+      placeWindow();
+      for (const n of startupNotes.splice(0)) send('toast', n);
+    }
+  } else {
+    if (cfg().general.targetDisplay === 'tv') await listing;
+    if (pcMode) debug.info('ablauf', 'Am PC: Fernseher, Bildschirme, Ton und Leistungsmodus bleiben unverändert');
+    else if (setupMode) debug.info('ablauf', 'Einrichtungsmodus: Fernseher, Bildschirme, Ton und Leistungsmodus bleiben unverändert');
+    else await enterConsoleMode();
+    refreshLibrary();
+    createWindow();
+    watcher.start();
+    startPlayStationWatcher();
+  }
   // Hintergrundprogramme pausieren/schließen (läuft parallel, blockiert den Start nicht)
   perfPromise = (setupMode ? Promise.resolve([]) : perf.apply(cfg())).then((list) => {
     if (list.length) send('toast', { type: 'info', text: `Leistungsmodus: ${list.join(', ')} pausiert/beendet` });

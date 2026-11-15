@@ -276,6 +276,19 @@
       id: 'general', title: 'Allgemein', rows: () => [
         group('Start'),
         toggle('Mit Windows starten', () => C().general, 'autostartWithWindows', 'Konsolenmodus startet automatisch nach der Anmeldung'),
+        { ...select('Beim Start', () => C().general, 'startMode', [
+          { value: 'ask', label: 'Fragen: Fernseher oder PC' }, { value: 'tv', label: 'Immer Fernseher' }, { value: 'pc', label: 'Immer am PC' }
+        ], '„Am PC“: Fernseher, Bildschirme, Hauptbildschirm und Ton bleiben, wie sie sind – zum Spielen am Schreibtisch'), get: () => C().general.startMode || 'ask' },
+        ...((C().general.startMode || 'ask') === 'ask' ? [
+          { ...select('Ohne Antwort', () => C().general, 'startAskDefault', [{ value: 'tv', label: 'Fernseher' }, { value: 'pc', label: 'Am PC' }], 'Wird gewählt, wenn du beim Start nichts auswählst'), get: () => C().general.startAskDefault || 'tv' },
+          { ...select('Automatisch nach', () => C().general, 'startAskSeconds', [5, 10, 15, 30, 0].map((v) => ({ value: v, label: v ? v + ' Sekunden' : 'Nie – warten' }))), get: () => C().general.startAskSeconds ?? 10 }
+        ] : []),
+        ...(App.pcMode ? [
+          { type: 'info', label: 'Läuft am PC', desc: 'Fernseher, Bildschirme, Hauptbildschirm, Ton und Leistungsmodus bleiben unverändert.', get: () => '' },
+          button('Auf den Fernseher wechseln', async () => {
+            if (await App.confirm('Auf den Fernseher wechseln?', 'AleGamestation startet neu – mit Fernseher, Bildschirm- und Tonumschaltung.', 'Wechseln')) api.startConsoleMode();
+          })
+        ] : []),
         ...(App.setupMode ? [
           { type: 'info', label: 'Läuft im Einrichtungsmodus', desc: 'Fernseher, Home Assistant, Bildschirm- und Tonumschaltung sowie der Leistungsmodus bleiben aus. Änderungen werden ganz normal gespeichert.', get: () => '' },
           button('Jetzt in den Konsolenmodus wechseln', async () => {
