@@ -666,3 +666,33 @@ test('Home Assistant: Antwort beim Beenden (Fernseher aus / anlassen) überschre
   await ha.onExit({ tvOff: false });
   assert.ok(!calls.includes('/api/services/media_player/turn_off'), 'Anlassen trotz turnOffAtExit=true');
 });
+
+test('Absicherung: Wiederherstellungsdatei wird gemerkt, ergänzt, übernommen und sauber gelöscht', () => {
+  const { CrashGuard } = require('../src/main/crash-guard');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ags-guard-'));
+  const g = new CrashGuard({ dir });
+  g.update({ audioPrev: 'x' }); // noch nicht scharf → nichts
+  assert.strictEqual(fs.existsSync(g.file), false);
+  g.arm({ saved: 'AAA', primary: 'mon-main', primaryName: 'Hauptmonitor' });
+  g.update({ audioPrev: '{dev}' });
+  const st = JSON.parse(fs.readFileSync(g.file, 'utf8'));
+  assert.deepStrictEqual([st.saved, st.primary, st.audioPrev, st.pid], ['AAA', 'mon-main', '{dev}', process.pid]);
+  // Eigener (laufender) Stand ist kein Überbleibsel
+  assert.strictEqual(g.leftover(), null);
+  // Stand eines plötzlich beendeten Laufs
+  fs.writeFileSync(g.file, JSON.stringify({ ...st, pid: 999999 }));
+  const left = g.leftover();
+  assert.strictEqual(left.primaryName, 'Hauptmonitor');
+  g.clearLeftover(left);
+  assert.strictEqual(fs.existsSync(g.file), false);
+  // Wächter arbeitet gerade (.restoring frisch) → nicht doppelt zurückstellen
+  fs.writeFileSync(g.file + '.restoring', JSON.stringify({ ...st, pid: 999999 }));
+  assert.strictEqual(g.leftover(), null);
+  const old = new Date(Date.now() - 120000);
+  fs.utimesSync(g.file + '.restoring', old, old);
+  assert.ok(g.leftover(), 'hängengebliebener Wächter → beim Start übernehmen');
+  // Sauber beendet
+  g.arm({ saved: 'B' });
+  g.disarm();
+  assert.strictEqual(fs.existsSync(g.file), false);
+});

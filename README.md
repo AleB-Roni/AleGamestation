@@ -37,6 +37,7 @@ Alle Spiele (Steam, Epic, GOG, eigene) und Emulator-Spiele in einer modernen Obe
 - **Fernseher festlegen**: Einstellungen → Anzeige → „Mein Fernseher“ (mit „Bildschirme identifizieren“). „Nur Fernseher“ schaltet genau diesen Bildschirm als einzigen ein – auch bei mehreren Monitoren. „Fernseher als Hauptbildschirm“ lässt alle Monitore an und macht nur den TV zur Hauptanzeige, damit Spiele dort starten (beim Beenden wird der alte Hauptbildschirm zurückgesetzt)
 - Eigene Befehle beim Start/Beenden (z. B. Tonausgabe auf den TV umstellen)
 - **Herunterfahren, Neustart, Energiesparen, zurück zum Desktop** direkt per Controller
+- **Absicherung bei plötzlichem Beenden** (Absturz, Task-Manager, Stromausfall): Ein unabhängiger Wächter stellt sofort die ursprüngliche Bildschirmanordnung wieder her, setzt gezielt den alten **Hauptbildschirm** zurück und stellt Ton und Taskleiste zurück. Klappt das nicht (z. B. Stromausfall), passiert es beim nächsten Start. Protokoll: `%APPDATA%\AleGamestation\restore-state.log`
 - Autostart mit Windows, Vollbild auf wählbarem Bildschirm, Mauszeiger wird ausgeblendet
 
 **Controller**
@@ -280,6 +281,7 @@ src/main/        Electron-Hauptprozess
   launcher.js      Spiele starten, überwachen, beenden
   gamepad-watcher.js + xinput-watcher.ps1   globale Controller-Kombinationen
   system.js        Bildschirm umschalten, Herunterfahren
+  crash-guard.js   Absicherung bei plötzlichem Beenden (mit restore-guard.ps1)
   config.js        Konfiguration mit Standardwerten
 src/renderer/    Oberfläche (HTML/CSS/JS, Controller-Navigation)
 test/            Tests (npm test)

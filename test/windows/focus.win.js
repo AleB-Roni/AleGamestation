@@ -104,6 +104,33 @@ function hwndOfPid(pid) {
     console.log(`✔ Bluetooth-Skript läuft (${radio.ok ? 'Bluetooth vorhanden, Suche abgeschlossen' : 'kein Bluetooth auf dem Testrechner'})`);
   }
 
+  // Absicherung: Wächter (per WMI gestartet) stellt nach hartem Beenden zurück
+  {
+    const fs = require('fs');
+    const os = require('os');
+    const { CrashGuard } = require('../../src/main/crash-guard');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ags-guard-'));
+    const g = new CrashGuard({ dir, log: (m) => console.log('  ' + m) });
+    const list = JSON.parse((await helper.request('displays', 15000)) || '[]');
+    const prim = list.find((x) => x.primary && x.active);
+    const saved = await helper.request('save', 10000);
+    const dummy = spawn('powershell.exe', ['-NoProfile', '-Command', 'Start-Sleep 120'], { stdio: 'ignore' });
+    fs.writeFileSync(g.file, JSON.stringify({ pid: dummy.pid, saved, primary: prim ? prim.key : '', primaryName: prim ? prim.name : '' }));
+    const how = await new Promise((r) => g.startGuard(dummy.pid, r));
+    assert.ok(how, 'Wächter wurde nicht gestartet');
+    await sleep(3000);
+    execFileSync('taskkill', ['/F', '/PID', String(dummy.pid)]);
+    const log = path.join(dir, 'restore-state.log');
+    let text = '';
+    for (let i = 0; i < 60 && !/Fertig/.test(text); i++) { await sleep(1000); text = fs.existsSync(log) ? fs.readFileSync(log, 'utf8') : ''; }
+    console.log(text.trim().split(/\r?\n/).map((l) => '  | ' + l).join('\n'));
+    assert.ok(/Fertig/.test(text), 'Wächter hat nicht zurückgestellt');
+    assert.ok(!fs.existsSync(g.file) && !fs.existsSync(g.file + '.restoring'), 'Wiederherstellungsdatei wurde nicht entfernt');
+    // Das Hilfsprogramm muss geantwortet haben (Code 0 = wiederhergestellt; VM-Grafiktreiber melden evtl. anderes)
+    if (saved) assert.ok(/Anordnung wiederherstellen: Code \S+/.test(text), 'Hilfsprogramm hat beim Wiederherstellen nicht geantwortet');
+    console.log(`✔ Wächter (${how}) stellt nach hartem Beenden Anordnung und Hauptbildschirm zurück`);
+  }
+
   // 2) Zwei Fenster: A im Hintergrund, B im Vordergrund -> A per "front" nach vorne holen
   const notepad = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'notepad.exe');
   const a = spawn(notepad, [], { detached: true, stdio: 'ignore' });

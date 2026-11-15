@@ -61,6 +61,8 @@ btPair.on('progress', (step) => {
   send('bt:progress', step);
   overlay.send('bt:progress', step);
 });
+const { CrashGuard } = require('./crash-guard');
+const crashGuard = new CrashGuard({ dir: app.getPath('userData'), log: (m) => debug.info('absicherung', m) });
 const aleclip = new AleClip({ getConfig: () => store.get(), trace: (m, d) => debug.info('aleclip', m, d) });
 const spotify = new Spotify({
   getConfig: () => store.get(), file: path.join(app.getPath('userData'), 'spotify.json'),
@@ -431,6 +433,8 @@ async function rememberOriginalDisplays() {
     const prim = list.find((x) => x.primary && x.active);
     originalDisplays = { saved: await nativeHelper.request('save', 10000), primary: prim ? prim.key : '', primaryName: prim ? prim.name : '' };
     debug.info('anzeige', 'Ursprüngliche Anordnung gemerkt', { hauptbildschirm: originalDisplays.primaryName });
+    // Für plötzliches Beenden (Absturz, Task-Manager): Wächter stellt diesen Stand wieder her
+    crashGuard.arm({ saved: originalDisplays.saved, primary: originalDisplays.primary, primaryName: originalDisplays.primaryName });
   } catch (err) { debug.warn('anzeige', 'Anordnung merken fehlgeschlagen: ' + err.message); }
 }
 /** Vor dem Herunterfahren: genau die Anordnung von vor dem Konsolenmodus, Hauptbildschirm wird geprüft */
@@ -448,6 +452,34 @@ async function restoreOriginalDisplays() {
       await sleep(1000);
     }
   }
+}
+
+/** Wurde AleGamestation zuletzt plötzlich beendet und der Wächter kam nicht dazu: jetzt zurückstellen */
+async function recoverAfterCrash() {
+  const st = crashGuard.leftover();
+  if (!st) return;
+  if (process.platform !== 'win32') { crashGuard.clearLeftover(st); return; }
+  debug.warn('absicherung', 'Letzter Lauf wurde nicht sauber beendet – stelle Bildschirme und Ton zurück', { hauptbildschirm: st.primaryName, seit: st.at });
+  try {
+    if (st.saved) {
+      debug.info('absicherung', `Anordnung wiederhergestellt (Code ${await nativeHelper.request(`restore ${st.saved}`, 15000) || '–'})`);
+      await sleep(1500);
+    }
+    if (st.primary) {
+      for (let i = 0; i < 3; i++) {
+        const now = (await listDisplays().catch(() => [])).find((x) => x.primary && x.active);
+        if (now && now.key === st.primary) break;
+        debug.info('absicherung', `Hauptbildschirm zurück auf ${st.primaryName} (Code ${await nativeHelper.request(`primary ${b64(st.primary)}`, 15000) || '–'})`);
+        await sleep(1500);
+      }
+    }
+    if (st.audioPrev) await nativeHelper.request(`audioset ${b64(st.audioPrev)}`, 10000);
+    nativeHelper.send('taskbar 1');
+    startupNotes.push({ type: 'info', text: `Nach dem unerwarteten Beenden zurückgestellt${st.primaryName ? ' – Hauptbildschirm: ' + st.primaryName : ''}` });
+  } catch (err) {
+    debug.warn('absicherung', 'Zurückstellen fehlgeschlagen: ' + err.message);
+  }
+  crashGuard.clearLeftover(st);
 }
 
 async function enterConsoleMode() {
@@ -538,6 +570,7 @@ async function applyAudio(wait = false) {
   if (!audioState) {
     const prev = list.find((x) => x.default);
     audioState = { prevId: prev ? prev.id : '' };
+    crashGuard.update({ audioPrev: audioState.prevId });
   }
   const r = await nativeHelper.request(`audioset ${b64(dev.id)}`, 10000);
   debug.info('ton', `Tonausgabe -> ${dev.name} (Code ${r})`);
@@ -578,6 +611,7 @@ async function leaveConsoleMode(opts = {}) {
   }
   setTaskbar(true, 'Konsolenmodus beendet');
   await restoreAudio();
+  crashGuard.disarm(); // sauber beendet – der Wächter muss nichts zurückstellen
   await system.runCommands(d.customCommandsOnExit);
   if (!opts.restart) await ha.onExit({ shutdown: !!opts.shutdown, tvOff: opts.tvOff }).catch(() => {});
 }
@@ -1081,6 +1115,7 @@ ipcMain.handle('system:power', async (_e, action, extra = {}) => {
       // und dem alten Hauptbildschirm hochfahren
       if (!setupMode) await restoreOriginalDisplays();
     } else {
+      crashGuard.disarm(); // bewusst ohne Zurückstellen herunterfahren
       await perf.restore(true);
       if (opts.shutdown && !setupMode) await ha.onExit({ shutdown: true }).catch(() => {});
     }
@@ -1262,6 +1297,8 @@ app.whenReady().then(async () => {
   applyCombos();
   powerSaveBlocker.start('prevent-display-sleep');
   // Bildschirmliste vorab laden, damit "Oberfläche auf dem Fernseher" den richtigen Monitor findet
+  // Erst einen evtl. übrig gebliebenen Stand (plötzlich beendet) zurückstellen – sonst würde der falsche Stand gemerkt
+  await recoverAfterCrash();
   const listing = listDisplays().catch(() => []);
   if (cfg().general.targetDisplay === 'tv') await listing;
   if (setupMode) debug.info('ablauf', 'Einrichtungsmodus: Fernseher, Bildschirme, Ton und Leistungsmodus bleiben unverändert');
@@ -1304,11 +1341,13 @@ app.on('before-quit', async (e) => {
   nativeHelper.stop();
   osd.destroy();
   overlay.destroy();
-  if (!quitting && !setupMode && (displaySwitched || perf.applied.length || perf.previousPlan || ha.ready())) {
+  if (!quitting && !setupMode && (displaySwitched || audioState || perf.applied.length || perf.previousPlan || ha.ready())) {
     e.preventDefault();
     quitting = true;
     await leaveConsoleMode();
     app.quit();
+  } else if (!quitting) {
+    crashGuard.disarm(); // nichts umgestellt – sauber beendet, der Wächter muss nichts tun
   }
 });
 
