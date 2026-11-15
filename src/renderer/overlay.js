@@ -110,7 +110,8 @@
         { kind: 'btn', icon: 'volume-down', label: 'Leiser', action: () => act({ type: 'volume', cmd: 'voldown' }, true), repeat: true },
         { kind: 'btn', icon: 'volume-up', label: 'Lauter', action: () => act({ type: 'volume', cmd: 'volup' }, true), repeat: true },
         { kind: 'btn', icon: 'volume-x', label: 'Stumm', action: () => act({ type: 'volume', cmd: 'mute' }, true) },
-        { kind: 'btn', icon: 'mouse', label: 'Maussteuerung', action: () => act({ type: 'mouse' }) }
+        { kind: 'btn', icon: 'mouse', label: 'Maussteuerung', action: () => act({ type: 'mouse' }) },
+        { kind: 'btn', icon: 'gamepad', label: 'Controller verbinden', action: () => { toast('PS + Create gedrückt halten, bis das Licht schnell blinkt'); act({ type: 'btPair' }, true); } }
       ]
     });
     return rows;
@@ -329,6 +330,12 @@
     disarm();
   }
 
+  // Fortschritt der Controller-Suche als kurze Meldungen
+  if (api.onBtProgress) api.onBtProgress((st) => {
+    const t = { searching: `Suche Controller … (${st.round}/${st.rounds})`, paired: `✔ ${st.name} verbunden`, failed: `${st.name}: Verbinden fehlgeschlagen`,
+      done: st.paired ? `${st.paired} Controller verbunden` : 'Kein Controller im Kopplungsmodus gefunden', radio: st.ok ? '' : 'Kein Bluetooth gefunden' }[st.t];
+    if (t) toast(t, st.t === 'paired' || (st.t === 'done' && st.paired) ? 'ok' : st.t === 'failed' || (st.t === 'radio' && !st.ok) ? 'error' : 'info');
+  });
   api.onOverlayOpen(open);
   api.onOverlayClose(close);
   api.onOverlayRefresh(async () => { if (document.body.classList.contains('open')) { S.data = await api.overlayData(); render(); } });

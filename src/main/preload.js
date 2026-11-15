@@ -92,6 +92,8 @@ contextBridge.exposeInMainWorld('api', {
   onOverlayClose: on('overlay:close'),
   onOverlayRefresh: on('overlay:refresh'),
   hidControllers: () => ipcRenderer.invoke('pad:hidCount'),
+  btPair: () => ipcRenderer.invoke('bt:pair'),
+  onBtProgress: on('bt:progress'),
   // Debug-Modus
   debugLog: (entry) => ipcRenderer.invoke('debug:log', entry),
   debugState: () => ipcRenderer.invoke('debug:state'),

@@ -91,6 +91,19 @@ function hwndOfPid(pid) {
     console.log('✔ Taskleiste aus-/einblenden, nach dem Beenden immer wieder sichtbar');
   }
 
+  // Bluetooth-Koppeln: Skript übersetzt und läuft (ohne etwas zu entfernen)
+  {
+    const { spawnSync } = require('child_process');
+    const script = path.join(__dirname, '..', '..', 'src', 'main', 'bt-pair.ps1');
+    const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, '-Rounds', '1', '-Timeout', '1', '-NoRemove'], { encoding: 'utf8', timeout: 120000 });
+    const steps = String(r.stdout || '').trim().split(/\r?\n/).filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+    assert.ok(steps.length, 'Bluetooth-Skript gibt nichts aus: ' + (r.stderr || '').slice(0, 400));
+    const radio = steps.find((x) => x.t === 'radio');
+    assert.ok(radio, 'Keine Bluetooth-Meldung: ' + JSON.stringify(steps));
+    if (radio.ok) assert.ok(steps.some((x) => x.t === 'done'), 'Suche nicht abgeschlossen: ' + JSON.stringify(steps));
+    console.log(`✔ Bluetooth-Skript läuft (${radio.ok ? 'Bluetooth vorhanden, Suche abgeschlossen' : 'kein Bluetooth auf dem Testrechner'})`);
+  }
+
   // 2) Zwei Fenster: A im Hintergrund, B im Vordergrund -> A per "front" nach vorne holen
   const notepad = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'notepad.exe');
   const a = spawn(notepad, [], { detached: true, stdio: 'ignore' });

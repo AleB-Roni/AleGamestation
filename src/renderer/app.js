@@ -1021,6 +1021,41 @@
   };
 
   // ---------- Power-Menü ----------
+  // ---------- PS-Controller per Bluetooth verbinden ----------
+  const btText = (st) => ({
+    radio: st.ok ? 'Bluetooth gefunden …' : 'Kein Bluetooth gefunden – ist Bluetooth am PC eingeschaltet?',
+    connected: `„${st.name}“ ist verbunden – bleibt verbunden`,
+    removed: st.code === 0 ? `Nicht verbundenen „${st.name}“ entfernt` : `„${st.name}“ ließ sich nicht entfernen (Code ${st.code})`,
+    searching: `Suche … (${st.round}/${st.rounds}) – PS + Create gedrückt halten, bis das Licht schnell blinkt`,
+    found: `Gefunden: „${st.name}“ – verbinde …`,
+    paired: `✔ „${st.name}“ verbunden`,
+    failed: `„${st.name}“: Verbinden fehlgeschlagen (Code ${st.code})`,
+    done: st.paired ? `Fertig – ${st.paired} Controller verbunden` : 'Kein Controller im Kopplungsmodus gefunden'
+  })[st.t] || '';
+  App.btPair = function () {
+    const start = async () => {
+      App.closeMenu();
+      App.menu({
+        title: 'Suche PS-Controller …',
+        text: '<span id="btStatus">Starte die Bluetooth-Suche …</span><br><small>Dauert bis zu einer halben Minute. Du kannst das Fenster schließen – die Suche läuft weiter.</small>',
+        items: [{ label: 'Im Hintergrund weiterlaufen lassen', icon: 'check', action: () => App.closeMenu() }]
+      });
+      const r = await api.btPair().catch((e) => ({ ok: false, error: String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '') }));
+      if ($('#btStatus')) App.closeMenu();
+      if (!r.ok) App.toast(r.error || 'Controller-Suche fehlgeschlagen', 'error', 7000);
+      else if (r.paired) App.toast(`🎮 ${r.paired} Controller verbunden${r.names.length ? ': ' + r.names.join(', ') : ''}`, 'ok', 6000);
+      else App.toast('Kein Controller gefunden – PS + Create gedrückt halten, bis das Licht schnell blinkt, und nochmal versuchen', 'error', 8000);
+    };
+    App.menu({
+      title: 'PS5-Controller verbinden',
+      text: 'Halte am Controller <b>PS + Create</b> gedrückt, bis die Lichtleiste <b>schnell blinkt</b>, dann „Suche starten“.<br><small>Gekoppelte, aber nicht verbundene PS-Controller werden vorher aus Windows entfernt (sonst klappt das Neu-Verbinden oft nicht). Verbundene Controller bleiben verbunden.</small>',
+      items: [
+        { label: 'Suche starten', icon: 'search', action: start },
+        { label: 'Abbrechen', icon: 'x', action: () => App.closeMenu() }
+      ]
+    });
+  };
+
   /** Konsolenmodus beenden – mit Home Assistant vorher fragen: Fernseher aus oder an lassen? */
   App.exitFlow = async function () {
     const H = App.cfg.homeassistant || {};
@@ -1061,6 +1096,7 @@
         { label: 'Neu starten', icon: 'restart', action: () => doPower('restart', 'Neu starten') },
         { label: 'Energie sparen', icon: 'moon', action: () => doPower('sleep', 'Energie sparen') },
         { label: 'Zum Desktop (Konsolenmodus beenden)', icon: 'logout', action: () => doPower('exit', 'Konsolenmodus beenden') },
+        { label: 'PS5-Controller verbinden …', icon: 'gamepad', hint: 'Bluetooth', action: () => { App.closeMenu(); App.btPair(); } },
         { label: 'Maus- & Tastatursteuerung', icon: 'mouse', hint: Glyphs.comboLabel(App.cfg.controller.mouseModeCombo), action: () => { App.closeMenu(); api.toggleMouseMode(); } },
         ...(App.cfg.homeassistant && App.cfg.homeassistant.enabled ? [
           { label: 'Fernseher einschalten / Eingang wählen', icon: 'tv', action: async () => { App.closeMenu(); try { await api.haTv(true); App.toast('Fernseher angesteuert', 'ok'); } catch (e) { App.toast(String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''), 'error', 6000); } } },
@@ -1306,6 +1342,12 @@
     }
     if (api.onOpenSettings) api.onOpenSettings((sec) => openSettings(sec || 'general'));
     if (api.onAskExit) api.onAskExit(() => App.exitFlow());
+    if (api.onBtProgress) api.onBtProgress((st) => {
+      const t = btText(st);
+      const el = $('#btStatus');
+      if (el && t) el.textContent = t;
+      else if (t && ['removed', 'paired', 'failed'].includes(st.t)) App.toast(t, st.t === 'failed' ? 'error' : 'info', 4000);
+    });
     window.addEventListener('error', (e) => App.log('oberfläche', `JS-Fehler: ${e.message} (${(e.filename || '').split('/').pop()}:${e.lineno})`, debugContext(), 'error'));
     window.addEventListener('unhandledrejection', (e) => App.log('oberfläche', 'Promise-Fehler: ' + ((e.reason && (e.reason.stack || e.reason.message)) || e.reason), debugContext(), 'error'));
     api.onScrapeProgress(showScrapeProgress);

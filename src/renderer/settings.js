@@ -377,6 +377,8 @@
     },
     {
       id: 'controller', title: 'Controller', rows: () => [
+        group('Bluetooth', 'PS5-/PS4-Controller'),
+        button('PS5-Controller verbinden …', () => App.btPair(), { desc: 'Entfernt nicht verbundene PS-Controller aus Windows und koppelt Controller im Kopplungsmodus (PS + Create gedrückt halten) – verbundene bleiben verbunden' }),
         group('Spiel beenden'),
         select('Tastenkombination „Spiel beenden“', () => C().controller, 'closeGameCombo', comboOptions(C().controller.closeGameCombo), 'Funktioniert auch, während das Spiel im Vordergrund ist'),
         button('Kombination „Spiel beenden“ aufnehmen …', () => recordCombo('closeGameCombo')),

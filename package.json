@@ -30,7 +30,8 @@
     ],
     "asarUnpack": [
       "src/main/xinput-watcher.ps1",
-      "src/main/input-helper.ps1"
+      "src/main/input-helper.ps1",
+      "src/main/bt-pair.ps1"
     ],
     "win": {
       "icon": "build/icon.png",

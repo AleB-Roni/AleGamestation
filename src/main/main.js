@@ -20,6 +20,7 @@ const { NativeHelper, hwndOf } = require('./native-helper');
 const media = require('./media');
 const { Spotify } = require('./spotify');
 const { AleClip } = require('./aleclip');
+const { BtPair } = require('./bt-pair');
 
 // Nur eine Instanz erlauben
 if (!app.requestSingleInstanceLock()) {
@@ -54,6 +55,12 @@ let updater = null;
 const perf = new Performance();
 let perfPromise = Promise.resolve([]);
 const psWatcher = new PsHidWatcher();
+const btPair = new BtPair();
+btPair.on('progress', (step) => {
+  debug.info('bluetooth', step.t, step);
+  send('bt:progress', step);
+  overlay.send('bt:progress', step);
+});
 const aleclip = new AleClip({ getConfig: () => store.get(), trace: (m, d) => debug.info('aleclip', m, d) });
 const spotify = new Spotify({
   getConfig: () => store.get(), file: path.join(app.getPath('userData'), 'spotify.json'),
@@ -904,6 +911,7 @@ async function overlayAction(a) {
       const endAgo = overlayOpenedAt ? (Date.now() - overlayOpenedAt) / 1000 : 0;
       return aleclip.saveReplay(Number(a.seconds) || 0, endAgo);
     }
+    case 'btPair': btPair.run({ rounds: 3, timeout: 8 }).catch(() => {}); return true;
     case 'clipShot': return aleclip.command('screenshot');
     case 'clipRecord': return aleclip.command('toggle_record');
     case 'clipReplay': return aleclip.command('set_replay', { enabled: !!a.enabled });
@@ -1068,6 +1076,9 @@ ipcMain.handle('displays:tvOnly', (_e, mode) => applyTvOnly(true, mode === 'prim
 ipcMain.handle('displays:restore', async () => { await restoreDisplays('extend'); return true; });
 ipcMain.handle('system:displays', () => screen.getAllDisplays().map((d, i) => ({ index: i, label: d.label || `Bildschirm ${i + 1}`, width: d.size.width, height: d.size.height, primary: d.id === screen.getPrimaryDisplay().id })));
 ipcMain.handle('pad:hidCount', () => psWatcher.devices.size);
+// PS-Controller per Bluetooth koppeln (nicht verbundene entfernen, suchen, koppeln)
+ipcMain.handle('bt:pair', () => btPair.run({ rounds: 3, timeout: 8 }));
+ipcMain.handle('bt:running', () => btPair.running);
 
 // ---------- Einrichtungsmodus und Desktop-Verknüpfung ----------
 ipcMain.handle('app:mode', () => ({ setup: setupMode, askTvOff: askTvOffOnExit() }));
