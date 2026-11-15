@@ -394,8 +394,37 @@ function applyAutostart() {
   }
 }
 
+// Anordnung beim Start des Konsolenmodus – wird vor dem Herunterfahren/Neustarten wiederhergestellt
+let originalDisplays = null; // { saved, primary, primaryName }
+async function rememberOriginalDisplays() {
+  if (process.platform !== 'win32' || skipDisplaySwitch || setupMode || originalDisplays) return;
+  try {
+    const list = await listDisplays();
+    const prim = list.find((x) => x.primary && x.active);
+    originalDisplays = { saved: await nativeHelper.request('save', 10000), primary: prim ? prim.key : '', primaryName: prim ? prim.name : '' };
+    debug.info('anzeige', 'Ursprüngliche Anordnung gemerkt', { hauptbildschirm: originalDisplays.primaryName });
+  } catch (err) { debug.warn('anzeige', 'Anordnung merken fehlgeschlagen: ' + err.message); }
+}
+/** Vor dem Herunterfahren: genau die Anordnung von vor dem Konsolenmodus, Hauptbildschirm wird geprüft */
+async function restoreOriginalDisplays() {
+  const o = originalDisplays;
+  if (!o) return;
+  let r = o.saved ? await nativeHelper.request(`restore ${o.saved}`, 15000) : '';
+  debug.info('anzeige', `Ursprüngliche Anordnung wiederhergestellt (Code ${r || '–'})`);
+  await sleep(1500);
+  if (o.primary) {
+    const now = (await listDisplays().catch(() => [])).find((x) => x.primary && x.active);
+    if (!now || now.key !== o.primary) {
+      r = await nativeHelper.request(`primary ${b64(o.primary)}`, 15000);
+      debug.info('anzeige', `Hauptbildschirm zurück auf ${o.primaryName} (Code ${r || '–'})`);
+      await sleep(1000);
+    }
+  }
+}
+
 async function enterConsoleMode() {
   debug.info('ablauf', 'Konsolenmodus starten', { display: cfg().display, targetDisplay: cfg().general.targetDisplay });
+  await rememberOriginalDisplays();
   const d = cfg().display;
   // Fernseher über Home Assistant einschalten und HDMI-Eingang wählen – bevor Windows das Bild umschaltet
   if (ha.ready()) {
@@ -1007,8 +1036,12 @@ ipcMain.handle('system:power', async (_e, action, extra = {}) => {
   }
   if (['shutdown', 'restart'].includes(action)) {
     const opts = { shutdown: action === 'shutdown', restart: action === 'restart' };
-    if (cfg().display.restoreBeforeShutdown) await leaveConsoleMode(opts);
-    else {
+    if (cfg().display.restoreBeforeShutdown) {
+      await leaveConsoleMode(opts);
+      // Unabhängig von „Beim Beenden“: Windows soll beim nächsten Start wieder mit der alten Anordnung
+      // und dem alten Hauptbildschirm hochfahren
+      if (!setupMode) await restoreOriginalDisplays();
+    } else {
       await perf.restore(true);
       if (opts.shutdown && !setupMode) await ha.onExit({ shutdown: true }).catch(() => {});
     }

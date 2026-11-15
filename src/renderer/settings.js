@@ -353,7 +353,7 @@
           },
           ...(exitMode === 'custom' ? monitorRows('exitPlan') : []),
           ...(exitMode === 'custom' ? [button('Jetzt testen', () => testPlan('exit'), { desc: 'Ohne Bestätigung geht es nach 15 Sekunden automatisch zurück' })] : []),
-          toggle('Vor Herunterfahren/Neustart wiederherstellen', D, 'restoreBeforeShutdown', 'Damit Windows beim nächsten Start wieder auf dem Monitor erscheint'),
+          toggle('Vor Herunterfahren/Neustart wiederherstellen', D, 'restoreBeforeShutdown', 'Genau die Anordnung und der Hauptbildschirm von vor dem Konsolenmodus – damit Windows beim nächsten Start wieder auf deinem Hauptmonitor erscheint'),
           select('Wartezeit nach dem Umschalten', D, 'switchDelayMs', [1000, 1500, 2500, 4000, 6000].map((v) => ({ value: v, label: v / 1000 + ' s' }))),
           group('Fernseher', 'Für Home Assistant, Ton und „Oberfläche anzeigen auf: Fernseher“'),
           tvSelect(),
