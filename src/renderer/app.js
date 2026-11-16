@@ -1619,6 +1619,21 @@
     });
     setTimeout(() => { if (rommOn()) loadRommReco(); }, 1500);
     setInterval(() => { if (rommOn() && !App.running) loadRommReco(); }, 15 * 60000);
+    // Im Fenster: obere Leiste verschiebt das Fenster, Fensterknöpfe einblenden
+    const applyWindowState = (st) => {
+      const windowed = !!st && !st.full;
+      document.documentElement.classList.toggle('windowed', windowed);
+      $('#winCtl').classList.toggle('hidden', !windowed);
+      $('#winMax').innerHTML = st && st.max ? '&#x2750;' : '&#x25A1;';
+    };
+    if (api.windowState) {
+      api.windowState().then(applyWindowState).catch(() => {});
+      api.onWindowState(applyWindowState);
+      $('#winMin').onclick = () => api.windowControl('min');
+      $('#winMax').onclick = () => api.windowControl('max');
+      $('#winFull').onclick = () => api.windowControl('full');
+      $('#winClose').onclick = () => api.windowControl('close');
+    }
     if (api.onFullscreen) api.onFullscreen((on) => App.toast(on ? 'Vollbild an' : 'Vollbild aus – mit F11 wieder an', 'ok', 1800));
     api.onUpdateState((u) => {
       App.update = u;

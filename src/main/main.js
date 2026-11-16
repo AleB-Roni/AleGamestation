@@ -699,6 +699,9 @@ function createWindow() {
     }
   });
   win.removeMenu();
+  for (const ev of ['enter-full-screen', 'leave-full-screen', 'maximize', 'unmaximize']) {
+    win.on(ev, () => setTimeout(() => send('window:state', windowState()), 50));
+  }
   placeWindow();
   // F11: Vollbild an/aus – auch im Einrichtungsmodus
   win.webContents.on('before-input-event', (e, input) => {
@@ -1258,6 +1261,17 @@ ipcMain.handle('bt:running', () => btPair.running);
 
 // ---------- Einrichtungsmodus und Desktop-Verknüpfung ----------
 ipcMain.handle('window:toggleFullscreen', () => toggleFullscreen());
+// Fenster (nicht Vollbild): verschieben über die obere Leiste, Minimieren/Maximieren/Schließen
+const windowState = () => (win && !win.isDestroyed() ? { full: win.isFullScreen(), max: win.isMaximized() } : { full: false, max: false });
+ipcMain.handle('window:state', () => windowState());
+ipcMain.handle('window:control', (_e, cmd) => {
+  if (!win || win.isDestroyed()) return false;
+  if (cmd === 'min') win.minimize();
+  else if (cmd === 'max') { if (win.isMaximized()) win.unmaximize(); else win.maximize(); }
+  else if (cmd === 'full') toggleFullscreen();
+  else if (cmd === 'close') win.close();
+  return windowState();
+});
 ipcMain.handle('app:mode', () => {
   // Oberfläche zeigt die Start-Frage selbst (mit Countdown) – Sicherheitsnetz abschalten
   if (choosing && startChoice) clearTimeout(startChoice.fallback);

@@ -81,7 +81,7 @@
     tvStatus: async () => ({ configured: true, name: 'LG TV', windows: 'in Windows deaktiviert', connected: true, active: false, power: 'an', source: 'PC' }),
     activateTv: async () => ({ ok: true, activated: true }),
     identifyDisplays: async () => true, tvOnly: async () => ({ ok: true }), restoreDisplays: async () => true, info: async () => ({}),
-    updateState: async () => ({ status: 'latest', version: '1.0.0' }), checkUpdate: async () => null, installUpdate: async () => false, onUpdateState: noop, toggleFullscreen: async () => true, onFullscreen: noop,
+    updateState: async () => ({ status: 'latest', version: '1.0.0' }), checkUpdate: async () => null, installUpdate: async () => false, onUpdateState: noop, toggleFullscreen: async () => true, windowState: async () => ({ full: /windowed/.test(location.hash) ? false : true, max: false }), windowControl: async () => ({}), onWindowState: noop, onFullscreen: noop,
     recommendedPrograms: async () => [{ name: 'OneDrive', process: 'OneDrive.exe', action: 'close', note: 'Synchronisation' }, { name: 'Microsoft Teams', process: 'ms-teams.exe', action: 'close', note: 'Viel RAM' }],
     runningPrograms: async () => [{ name: 'Google Chrome', process: 'chrome.exe', memMB: 1840 }, { name: 'Discord', process: 'Discord.exe', memMB: 520 }],
     scrape: async () => ({ total: 3, found: 2, missing: 1, finished: true }), cancelScrape: async () => true, mediaDir: async () => 'media',
