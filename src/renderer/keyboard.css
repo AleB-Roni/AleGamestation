@@ -1,0 +1,20 @@
+/* Bildschirmtastatur (Controller) */
+html, body.kbd-body { background: transparent !important; overflow: hidden; height: 100%; margin: 0; }
+#kbd { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 0.45rem; padding: 0.9rem 1rem 0.6rem;
+  background: rgba(14,14,24,0.95); border: 1px solid rgba(255,255,255,0.1); border-radius: 22px; box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  opacity: 0; transform: translateY(18px); transition: opacity 0.16s ease, transform 0.2s cubic-bezier(.2,.8,.2,1); box-sizing: border-box; }
+body.open #kbd { opacity: 1; transform: none; }
+#kbdRows { flex: 1; display: flex; flex-direction: column; gap: 0.45rem; min-height: 0; }
+.kbd-row { flex: 1; display: flex; gap: 0.45rem; min-height: 0; }
+.kbd-key { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 0.35rem; border-radius: 11px;
+  background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.06); color: var(--text); font-size: 1.35rem; font-weight: 500;
+  transition: background 0.08s, transform 0.08s; cursor: pointer; user-select: none; white-space: nowrap; overflow: hidden; }
+.kbd-key.fn { background: rgba(255,255,255,0.12); font-size: 1rem; color: var(--muted); }
+.kbd-key.fn .glyph { transform: scale(0.85); }
+.kbd-key.on { background: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--text); }
+.kbd-key.sel { background: var(--text); color: #0b0b14; transform: scale(1.06); box-shadow: 0 6px 20px rgba(0,0,0,0.5); z-index: 1; }
+.kbd-key.sel.fn { color: #0b0b14; }
+.kbd-key.hit { background: var(--accent); color: #fff; }
+.kbd-key .icon { width: 1.25rem; height: 1.25rem; }
+#kbdHints { display: flex; justify-content: center; gap: 1.2rem; flex-wrap: wrap; font-size: 0.82rem; color: var(--muted); }
+#kbdHints .hint { display: inline-flex; align-items: center; gap: 0.35rem; }

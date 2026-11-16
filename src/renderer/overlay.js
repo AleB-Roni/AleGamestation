@@ -110,6 +110,7 @@
         { kind: 'btn', icon: 'volume-down', label: 'Leiser', action: () => act({ type: 'volume', cmd: 'voldown' }, true), repeat: true },
         { kind: 'btn', icon: 'volume-up', label: 'Lauter', action: () => act({ type: 'volume', cmd: 'volup' }, true), repeat: true },
         { kind: 'btn', icon: 'volume-x', label: 'Stumm', action: () => act({ type: 'volume', cmd: 'mute' }, true) },
+        { kind: 'btn', icon: 'keyboard', label: S.data && S.data.keyboard ? 'Tastatur ausblenden' : 'Bildschirmtastatur', action: () => act({ type: 'keyboard' }) },
         { kind: 'btn', icon: 'mouse', label: 'Maussteuerung', action: () => act({ type: 'mouse' }) },
         { kind: 'btn', icon: 'gamepad', label: 'Controller verbinden', action: () => { toast('PS + Create gedrückt halten, bis das Licht schnell blinkt'); act({ type: 'btPair' }, true); } }
       ]

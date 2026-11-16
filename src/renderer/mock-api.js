@@ -92,7 +92,7 @@
     overlayData: async () => ({ running: { id: 'snes-1', name: 'Dungeon Quest', system: 'snes', startedAt: Date.now() - 23 * 60000, cover: '' },
       recent: games.slice(0, 6).map((g) => ({ id: g.id, name: g.name, cover: g.cover, system: g.system })), systems, ps: true }),
     overlaySpotify: async () => ({ api: true, active: true, running: true, playing: true, shuffle: true, artist: 'Daft Punk, Pharrell Williams', title: 'Get Lucky', progress: 95000, duration: 248000 }),
-    overlayAction: async () => true, onOverlayOpen: (cb) => { setTimeout(cb, 100); return () => {}; }, onOverlayClose: noop, onOverlayRefresh: noop,
+    overlayAction: async () => true, keyboardKey: async (k) => { (window.__typed = window.__typed || []).push(k); return true; }, onKeyboardOpen: (cb) => { setTimeout(cb, 100); return () => {}; }, onKeyboardClose: noop, onOverlayOpen: (cb) => { setTimeout(cb, 100); return () => {}; }, onOverlayClose: noop, onOverlayRefresh: noop,
     pickFile: async () => null, pickFolder: async () => null, pickImage: async () => null,
     onGameStatus: noop, onConfigChanged: noop, onToast: noop, onWindowFocus: noop, onGamepadConnection: noop, onPadState: noop, hidControllers: async () => 0
   };

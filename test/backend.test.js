@@ -696,3 +696,17 @@ test('Absicherung: Wiederherstellungsdatei wird gemerkt, ergänzt, übernommen u
   g.disarm();
   assert.strictEqual(fs.existsSync(g.file), false);
 });
+
+test('Maussteuerung: Stick bewegt die Maus nur, wenn eingeschaltet', () => {
+  const { MouseMode } = require('../src/main/mouse-mode');
+  for (const mouseStick of [true, false]) {
+    const lines = [];
+    const m = new MouseMode({ getConfig: () => ({ controller: { mouseSpeed: 1, mouseStick } }), send: (l) => lines.push(l) });
+    m.update({ id: 'p', mask: 0, axes: [1, 0, 0, 0] });
+    m.setActive(true);
+    m.lastTick = Date.now() - 40;
+    m.tick();
+    m.setActive(false);
+    assert.strictEqual(lines.some((l) => l.startsWith('m ')), mouseStick, `mouseStick=${mouseStick}: ${lines.join(' | ')}`);
+  }
+});

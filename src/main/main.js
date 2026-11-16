@@ -84,6 +84,8 @@ const nativeHelper = new NativeHelper();
 const mouseMode = new MouseMode({ getConfig: () => store.get(), send: (line) => nativeHelper.send(line) });
 const osd = new Osd({ onShown: (w) => nativeHelper.top(hwndOf(w)) });
 const overlay = new Overlay({ preload: path.join(__dirname, 'preload.js') });
+const { ScreenKeyboard } = require('./screen-keyboard');
+const screenKeyboard = new ScreenKeyboard({ preload: path.join(__dirname, 'preload.js') });
 // Touchpad als Maus: außerhalb von Spielen (oder nur in der Maussteuerung)
 const touchpad = new TouchpadMouse({
   send: (line) => mouseMode.send(line),
@@ -708,7 +710,7 @@ function createWindow() {
     bringToFront();
   });
   if (isDev) win.webContents.openDevTools({ mode: 'detach' });
-  win.on('closed', () => { win = null; osd.destroy(); overlay.destroy(); });
+  win.on('closed', () => { win = null; osd.destroy(); overlay.destroy(); screenKeyboard.destroy(); });
   // Schließen (X, Alt+F4): erst in der Oberfläche fragen, ob der Fernseher aus soll
   win.on('close', (e) => {
     if (quitting || setupMode || choosing || !askTvOffOnExit()) return;
@@ -941,7 +943,7 @@ function overlayData() {
     if (g && !recent.some((r) => r.id === g.id) && !(st.running && st.game.id === g.id)) recent.push({ id: g.id, name: g.name, cover: g.cover || '', system: g.system });
   }
   const running = st.running ? { ...st.game, startedAt: st.startedAt, cover: (library.games.find((g) => g.id === st.game.id) || {}).cover || '' } : null;
-  return { running, recent, systems: library.systems.map((s) => ({ id: s.id, short: s.short, color: s.color })), mouseMode: mouseMode.active, ps: lastPadIsPlayStation };
+  return { running, recent, systems: library.systems.map((s) => ({ id: s.id, short: s.short, color: s.color })), mouseMode: mouseMode.active, keyboard: screenKeyboard.isVisible(), ps: lastPadIsPlayStation };
 }
 
 async function overlayAction(a) {
@@ -978,6 +980,12 @@ async function overlayAction(a) {
       return media.mediaKey((l) => mouseMode.send(l), a.cmd);
     case 'volume': return media.mediaKey((l) => mouseMode.send(l), a.cmd);
     case 'mouse': closeOverlay(); mouseMode.toggle(); return mouseMode.active;
+    case 'keyboard':
+      // Ein-/ausblenden; das Spiel bekommt den Fokus zurück, damit die Zeichen dort ankommen
+      if (screenKeyboard.isVisible()) { hideScreenKeyboard(); closeOverlay(true); return false; }
+      closeOverlay(true);
+      setTimeout(showScreenKeyboard, overlayTookFocus ? 700 : 300);
+      return true;
     case 'clip': {
       // Clip endet beim Öffnen des Overlays – das angehaltene Spiel und das Menü sind nicht drin
       const endAgo = overlayOpenedAt ? (Date.now() - overlayOpenedAt) / 1000 : 0;
@@ -1031,18 +1039,20 @@ watcher.on('state', (s) => {
   mouseMode.update(s);
   // Xbox-Controller (XInput) steuern das Overlay ebenfalls direkt
   if (overlay.isVisible() && String(s.id).startsWith('xinput:')) overlay.send('pad:state', { mask: s.mask, axes: s.axes });
+  else if (screenKeyboard.isVisible() && String(s.id).startsWith('xinput:')) screenKeyboard.send('pad:state', { mask: s.mask, axes: s.axes });
 });
 // PlayStation-Controller direkt an die Oberfläche weitergeben (Chromium kann DualSense per Bluetooth
 // im erweiterten Modus nicht lesen). Nur wenn die Oberfläche bedient werden darf – nie während eines Spiels im Hintergrund.
 let padForwarded = false;
 function uiAcceptsController() {
-  if (!win || win.isDestroyed() || mouseMode.active || overlay.isVisible()) return false;
+  if (!win || win.isDestroyed() || mouseMode.active || overlay.isVisible() || screenKeyboard.isVisible()) return false;
   if (win.isFocused()) return true;
   return win.isVisible() && !win.isMinimized() && !launcher.isRunning();
 }
 psWatcher.on('state', (s) => {
   mouseMode.update(s);
   if (overlay.isVisible()) overlay.send('pad:state', { mask: s.mask, axes: s.axes });
+  else if (screenKeyboard.isVisible()) screenKeyboard.send('pad:state', { mask: s.mask, axes: s.axes });
   if (uiAcceptsController()) {
     // Windows gibt der Oberfläche beim Autostart nicht immer den Fokus – beim ersten Tastendruck holen
     if (s.mask > 0 && !win.isFocused()) bringToFront();
@@ -1066,7 +1076,41 @@ mouseMode.on('active', (on) => {
   if (on) osd.show('mouse', 'Maus- & Tastatursteuerung aktiv', `${comboText(cfg().controller.mouseModeCombo, ps)} zum Beenden`, 0);
   else osd.show('gamepad', 'Controller-Steuerung', '', 1500);
 });
-mouseMode.on('keyboard', () => mouseMode.toggleKeyboard());
+// □/X in der Maussteuerung: eigene Bildschirmtastatur (mit dem Controller bedienbar)
+mouseMode.on('keyboard', () => toggleScreenKeyboard());
+
+// ---------- Bildschirmtastatur ----------
+let kbdResumeMouse = false;
+function showScreenKeyboard() {
+  if (screenKeyboard.isVisible()) return;
+  // Solange die Tastatur offen ist, steuert der Controller nur sie
+  kbdResumeMouse = mouseMode.active;
+  if (mouseMode.active) mouseMode.setActive(false);
+  if (padForwarded) { send('pad:state', { mask: 0, axes: [0, 0, 0, 0] }); padForwarded = false; }
+  const display = win && !win.isDestroyed() ? screen.getDisplayMatching(win.getBounds()) : undefined;
+  debug.info('tastatur', 'Bildschirmtastatur einblenden');
+  screenKeyboard.show(display).then(() => {
+    const h = screenKeyboard.hwnd();
+    nativeHelper.top(h);
+    setTimeout(() => { if (screenKeyboard.isVisible()) nativeHelper.top(h); }, 350);
+  }).catch((err) => debug.warn('tastatur', err.message));
+}
+function hideScreenKeyboard() {
+  if (!screenKeyboard.isVisible()) return;
+  debug.info('tastatur', 'Bildschirmtastatur ausblenden');
+  screenKeyboard.hide();
+  if (kbdResumeMouse) { kbdResumeMouse = false; mouseMode.setActive(true); }
+}
+function toggleScreenKeyboard() {
+  if (screenKeyboard.isVisible()) hideScreenKeyboard(); else showScreenKeyboard();
+  return screenKeyboard.isVisible();
+}
+ipcMain.handle('kbd:key', (_e, k = {}) => {
+  if (k.close) { hideScreenKeyboard(); return true; }
+  if (k.text) for (const ch of String(k.text)) nativeHelper.send(`u ${ch.codePointAt(0)}`);
+  else if (k.vk) { nativeHelper.send(`k ${Number(k.vk)} 1`); nativeHelper.send(`k ${Number(k.vk)} 0`); }
+  return true;
+});
 
 function startPlayStationWatcher() {
   if (cfg().controller.playstationHid === false) return;

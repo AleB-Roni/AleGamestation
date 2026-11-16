@@ -7,6 +7,7 @@
 #   k <vk> <1|0>     Taste drücken / loslassen (Virtual-Key-Code)
 #   front <hwnd> <1|0>  Fenster in den Vordergrund holen (trotz Windows-Fokus-Sperre), 1 = ganz oben fixieren
 #   top <hwnd>       Fenster ganz nach oben legen, ohne Fokus (für Einblendungen)
+#   u <codepoint>    Zeichen tippen (Bildschirmtastatur; im Tastaturlayout des Zielfensters)
 #   taskbar <1|0>    Taskleiste(n) einblenden / ausblenden (wird beim Beenden des Hilfsprogramms immer wieder eingeblendet)
 #   q <id> fg        Anfrage: aktuelles Vordergrundfenster -> Antwort "a <id> <hwnd>"
 #   q <id> displays        Anfrage: alle angeschlossenen Bildschirme als JSON (Windows-Anzeigekonfiguration)
@@ -154,6 +155,32 @@ public static class AgsInput {
     if ((vk >= 0x21 && vk <= 0x28) || vk == 0x2D || vk == 0x2E || vk == 0x5B || (vk >= 0xA6 && vk <= 0xB7)) flags |= 1u; // inkl. Medien-/Lautstärketasten
     i.u.ki.dwFlags = flags;
     Send(i);
+  }
+
+  // ---------- Zeichen tippen (Bildschirmtastatur) ----------
+  [DllImport("user32.dll")] static extern short VkKeyScanEx(char ch, IntPtr hkl);
+  [DllImport("user32.dll")] static extern IntPtr GetKeyboardLayout(uint thread);
+  /** Zeichen als echte Tastendrücke im Tastaturlayout des Zielfensters (klappt auch in Spielen), sonst als Unicode */
+  public static void Type(int cp) {
+    short r = -1;
+    if (cp > 0 && cp <= 0xFFFF) {
+      uint pid; uint tid = GetWindowThreadProcessId(GetForegroundWindow(), out pid);
+      r = VkKeyScanEx((char)cp, GetKeyboardLayout(tid));
+    }
+    if (r != -1 && (r & 0xFF) != 0xFF && ((r >> 8) & 0xF8) == 0) {
+      ushort vk = (ushort)(r & 0xFF);
+      int mods = (r >> 8) & 0xFF;
+      bool shift = (mods & 1) != 0, ctrl = (mods & 2) != 0, alt = (mods & 4) != 0; // Strg+Alt = AltGr
+      if (ctrl) Key(0x11, true); if (alt) Key(0x12, true); if (shift) Key(0x10, true);
+      Key(vk, true); Key(vk, false);
+      if (shift) Key(0x10, false); if (alt) Key(0x12, false); if (ctrl) Key(0x11, false);
+      return;
+    }
+    foreach (char unit in char.ConvertFromUtf32(cp)) {
+      INPUT d = new INPUT(); d.type = 1; d.u.ki.wVk = 0; d.u.ki.wScan = unit; d.u.ki.dwFlags = 4u;      // KEYEVENTF_UNICODE
+      INPUT u = new INPUT(); u.type = 1; u.u.ki.wVk = 0; u.u.ki.wScan = unit; u.u.ki.dwFlags = 4u | 2u;
+      Send(d); Send(u);
+    }
   }
 
   // ---------- Fenster in den Vordergrund (für Overlay über Vollbild-Spielen) ----------
@@ -530,6 +557,7 @@ while ($true) {
       'h' { [AgsInput]::Mouse(0, 0, [int]$p[1], 0x1000) }
       'b' { $f = $btn[$p[1]]; if ($f) { [AgsInput]::Mouse(0, 0, 0, $(if ($p[2] -eq '1') { $f[0] } else { $f[1] })) } }
       'k' { [AgsInput]::Key([uint16]$p[1], $p[2] -eq '1') }
+      'u' { [AgsInput]::Type([int]$p[1]) }
       'front' { [void][AgsInput]::Front([long]$p[1], $p[2] -eq '1') }
       'top' { [AgsInput]::Top([long]$p[1]) }
       'taskbar' { $global:tbHidden = ($p[1] -ne '1'); [void][AgsInput]::Taskbar($p[1] -eq '1') }

@@ -129,6 +129,8 @@ const DEFAULT_CONFIG = {
     mouseModeCombo: 'BACK+Y',
     // Mausgeschwindigkeit (1 = normal)
     mouseSpeed: 1,
+    // Maussteuerung: Maus mit dem linken Stick bewegen (aus = nur Touchpad)
+    mouseStick: true,
     // Touchpad (DualSense/DualShock 4) als Maus: "outsideGames" | "mouseMode" (nur in der Maussteuerung) | "off"
     touchpadMouse: 'outsideGames',
     touchpadSpeed: 1,

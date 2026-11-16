@@ -430,9 +430,10 @@
         group('Maus & Tastatur per Controller', 'z.B. für Launcher-Fenster, Logins, Browser'),
         select('Tastenkombination „Maussteuerung“', () => C().controller, 'mouseModeCombo', comboOptions(C().controller.mouseModeCombo), 'Ein-/Ausschalten – funktioniert überall in Windows'),
         button('Kombination „Maussteuerung“ aufnehmen …', () => recordCombo('mouseModeCombo')),
+        { ...toggle('Maus mit dem Stick bewegen', () => C().controller, 'mouseStick', 'Aus: Die Maus bewegt sich nur über das PlayStation-Touchpad – der Stick bleibt frei'), get: () => C().controller.mouseStick !== false },
         select('Mausgeschwindigkeit', () => C().controller, 'mouseSpeed', [0.5, 0.75, 1, 1.25, 1.5, 2].map((v) => ({ value: v, label: Math.round(v * 100) + ' %' }))),
         button('🖱 Maussteuerung jetzt einschalten', () => api.toggleMouseMode()),
-        { type: 'info', label: 'Belegung', desc: `Linker Stick: Maus · Rechter Stick: Scrollen · ${Glyphs.label('A')}: Linksklick · ${Glyphs.label('B')}: Rechtsklick · ${Glyphs.label('X')}: Bildschirmtastatur · ${Glyphs.label('Y')}: Enter · Steuerkreuz: Pfeiltasten · ${Glyphs.label('LB')}: Alt+Tab · ${Glyphs.label('RB')}: Tab · ${Glyphs.label('LT')}: Rücktaste · ${Glyphs.label('RT')} halten: langsame Maus · ${Glyphs.label('START')}: Esc · ${Glyphs.label('LS')}: Mittelklick`, get: () => '' },
+        { type: 'info', label: 'Belegung', desc: `${C().controller.mouseStick === false ? 'Maus: Touchpad' : 'Linker Stick: Maus'} · Rechter Stick: Scrollen · ${Glyphs.label('A')}: Linksklick · ${Glyphs.label('B')}: Rechtsklick · ${Glyphs.label('X')}: Bildschirmtastatur (mit dem Controller tippen) · ${Glyphs.label('Y')}: Enter · Steuerkreuz: Pfeiltasten · ${Glyphs.label('LB')}: Alt+Tab · ${Glyphs.label('RB')}: Tab · ${Glyphs.label('LT')}: Rücktaste · ${Glyphs.label('RT')} halten: langsame Maus · ${Glyphs.label('START')}: Esc · ${Glyphs.label('LS')}: Mittelklick`, get: () => '' },
         group('Touchpad als Maus', 'DualSense / DualShock 4'),
         select('Touchpad als Maus verwenden', () => C().controller, 'touchpadMouse', [
           { value: 'outsideGames', label: 'Immer außerhalb von Spielen' },

@@ -2,7 +2,7 @@
 /**
  * Maus- & Tastatursteuerung per Controller ("Desktop-Modus").
  * Linker Stick = Maus, rechter Stick = Scrollen, ✕/A = Linksklick, ○/B = Rechtsklick,
- * □/X = Bildschirmtastatur, △/Y = Enter, Steuerkreuz = Pfeiltasten, L1/LB = Alt+Tab,
+ * □/X = Bildschirmtastatur (eigene, per Controller), △/Y = Enter, Steuerkreuz = Pfeiltasten, L1/LB = Alt+Tab,
  * R1/RB = Tab, L2/LT = Rücktaste, R2/RT = Präzisionsmodus (langsam), Options/Start = Esc, L3 = Mittelklick.
  */
 const { EventEmitter } = require('events');
@@ -143,10 +143,12 @@ class MouseMode extends EventEmitter {
     // Während BACK/Create gedrückt ist, keine Aktionen (Platz für Tastenkombinationen)
     const blocked = mask & BUTTONS.BACK;
 
-    // Maus bewegen
+    // Maus bewegen (abschaltbar – z.B. nur das PlayStation-Touchpad als Maus)
     const precise = effective & BUTTONS.RT ? 0.3 : 1;
-    this.acc.x += curve(axes[0]) * speed * precise * dt;
-    this.acc.y += curve(axes[1]) * speed * precise * dt;
+    if (c.mouseStick !== false) {
+      this.acc.x += curve(axes[0]) * speed * precise * dt;
+      this.acc.y += curve(axes[1]) * speed * precise * dt;
+    }
     const mx = Math.trunc(this.acc.x); const my = Math.trunc(this.acc.y);
     if (mx || my) { this.send(`m ${mx} ${my}`); this.acc.x -= mx; this.acc.y -= my; }
 
