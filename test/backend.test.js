@@ -710,3 +710,66 @@ test('Maussteuerung: Stick bewegt die Maus nur, wenn eingeschaltet', () => {
     assert.strictEqual(lines.some((l) => l.startsWith('m ')), mouseStick, `mouseStick=${mouseStick}: ${lines.join(' | ')}`);
   }
 });
+
+test('RomM: schon vorhandene ROMs erkennen (Dateiname, Ordner, Titel)', () => {
+  const { findLocal } = require('../src/main/romm');
+  const local = [
+    { id: 'a', rom: 'C:\\ROMs\\snes\\Super Mario World (Europe).zip', name: 'Super Mario World' },
+    { id: 'b', rom: 'C:\\ROMs\\psx\\Final Fantasy VII (Europe)\\Final Fantasy VII (Europe).cue', name: 'Final Fantasy VII' },
+    { id: 'c', rom: '/roms/snes/Chrono Trigger (USA).sfc', name: 'Chrono Trigger' }
+  ];
+  assert.strictEqual(findLocal({ fs_name: 'Chrono Trigger (USA).sfc', fs_name_no_ext: 'Chrono Trigger (USA)', name: 'Chrono Trigger' }, local).id, 'c');
+  assert.strictEqual(findLocal({ fs_name: 'Final Fantasy VII (Europe)', fs_name_no_ext: 'Final Fantasy VII (Europe)', name: 'Final Fantasy VII' }, local).id, 'b');
+  assert.strictEqual(findLocal({ fs_name: 'Super Mario World (USA).sfc', fs_name_no_ext: 'Super Mario World (USA)', name: 'Super Mario World' }, local).id, 'a');
+  assert.strictEqual(findLocal({ fs_name: 'Super Mario World 2 - Yoshi\'s Island (USA).sfc', fs_name_no_ext: 'x', name: 'Super Mario World 2: Yoshi\'s Island' }, local), null);
+  assert.strictEqual(findLocal({ fs_name: 'Donkey Kong Country (Europe).sfc', fs_name_no_ext: 'Donkey Kong Country (Europe)', name: 'Donkey Kong Country' }, local), null);
+});
+
+test('RomM: Anmeldung, Plattformen, Liste mit „schon vorhanden“, Empfehlungen, Download (auch mehrteilig)', async () => {
+  const { RomM } = require('../src/main/romm');
+  const fake = await require('./fake-romm').start();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ags-romm-'));
+  const conf = { romm: { enabled: true, url: fake.url + '/', token: 'rmm_test' } };
+  const r = new RomM({ getConfig: () => conf, fetch: (u, o) => fetch(u, o), cacheDir: path.join(dir, 'cache') });
+  try {
+    const t = await r.test();
+    assert.deepStrictEqual([t.version, t.user, t.platforms, t.roms], ['5.4.0', 'ale', 2, 4]);
+    // Falsches Token → verständliche Meldung
+    conf.romm.token = 'falsch';
+    await assert.rejects(() => (r.clearCache(), r.test()), /Anmeldung abgelehnt/);
+    // Benutzer + Passwort
+    conf.romm.token = ''; conf.romm.user = 'ale'; conf.romm.password = 'geheim';
+    r.clearCache();
+    const snesDir = path.join(dir, 'snes');
+    fs.mkdirSync(snesDir);
+    fs.writeFileSync(path.join(snesDir, 'Chrono Trigger (USA).sfc'), 'x');
+    const local = [{ id: 'ct', system: 'snes', type: 'rom', rom: path.join(snesDir, 'Chrono Trigger (USA).sfc'), name: 'Chrono Trigger' }];
+    const list = await r.listForSystem({ id: 'snes', name: 'Super Nintendo' }, local);
+    assert.deepStrictEqual(list.platforms, ['Super Nintendo']);
+    assert.strictEqual(list.roms.length, 3);
+    assert.strictEqual(list.roms.find((x) => x.id === 13).local, 'ct');
+    assert.ok(list.roms.find((x) => x.id === 11).cover.startsWith('agsromm://cover/'));
+    // Empfehlungen ohne vorhandene, nur für eingerichtete Konsolen (ohne PS1 → keine FF7)
+    const reco = await r.recommendations([{ id: 'snes', name: 'SNES' }], local);
+    assert.deepStrictEqual(reco.map((x) => x.id).sort(), [11, 12]);
+    assert.match(reco[0].reason, /Super Mario World/);
+    // Cover wird mit Anmeldung geholt und zwischengespeichert
+    const cover = await r.coverFile(11);
+    assert.ok(fs.existsSync(cover) && cover.endsWith('.png'));
+    // Download einzelne Datei
+    const prog = [];
+    r.on('progress', (p) => prog.push(p));
+    const f = await r.download(11, snesDir);
+    assert.strictEqual(path.basename(f), 'Super Mario World (USA).sfc');
+    assert.strictEqual(fs.statSync(f).size, 2048);
+    assert.ok(prog.some((p) => p.done));
+    await assert.rejects(() => r.download(11, snesDir), /liegt schon/);
+    // Mehrteilig: ZIP wird in einen Ordner entpackt
+    const psxDir = path.join(dir, 'psx');
+    const g = await r.download(21, psxDir);
+    assert.ok(fs.existsSync(path.join(g, 'Final Fantasy VII (Europe).cue')));
+    assert.ok(!fs.readdirSync(psxDir).some((x) => x.endsWith('.part')));
+  } finally {
+    fake.close();
+  }
+});

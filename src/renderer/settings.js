@@ -636,6 +636,50 @@
       }
     },
     {
+      id: 'romm', title: 'RomM', rows: () => {
+        if (!C().romm) C().romm = { enabled: false, url: '', token: '', user: '', password: '', recommend: true, serverRow: true, platformMap: {} };
+        const R = () => C().romm;
+        const st = S.romm || {};
+        const plats = S.rommPlatforms || [];
+        const systems = C().systems.filter((x) => x.enabled !== false);
+        const mapOpts = [{ value: 'auto', label: 'Automatisch' }, { value: 'none', label: 'Nicht verbinden' }]
+          .concat(plats.map((p) => ({ value: 'p:' + p.id, label: `${p.name} (${p.rom_count})` })));
+        const reload = async () => { S.rommPlatforms = await api.rommPlatforms().catch(() => []); render(); };
+        return [
+          group('Verbindung', st.version ? `RomM ${st.version}${st.user ? ' · ' + st.user : ''} · ${st.platforms} Plattformen · ${st.roms} Spiele` : 'Eigener ROM-Server im Heimnetz'),
+          { ...toggle('RomM verwenden', R, 'enabled', 'Spiele vom Server auf den Konsolen-Seiten, Empfehlungen und Herunterladen'), rescan: false },
+          text('Server-Adresse', R, 'url', 'z.B. http://192.168.1.20:8080 – so, wie du RomM im Browser öffnest'),
+          text('Client-Token (empfohlen)', R, 'token', 'In RomM: Profil → Client-Tokens → neues Token mit „roms.read“ und „platforms.read“ (beginnt mit rmm_)', { secret: true }),
+          text('Benutzername', R, 'user', 'Nur nötig ohne Client-Token'),
+          text('Passwort', R, 'password', 'Nur nötig ohne Client-Token', { secret: true }),
+          button('Verbindung testen', async () => {
+            await App.save({ immediate: true });
+            App.toast('Verbinde mit RomM …', 'info', 2000);
+            try {
+              S.romm = await api.rommTest();
+              App.toast(`✔ RomM ${S.romm.version || ''} – ${S.romm.platforms} Plattformen, ${S.romm.roms} Spiele`, 'ok', 6000);
+              await reload();
+              App.rommRefresh && App.rommRefresh();
+            } catch (e) { App.toast(cleanErr(e), 'error', 9000); }
+          }),
+          group('Anzeige'),
+          { ...toggle('Empfehlungen auf der Startseite', R, 'recommend', 'Reihe „Empfohlen von RomM“ – Spiele, die du noch nicht hast'), get: () => R().recommend !== false },
+          { ...toggle('Server-Spiele auf den Konsolen-Seiten', R, 'serverRow', 'Unter deinen Spielen: alles, was auf dem Server liegt – schon heruntergeladene sind markiert'), get: () => R().serverRow !== false },
+          group('Konsolen-Zuordnung', plats.length ? 'Automatisch = über das Plattform-Kürzel' : '„Verbindung testen“ lädt die Plattformen'),
+          ...(plats.length ? systems.map((sys) => ({
+            type: 'select', label: sys.name, desc: `Downloads landen in ${(sys.romDirs || [])[0] || '(kein ROM-Ordner eingetragen)'}`, options: mapOpts,
+            get: () => { const m = (R().platformMap || {})[sys.id]; return Array.isArray(m) && m.length ? 'p:' + m[0] : m === 'none' ? 'none' : 'auto'; },
+            set: (v) => {
+              R().platformMap = R().platformMap || {};
+              if (v === 'auto') delete R().platformMap[sys.id];
+              else if (v === 'none') R().platformMap[sys.id] = 'none';
+              else R().platformMap[sys.id] = [Number(v.slice(2))];
+            }
+          })) : [])
+        ];
+      }
+    },
+    {
       id: 'media', title: 'Cover', rows: () => {
         const SC = () => C().scraper;
         const SS = () => C().scraper.screenscraper;
@@ -1254,6 +1298,7 @@
       api.tvStatus().then((t) => { S.tv = t; if (SECTIONS[S.section].id === 'display' && !S.detail) render(); }).catch(() => {});
       try { S.spotify = await api.spotifyStatus(); } catch { S.spotify = {}; }
       try { S.aleclip = await api.aleclipStatus(); } catch { S.aleclip = {}; }
+      if (C().romm && C().romm.enabled && C().romm.url && !S.rommPlatforms) api.rommPlatforms().then((p) => { S.rommPlatforms = p; if (SECTIONS[S.section].id === 'romm') render(); }).catch(() => {});
       try { S.update = await api.updateState(); } catch { S.update = {}; }
       render();
     },

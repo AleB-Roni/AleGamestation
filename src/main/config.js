@@ -267,6 +267,17 @@ const DEFAULT_CONFIG = {
 
   // Pro Spiel: { emulator: 'dolphin', hidden: true, name: 'Eigener Name', cover: 'C:\\bild.png' }
   gameOverrides: {},
+  // RomM-Server (Heimnetz): ROMs anzeigen, empfehlen, herunterladen
+  romm: {
+    enabled: false,
+    url: '',          // z.B. http://192.168.1.20:8080
+    token: '',        // Client-Token (rmm_…) – oder Benutzer + Passwort
+    user: '',
+    password: '',
+    recommend: true,  // Reihe „Empfohlen von RomM“ auf der Startseite
+    serverRow: true,  // auf der Konsolen-Seite: Spiele auf dem Server
+    platformMap: {}   // Konsole -> [RomM-Plattform-IDs] | 'none' (leer = automatisch)
+  },
 
   // Wird von der App verwaltet
   favorites: [],

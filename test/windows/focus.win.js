@@ -104,6 +104,21 @@ function hwndOfPid(pid) {
     console.log(`✔ Bluetooth-Skript läuft (${radio.ok ? 'Bluetooth vorhanden, Suche abgeschlossen' : 'kein Bluetooth auf dem Testrechner'})`);
   }
 
+  // RomM: mehrteilige Spiele kommen als ZIP – mit Windows-Bordmitteln entpacken
+  {
+    const fs = require('fs');
+    const os = require('os');
+    const { extractZip } = require('../../src/main/romm');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ags-zip-'));
+    const zip = path.join(dir, 'spiel.zip');
+    fs.writeFileSync(zip, require('../fake-zip')([['Spiel (Europe).cue', 'FILE "Spiel (Europe).bin" BINARY'], ['Spiel (Europe).bin', 'DATA']]));
+    const out = path.join(dir, 'Spiel (Europe)');
+    fs.mkdirSync(out);
+    await extractZip(zip, out);
+    assert.ok(fs.existsSync(path.join(out, 'Spiel (Europe).cue')) && fs.existsSync(path.join(out, 'Spiel (Europe).bin')), 'ZIP nicht entpackt');
+    console.log('✔ RomM: mehrteilige Spiele (ZIP) werden entpackt');
+  }
+
   // Bilder umwandeln über Windows (WIC): wird für TIFF/HEIC benutzt – hier mit einem BMP geprüft
   {
     const fs = require('fs');

@@ -1,5 +1,7 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, screen, shell, dialog, powerSaveBlocker, net } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, shell, dialog, powerSaveBlocker, net, protocol } = require('electron');
+// Cover vom RomM-Server (mit Anmeldung, zwischengespeichert): agsromm://cover/<id>
+protocol.registerSchemesAsPrivileged([{ scheme: 'agsromm', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 const fs = require('fs');
 const path = require('path');
 const { ConfigStore, DEFAULT_CONFIG } = require('./config');
@@ -1137,6 +1139,59 @@ ipcMain.handle('config:save', (_e, data) => {
 ipcMain.handle('config:path', () => store.file);
 ipcMain.handle('config:openFile', () => shell.openPath(store.file));
 
+// ---------- RomM-Server ----------
+const { RomM } = require('./romm');
+const romm = new RomM({
+  getConfig: cfg, fetch: (u, o) => net.fetch(u, o), cacheDir: path.join(app.getPath('userData'), 'romm'),
+  trace: (m) => debug.info('romm', m)
+});
+romm.on('progress', (p) => {
+  send('romm:progress', p);
+  if (p.done) {
+    // Neu geladenes Spiel sofort in der Bibliothek
+    refreshLibrary();
+    send('library:changed', library);
+  }
+});
+const sysById = (id) => cfg().systems.find((x) => x.id === id && x.enabled !== false);
+ipcMain.handle('romm:test', async () => { romm.clearCache(); return romm.test(); });
+ipcMain.handle('romm:ping', () => romm.ping());
+ipcMain.handle('romm:platforms', () => romm.platforms(true));
+ipcMain.handle('romm:list', async (_e, systemId) => {
+  const sys = sysById(systemId);
+  if (!sys || !romm.enabled()) return { platforms: [], roms: [] };
+  return romm.listForSystem(sys, library.games.filter((g) => g.type === 'rom' && g.system === sys.id));
+});
+ipcMain.handle('romm:recommend', async () => {
+  if (!romm.enabled() || cfg().romm.recommend === false) return [];
+  const systems = cfg().systems.filter((x) => x.enabled !== false);
+  return romm.recommendations(systems, library.games.filter((g) => g.type === 'rom'));
+});
+ipcMain.handle('romm:download', async (_e, romId, systemId) => {
+  const sys = sysById(systemId);
+  if (!sys) throw new Error('Konsole nicht gefunden');
+  const dir = (sys.romDirs || [])[0];
+  const file = await romm.download(Number(romId), dir);
+  // Cover vom Server gleich für das neue Spiel übernehmen (Cover-Ordner der App)
+  try {
+    const cover = await romm.coverFile(Number(romId));
+    if (cover) {
+      refreshLibrary();
+      for (const g of library.games.filter((x) => x.rom && (x.rom === file || x.rom.startsWith(file + path.sep)) && !x.cover)) {
+        const d = path.join(mediaDir(), sys.id, 'covers');
+        fs.mkdirSync(d, { recursive: true });
+        fs.copyFileSync(cover, path.join(d, path.basename(g.rom, path.extname(g.rom)) + path.extname(cover)));
+      }
+    }
+  } catch (err) { debug.warn('romm', 'Cover übernehmen: ' + err.message); }
+  refreshLibrary();
+  send('library:changed', library);
+  const game = library.games.find((g) => g.rom && (g.rom === file || g.rom.startsWith(file + path.sep)));
+  return { file, gameId: game ? game.id : null };
+});
+ipcMain.handle('romm:cancel', (_e, romId) => romm.cancel(romId));
+ipcMain.handle('romm:downloads', () => [...romm.downloads.values()].map((d) => ({ id: d.id, name: d.name, received: d.received, total: d.total })));
+
 ipcMain.handle('library:get', () => library);
 ipcMain.handle('library:refresh', () => refreshLibrary());
 ipcMain.handle('emulators:detect', () => {
@@ -1405,6 +1460,14 @@ app.on('second-instance', (_e, argv) => {
 
 app.whenReady().then(async () => {
   store.load();
+  protocol.handle('agsromm', async (req) => {
+    try {
+      const id = Number(new URL(req.url).pathname.replace(/^\/+/, ''));
+      const f = id ? await romm.coverFile(id) : '';
+      if (f) return net.fetch(require('url').pathToFileURL(f).toString());
+    } catch (err) { debug.warn('romm', 'Cover: ' + err.message); }
+    return new Response('', { status: 404 });
+  });
   await adoptLinkedImages();
   applyAutostart();
   applyCombos();

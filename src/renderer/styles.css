@@ -480,3 +480,14 @@ body.hide-cursor .card-actions { display: none; }
 .card-names .card .card-name { display: block; }
 .card-names .card .badge { bottom: auto; top: 0.5rem; z-index: 2; }
 .card .fav-star { z-index: 2; }
+
+/* RomM-Server: Karten mit Download-Zustand */
+.romm-card { position: absolute; inset: 0; }
+.romm-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.romm-card .placeholder { height: 100%; }
+.romm-state { position: absolute; top: 0.5rem; left: 0.5rem; z-index: 2; display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.68rem; font-weight: 700;
+  padding: 0.22rem 0.5rem; border-radius: 6px; background: rgba(0,0,0,0.65); backdrop-filter: blur(6px); letter-spacing: 0.02em; }
+.romm-state .icon { width: 0.85rem; height: 0.85rem; }
+.romm-state.ok { background: rgba(31,160,90,0.85); }
+.romm-state.dl { background: color-mix(in srgb, var(--accent) 80%, transparent); }
+.romm-card.have img, .romm-card.have .placeholder { filter: saturate(0.55) brightness(0.8); }

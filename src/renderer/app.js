@@ -246,6 +246,9 @@
 
   function buildSections() {
     const tab = App.tabs[App.tabIndex];
+    // RomM-Einstellungen geändert → Server-Listen neu laden
+    const rsig = JSON.stringify((App.cfg && App.cfg.romm) || {});
+    if (rsig !== App.romm.sig) { const first = App.romm.sig === undefined; App.romm.sig = rsig; if (!first) setTimeout(App.rommRefresh, 0); }
     const games = visibleGames();
     const gi = (g) => ({ kind: 'game', game: g });
     const secs = [];
@@ -255,6 +258,9 @@
       const favs = (App.cfg.favorites || []).map(gameById).filter((g) => g && !g.hidden);
       if (recent.length) secs.push({ title: 'Zuletzt gespielt', layout: 'strip', wide: true, items: recent.map(gi) });
       if (favs.length) secs.push({ title: 'Favoriten', layout: 'strip', items: favs.map(gi) });
+      // RomM: Empfehlungen (nur Spiele, die noch nicht heruntergeladen sind)
+      const reco = rommOn() && App.cfg.romm.recommend !== false ? (App.romm.reco || []).filter((r) => !r.local && !App.romm.got.has(r.id)) : [];
+      if (reco.length) secs.push({ title: 'Empfohlen von RomM', layout: 'strip', items: reco.map((r) => ({ kind: 'romm', rom: r })) });
       for (const s of App.library.systems) {
         const list = games.filter((g) => g.system === s.id);
         if (!list.length) continue;
@@ -288,6 +294,20 @@
           emptyText: ''
         });
         if (list.length === 1) secs[0].note = open.emulatorFound ? `Keine ROMs gefunden. Über „${open.short}“ den ROM-Ordner öffnen oder hinzufügen.` : `Emulator „${open.emulatorName}“ wurde nicht gefunden – Pfad in Einstellungen → Emulatoren eintragen.`;
+        // RomM: alles, was auf dem Server liegt – schon vorhandene markiert
+        if (rommOn() && App.cfg.romm.serverRow !== false) {
+          const srv = App.romm.lists[open.id];
+          if (srv === undefined) loadRommList(open.id);
+          if (srv && srv.roms.length) {
+            const have = srv.roms.filter((r) => r.local || App.romm.got.has(r.id)).length;
+            secs.push({
+              title: `Auf dem RomM-Server  ·  ${srv.roms.length} Spiele${have ? `  ·  ${have} schon heruntergeladen` : ''}`, layout: 'grid',
+              items: srv.roms.map((r) => ({ kind: 'romm', rom: r }))
+            });
+          } else if (srv && srv.error) {
+            secs.push({ title: 'Auf dem RomM-Server', layout: 'grid', items: [], emptyText: srv.error });
+          }
+        }
       }
     } else if (tab.id === 'all') {
       const list = arrange(games);
@@ -365,6 +385,7 @@
         <div class="sys-count">${s.count} Spiele</div>
       </div>`;
     }
+    if (item.kind === 'romm') return rommCardHtml(item.rom);
     const g = item.game;
     const sys = systemOf(g.system);
     const img = wide && g.hero ? g.hero : g.cover;
@@ -540,6 +561,19 @@
       chip(`${Icons.svg('gamepad')} ${esc(s.emulatorName)}`, 'emu');
       chip(s.emulatorFound ? `${Icons.svg('check')} Emulator gefunden` : `${Icons.svg('warning')} Emulator nicht gefunden`, s.emulatorFound ? 'ok' : 'bad');
       chip(`${s.count} Spiele`);
+    } else if (item.kind === 'romm') {
+      const r = item.rom;
+      const sys = systemOf(r.system);
+      $('#heroSystem').innerHTML = `<span class="dot" style="background:${esc(sys.color)};color:${esc(sys.color)}"></span>${esc(sys.name)} · RomM-Server`;
+      $('#heroTitle').textContent = r.name;
+      const dl = App.romm.dl[r.id];
+      if (r.local || App.romm.got.has(r.id)) chip(`${Icons.svg('check')} Schon heruntergeladen`, 'ok');
+      else if (dl && !dl.done && !dl.error) chip(`${Icons.svg('download')} ${rommPct(dl)}`, 'emu');
+      else chip(`${Icons.svg('download')} ${fmtSize(r.size)}`, 'emu');
+      if (r.year) chip(String(r.year));
+      if (r.genres && r.genres.length) chip(esc(r.genres.slice(0, 2).join(' · ')));
+      if (r.reason) chip(esc(r.reason));
+      bg = r.cover;
     } else {
       $('#heroSystem').innerHTML = '';
       $('#heroTitle').textContent = item.title;
@@ -681,6 +715,7 @@
     if (!item) return;
     if (item.kind === 'game') return launch(item.game);
     if (item.kind === 'system') return openConsole(item.system);
+    if (item.kind === 'romm') return rommActivate(item.rom);
     if (item.kind === 'action') {
       Sounds.play('accept');
       if (item.id === 'addGame') return addGameFlow();
@@ -1063,6 +1098,115 @@
   };
 
   /** Konsolenmodus beenden – mit Home Assistant vorher fragen: Fernseher aus oder an lassen? */
+  // ---------- RomM-Server ----------
+  App.romm = { reco: [], lists: {}, dl: {}, got: new Set(), loading: {} };
+  const rommOn = () => !!(App.cfg && App.cfg.romm && App.cfg.romm.enabled && App.cfg.romm.url);
+  const rommHave = (r) => !!(r.local || App.romm.got.has(r.id));
+  const fmtSize = (b) => (!b ? '' : b >= 1073741824 ? (b / 1073741824).toFixed(1).replace('.', ',') + ' GB' : b >= 1048576 ? Math.round(b / 1048576) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB');
+  const rommPct = (d) => (d.total ? `${Math.floor((d.received / d.total) * 100)} %` : fmtSize(d.received));
+  const rommErr = (e) => String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
+
+  /** Bildschirm neu aufbauen, ohne dass die Auswahl springt */
+  function rerenderKeep() {
+    if (App.view !== 'home' || App.modalStack.length) return;
+    const f = { ...App.focus };
+    renderHome();
+    const sec = App.sections[Math.min(f.s, App.sections.length - 1)];
+    setFocus(Math.min(f.s, Math.max(0, App.sections.length - 1)), Math.min(f.i, Math.max(0, ((sec || {}).items || [1]).length - 1)), true);
+  }
+
+  async function loadRommList(sysId) {
+    if (App.romm.loading[sysId]) return;
+    App.romm.loading[sysId] = true;
+    try { App.romm.lists[sysId] = await api.rommList(sysId); } catch (e) { App.romm.lists[sysId] = { roms: [], error: rommErr(e) }; }
+    App.romm.loading[sysId] = false;
+    if (App.emuOpen === sysId) rerenderKeep();
+  }
+  async function loadRommReco() {
+    if (!rommOn() || App.cfg.romm.recommend === false) { App.romm.reco = []; return; }
+    try { App.romm.reco = await api.rommRecommend(); } catch { App.romm.reco = []; }
+    if (App.tabs[App.tabIndex] && App.tabs[App.tabIndex].id === 'home') rerenderKeep();
+  }
+  /** Nach Einstellungen/Download: Listen neu laden */
+  App.rommRefresh = function () {
+    App.romm.lists = {};
+    loadRommReco();
+    if (App.emuOpen) loadRommList(App.emuOpen);
+  };
+
+  function rommCardHtml(r) {
+    const sys = systemOf(r.system);
+    const ph = `<div class='ph-sys'>${esc(sys.short)}</div><div class='ph-name'>${esc(r.name)}</div>`;
+    const inner = r.cover
+      ? `<img src="${esc(r.cover)}" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'placeholder',innerHTML:this.dataset.ph}))" data-ph="${esc(ph)}">`
+      : `<div class="placeholder" style="--c:${esc(sys.color)}">${ph}</div>`;
+    const dl = App.romm.dl[r.id];
+    const state = rommHave(r) ? `<span class="romm-state ok">${Icons.svg('check')} Heruntergeladen</span>`
+      : dl && !dl.done && !dl.error ? `<span class="romm-state dl">${Icons.svg('download')} ${rommPct(dl)}</span>`
+        : `<span class="romm-state">${Icons.svg('download')} ${esc(fmtSize(r.size) || 'RomM')}</span>`;
+    return `<div class="romm-card${rommHave(r) ? ' have' : ''}" data-romm="${r.id}">${inner}${r.cover ? `<div class="card-name"><span>${esc(r.name)}</span></div>` : ''}${state}</div>`;
+  }
+
+  function rommActivate(r) {
+    if (rommHave(r)) {
+      const g = gameById(r.local || (App.romm.gotGame || {})[r.id]);
+      if (g) return launch(g);
+      return App.toast('Schon heruntergeladen – Bibliothek neu einlesen, falls es fehlt', 'info', 4000);
+    }
+    return rommDetails(r);
+  }
+
+  function rommDetails(r) {
+    const sys = systemOf(r.system);
+    const dl = App.romm.dl[r.id];
+    const running = dl && !dl.done && !dl.error;
+    const have = rommHave(r);
+    const info = [r.platform, fmtSize(r.size), r.year, (r.genres || []).slice(0, 3).join(', '), r.rating ? `★ ${Math.round(r.rating)}/100` : '', r.regions && r.regions.length ? r.regions.join(', ') : ''].filter(Boolean).join(' · ');
+    const items = [];
+    if (have) items.push({ label: 'Spielen', icon: 'play', action: () => { App.closeMenu(); rommActivate(r); } });
+    else if (running) items.push({ label: 'Download abbrechen', icon: 'x', hint: rommPct(dl), action: async () => { App.closeMenu(); await api.rommCancel(r.id); } });
+    else items.push({ label: 'Herunterladen', icon: 'download', hint: `${fmtSize(r.size)} → ${sys.short}-ROM-Ordner`, action: () => { App.closeMenu(); rommDownload(r); } });
+    App.menu({
+      title: r.name,
+      text: `${esc(info)}${r.reason ? `<br><small>${esc(r.reason)}</small>` : ''}${r.summary ? `<br><br>${esc(r.summary.length > 420 ? r.summary.slice(0, 420) + ' …' : r.summary)}` : ''}${have ? '<br><br>✔ Schon in deiner Bibliothek' : ''}`,
+      className: 'system-details',
+      items
+    });
+    if (r.cover) {
+      App.modalStack[App.modalStack.length - 1].header = `<div class="detail-cover"><img src="${esc(r.cover)}" alt=""></div>`;
+      renderModal();
+    }
+  }
+
+  async function rommDownload(r) {
+    App.romm.dl[r.id] = { id: r.id, name: r.name, received: 0, total: r.size };
+    updateRommCard(r.id);
+    App.toast(`Lade „${r.name}“ herunter …`, 'info', 2500);
+    try {
+      const res = await api.rommDownload(r.id, r.system);
+      App.romm.got.add(r.id);
+      App.romm.gotGame = App.romm.gotGame || {};
+      if (res && res.gameId) { App.romm.gotGame[r.id] = res.gameId; r.local = res.gameId; }
+      Sounds.play('accept');
+      App.toast(`✔ „${r.name}“ heruntergeladen – jetzt spielbar`, 'ok', 5000);
+    } catch (e) {
+      App.toast(`„${r.name}“: ${rommErr(e)}`, 'error', 8000);
+    }
+    delete App.romm.dl[r.id];
+    rerenderKeep();
+  }
+
+  /** Nur die betroffene Karte aktualisieren (Fortschritt), ohne alles neu aufzubauen */
+  function updateRommCard(id) {
+    document.querySelectorAll(`.romm-card[data-romm="${id}"]`).forEach((el) => {
+      const sec = App.sections.find((x) => x.items.some((it) => it.kind === 'romm' && it.rom.id === id));
+      const it = sec && sec.items.find((x) => x.kind === 'romm' && x.rom.id === id);
+      if (it) el.outerHTML = rommCardHtml(it.rom);
+    });
+    const f = focusedItem();
+    if (f && f.kind === 'romm' && f.rom.id === id) { updateHero(); renderHints(); }
+  }
+
   /** Oben rechts: „EINRICHTEN“ (Einrichten-Verknüpfung) bzw. „AM PC“ */
   function updateModeBadge() {
     const b = $('#setupBadge');
@@ -1288,6 +1432,7 @@
       const item = focusedItem();
       if (item && item.kind === 'game') html += hint(glyph('A'), 'Spielen') + hint(glyph('X'), 'Favorit') + hint(glyph('Y'), 'Details');
       else if (item && item.kind === 'system') html += hint(glyph('A'), 'Spiele anzeigen') + hint(glyph('Y'), 'Konsole');
+      else if (item && item.kind === 'romm') html += hint(glyph('A'), rommHave(item.rom) ? 'Spielen' : App.romm.dl[item.rom.id] && !App.romm.dl[item.rom.id].done && !App.romm.dl[item.rom.id].error ? 'Download' : 'Herunterladen') + hint(glyph('Y'), 'Details');
       else if (item) html += hint(glyph('A'), 'Öffnen');
       html += hint(glyph('LB') + glyph('RB'), App.sections[App.focus.s] && App.sections[App.focus.s].letterJump ? 'Buchstabe' : 'Bereich');
       if (App.emuOpen && App.tabs[App.tabIndex].id === 'emulators') html += hint(glyph('B'), 'Alle Konsolen');
@@ -1337,6 +1482,7 @@
       case 'y':
         if (item && item.kind === 'game') gameDetails(item.game);
         else if (item && item.kind === 'system') systemDetails(item.system);
+        else if (item && item.kind === 'romm') rommDetails(item.rom);
         break;
       // L1/R1: in langen Listen nach Anfangsbuchstaben springen, sonst zum vorherigen/nächsten Bereich
       case 'lb': case 'rb': {
@@ -1466,6 +1612,13 @@
     updateBadge();
     let announced = '';
     let announcedAvail = '';
+    if (api.onRommProgress) api.onRommProgress((p) => {
+      if (p.done || p.error) return; // Abschluss meldet rommDownload selbst
+      App.romm.dl[p.id] = p;
+      updateRommCard(p.id);
+    });
+    setTimeout(() => { if (rommOn()) loadRommReco(); }, 1500);
+    setInterval(() => { if (rommOn() && !App.running) loadRommReco(); }, 15 * 60000);
     if (api.onFullscreen) api.onFullscreen((on) => App.toast(on ? 'Vollbild an' : 'Vollbild aus – mit F11 wieder an', 'ok', 1800));
     api.onUpdateState((u) => {
       App.update = u;

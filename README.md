@@ -37,6 +37,11 @@ Alle Spiele (Steam, Epic, GOG, eigene) und Emulator-Spiele in einer modernen Obe
 - **Fernseher festlegen**: Einstellungen → Anzeige → „Mein Fernseher“ (mit „Bildschirme identifizieren“). „Nur Fernseher“ schaltet genau diesen Bildschirm als einzigen ein – auch bei mehreren Monitoren. „Fernseher als Hauptbildschirm“ lässt alle Monitore an und macht nur den TV zur Hauptanzeige, damit Spiele dort starten (beim Beenden wird der alte Hauptbildschirm zurückgesetzt)
 - Eigene Befehle beim Start/Beenden (z. B. Tonausgabe auf den TV umstellen)
 - **Herunterfahren, Neustart, Energiesparen, zurück zum Desktop** direkt per Controller
+- **RomM-Server** (ab 5.x, im Heimnetz): Einstellungen → RomM → Adresse + Client-Token (oder Benutzer/Passwort) → „Verbindung testen“. Danach:
+  - Konsolen-Seite: Reihe **„Auf dem RomM-Server“** mit allen Spielen der Konsole – was du schon hast (gleicher Datei-/Ordnername oder Titel), ist als **„Heruntergeladen“** markiert und startet direkt
+  - Startseite: **„Empfohlen von RomM“** (RomMs eigene Empfehlungen, nur Spiele, die du noch nicht hast)
+  - ✕ → **Herunterladen** in den ROM-Ordner der Konsole (mehrteilige Spiele werden in einen Unterordner entpackt), mit Fortschritt; Cover kommt gleich mit
+  - Konsolen ↔ RomM-Plattformen werden automatisch zugeordnet, anpassbar in den Einstellungen
 - **Eigene Bilder** (Logos, Hintergründe, Cover) in fast jedem Format – PNG, JPG, WebP, AVIF, GIF, SVG, BMP, ICO, TIFF, HEIC (mit „HEIF-Bilderweiterungen“) – werden automatisch in PNG umgewandelt und in den App-Datenordner kopiert (`%APPDATA%\AleGamestation\images`). Das Original darf danach gelöscht werden.
 - **Absicherung bei plötzlichem Beenden** (Absturz, Task-Manager, Stromausfall): Ein unabhängiger Wächter stellt sofort die ursprüngliche Bildschirmanordnung wieder her, setzt gezielt den alten **Hauptbildschirm** zurück und stellt Ton und Taskleiste zurück. Klappt das nicht (z. B. Stromausfall), passiert es beim nächsten Start. Protokoll: `%APPDATA%\AleGamestation\restore-state.log`
 - Autostart mit Windows, Vollbild auf wählbarem Bildschirm, Mauszeiger wird ausgeblendet
