@@ -1,0 +1,7 @@
+[Desktop Entry]
+Encoding=UTF-8
+Name=AleGamestation (Spielmodus)
+Comment=Konsolen-Oberfläche AleGamestation im Gamescope-Spielmodus
+Exec=gamescope-session-plus alegamestation
+Type=Application
+DesktopNames=gamescope

@@ -1,0 +1,4 @@
+#!/usr/bin/bash
+# AleGamestation auf AleGamestation OS starten (im Spielmodus mit --gamescope)
+export ALEGAMESTATION_OS=1
+exec /usr/lib/alegamestation/alegamestation "$@"

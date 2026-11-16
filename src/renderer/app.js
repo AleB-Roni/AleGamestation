@@ -1207,6 +1207,27 @@
     if (f && f.kind === 'romm' && f.rom.id === id) { updateHero(); renderHints(); }
   }
 
+  // ---------- AleGamestation OS (Linux) ----------
+  App.os = { os: false };
+  const osErr = (e) => String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
+  App.osDesktop = async function () {
+    if (!(await App.confirm('Zum Linux-Desktop wechseln?', 'AleGamestation wird beendet und der Desktop startet. Zurück geht es über „Zurück zu AleGamestation“ auf dem Desktop.', 'Wechseln'))) return;
+    App.toast('Wechsle zum Desktop …', 'info', 5000);
+    try { await api.osSession('desktop'); } catch (e) { App.toast(osErr(e), 'error', 8000); }
+  };
+  App.osUpdate = async function () {
+    if (!(await App.confirm('System aktualisieren?', 'Lädt die neueste Version von AleGamestation OS (inkl. App). Aktiv nach dem nächsten Neustart. Das kann einige Minuten dauern.', 'Aktualisieren'))) return;
+    App.toast('Suche nach System-Updates …', 'info', 4000);
+    try {
+      await api.osUpdate();
+      if (await App.confirm('Update bereit', 'Das neue System ist geladen. Jetzt neu starten?', 'Neu starten')) api.power('restart');
+    } catch (e) { App.toast(osErr(e), 'error', 9000); }
+  };
+  App.osSetup = async function () {
+    App.toast('Richte Emulatoren ein – das kann einige Minuten dauern …', 'info', 6000);
+    try { await api.osSetupEmulators(); App.toast('✔ Emulatoren eingerichtet', 'ok', 5000); } catch (e) { App.toast(osErr(e), 'error', 9000); }
+  };
+
   /** Oben rechts: „EINRICHTEN“ (Einrichten-Verknüpfung) bzw. „AM PC“ */
   function updateModeBadge() {
     const b = $('#setupBadge');
@@ -1249,11 +1270,17 @@
       text: '',
       items: [
         ...(App.update && App.update.status === 'ready' ? [{ label: `Update auf v${App.update.available} installieren`, icon: 'update', hint: 'App startet neu', action: () => { App.closeMenu(); App.installUpdate(); } }] : []),
-        { label: 'Nach Updates suchen', icon: 'refresh', hint: App.update && App.update.available ? `v${App.update.available} verfügbar` : `v${(App.update && App.update.version) || ''}`, action: () => { App.closeMenu(); App.updateDialog(true); } },
+        ...(App.os && App.os.os ? [
+          { label: 'Zum Linux-Desktop wechseln', icon: 'monitor', hint: 'Strg+Alt+D', action: () => { App.closeMenu(); App.osDesktop(); } },
+          { label: 'System aktualisieren', icon: 'refresh', hint: App.os.version ? `AleGamestation OS ${App.os.version}` : '', action: () => { App.closeMenu(); App.osUpdate(); } },
+          { label: 'Emulatoren einrichten / ergänzen', icon: 'download', hint: 'Flatpak + RetroArch-Cores', action: () => { App.closeMenu(); App.osSetup(); } }
+        ] : [
+          { label: 'Nach Updates suchen', icon: 'refresh', hint: App.update && App.update.available ? `v${App.update.available} verfügbar` : `v${(App.update && App.update.version) || ''}`, action: () => { App.closeMenu(); App.updateDialog(true); } }
+        ]),
         { label: 'Herunterfahren', icon: 'power', danger: true, action: () => doPower('shutdown', 'Herunterfahren') },
         { label: 'Neu starten', icon: 'restart', action: () => doPower('restart', 'Neu starten') },
         { label: 'Energie sparen', icon: 'moon', action: () => doPower('sleep', 'Energie sparen') },
-        { label: 'Zum Desktop (Konsolenmodus beenden)', icon: 'logout', action: () => doPower('exit', 'Konsolenmodus beenden') },
+        ...(App.os && App.os.os ? [] : [{ label: 'Zum Desktop (Konsolenmodus beenden)', icon: 'logout', action: () => doPower('exit', 'Konsolenmodus beenden') }]),
         { label: 'PS5-Controller verbinden …', icon: 'gamepad', hint: 'Bluetooth', action: () => { App.closeMenu(); App.btPair(); } },
         { label: 'Maus- & Tastatursteuerung', icon: 'mouse', hint: Glyphs.comboLabel(App.cfg.controller.mouseModeCombo), action: () => { App.closeMenu(); api.toggleMouseMode(); } },
         ...(App.cfg.homeassistant && App.cfg.homeassistant.enabled ? [
@@ -1265,8 +1292,8 @@
           App.closeMenu();
           if (await App.confirm('Auf den Fernseher wechseln?', 'AleGamestation startet neu – mit Fernseher, Bildschirm- und Tonumschaltung.', 'Wechseln')) api.startConsoleMode();
         } }] : []),
-        { label: 'Bildschirm umschalten …', icon: 'monitor', action: displayMenu },
-        { label: 'Vollbild an / aus', icon: 'extend', hint: 'F11', action: async () => { App.closeMenu(); const on = await api.toggleFullscreen(); App.toast(on ? 'Vollbild an' : 'Vollbild aus – mit F11 wieder an', 'ok'); } },
+        ...(App.os && App.os.gamescope ? [] : [{ label: 'Bildschirm umschalten …', icon: 'monitor', action: displayMenu }]),
+        ...(App.os && App.os.gamescope ? [] : [{ label: 'Vollbild an / aus', icon: 'extend', hint: 'F11', action: async () => { App.closeMenu(); const on = await api.toggleFullscreen(); App.toast(on ? 'Vollbild an' : 'Vollbild aus – mit F11 wieder an', 'ok'); } }]),
         { label: 'Fehlende Cover herunterladen', icon: 'download', action: () => { App.closeMenu(); App.scrape({}); } },
         { label: 'Bibliothek neu einlesen', icon: 'refresh', action: async () => { App.closeMenu(); await App.refreshLibrary(); App.toast(`${App.library.games.length} Spiele gefunden`, 'ok'); } },
         ...(App.debug ? [{ label: 'Debug-Bericht erstellen', icon: 'bolt', hint: 'Datei auf dem Desktop', action: () => { App.closeMenu(); App.debugReport(); } }] : []),
@@ -1499,6 +1526,12 @@
     refreshDebug();
     api.onDebugEvent(() => refreshDebug());
     // Einrichtungsmodus (Desktop-Verknüpfung): direkt die Einstellungen, ohne Fernseher & Co.
+    try { App.os = (api.osInfo && (await api.osInfo())) || { os: false }; } catch { App.os = { os: false }; }
+    if (api.onOsAskDesktop) api.onOsAskDesktop(() => App.osDesktop());
+    if (api.onOsProgress) {
+      let lastToast = 0;
+      api.onOsProgress((p) => { if (Date.now() - lastToast > 1500) { lastToast = Date.now(); App.toast(p.line, 'info', 2500); } });
+    }
     let mode = {};
     try { mode = (await api.appMode()) || {}; } catch { mode = {}; }
     App.setupMode = !!mode.setup;

@@ -1,0 +1,3 @@
+#!/usr/bin/bash
+# Bazzite-Symbol „Zurück zum Spielmodus“ → AleGamestation
+exec /usr/bin/alegamestation-session game

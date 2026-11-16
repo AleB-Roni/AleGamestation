@@ -34,9 +34,37 @@ function psQuote(s) {
   return "'" + String(s).replace(/'/g, "''") + "'";
 }
 
-/** Liefert PIDs aller Prozesse, deren .exe in dem Ordner liegt (nur Windows). */
+/** Linux: PIDs, deren Programm, Arbeitsordner oder Befehlszeile im Ordner liegt (/proc) – erfasst auch Proton/Wine-Spiele */
+function pidsInDirLinux(dir) {
+  const norm = path.resolve(dir).replace(/\/+$/, '') + '/';
+  const out = [];
+  let entries = [];
+  try { entries = fs.readdirSync('/proc'); } catch { return out; }
+  for (const e of entries) {
+    const pid = Number(e);
+    if (!pid || pid === process.pid) continue;
+    try {
+      const exe = (() => { try { return fs.readlinkSync(`/proc/${pid}/exe`); } catch { return ''; } })();
+      const cwd = (() => { try { return fs.readlinkSync(`/proc/${pid}/cwd`); } catch { return ''; } })();
+      const cmd = (() => { try { return fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8').replace(/\0/g, ' '); } catch { return ''; } })();
+      if (exe.startsWith(norm) || (cwd + '/').startsWith(norm) || cmd.includes(norm)) out.push(pid);
+    } catch { /* Prozess schon weg */ }
+  }
+  return out;
+}
+
+/** Flatpak-App-ID aus „flatpak run <id> …“ (z.B. org.libretro.RetroArch) */
+function flatpakId(exe, args) {
+  if (path.basename(String(exe || '')) !== 'flatpak') return '';
+  const a = Array.isArray(args) ? args : splitArgs(args);
+  const i = a.indexOf('run');
+  return i >= 0 ? (a.slice(i + 1).find((x) => !x.startsWith('-')) || '') : '';
+}
+
+/** Liefert PIDs aller Prozesse, deren .exe in dem Ordner liegt. */
 async function pidsInDir(dir) {
-  if (!IS_WIN || !dir) return [];
+  if (!dir) return [];
+  if (!IS_WIN) return pidsInDirLinux(dir);
   const norm = path.resolve(dir).replace(/[\\/]+$/, '') + '\\';
   const out = await powershell(
     `$d=${psQuote(norm)}; Get-Process | Where-Object { $_.Path -and $_.Path.StartsWith($d, [StringComparison]::OrdinalIgnoreCase) } | ForEach-Object { $_.Id }`
@@ -49,7 +77,12 @@ function taskkill(args) {
 }
 
 async function closeGracefully(pids, waitMs) {
-  if (!IS_WIN || !pids.length || !waitMs) return;
+  if (!pids.length || !waitMs) return;
+  if (!IS_WIN) {
+    for (const pid of pids) { try { process.kill(pid, 'SIGTERM'); } catch { /* weg */ } }
+    await new Promise((r) => setTimeout(r, waitMs));
+    return;
+  }
   await powershell(`${pids.join(',')} | ForEach-Object { try { (Get-Process -Id $_ -ErrorAction Stop).CloseMainWindow() | Out-Null } catch {} }`);
   await new Promise((r) => setTimeout(r, waitMs));
 }
@@ -68,6 +101,14 @@ function isSafeKillDir(dir) {
     env.USERPROFILE, env.APPDATA, env.LOCALAPPDATA, env.LOCALAPPDATA && path.join(env.LOCALAPPDATA, 'Programs'),
     env.USERPROFILE && path.join(env.USERPROFILE, 'Desktop'), env.USERPROFILE && path.join(env.USERPROFILE, 'Downloads')
   ].filter(Boolean).map((d) => path.resolve(d).replace(/[\\/]+$/, '').toLowerCase());
+  if (!IS_WIN) {
+    // Linux: Systemordner und das Benutzerverzeichnis selbst nie
+    const home = path.resolve(env.HOME || '/root').replace(/\/+$/, '').toLowerCase();
+    const sys = ['/usr', '/usr/bin', '/usr/lib', '/usr/lib64', '/usr/local', '/usr/local/bin', '/bin', '/sbin', '/opt', '/etc', '/var', '/var/lib', '/var/lib/flatpak', '/tmp', home,
+      home + '/.local', home + '/.local/share', home + '/.var', home + '/.var/app', home + '/desktop', home + '/downloads'];
+    if (sys.includes(norm)) return false;
+    if (norm.startsWith('/usr/') || norm.startsWith('/proc') || norm.startsWith('/sys')) return false;
+  }
   const sysRoot = path.resolve(env.SystemRoot || 'C:\\Windows').toLowerCase();
   if (norm === sysRoot || norm.startsWith(sysRoot + path.sep)) return false;
   if (blocked.includes(norm)) return false;
@@ -128,7 +169,8 @@ class Launcher extends EventEmitter {
         rom: game.rom,
         romName: path.basename(game.rom, path.extname(game.rom)),
         romDir: path.dirname(game.rom),
-        emuDir: path.dirname(emu.exe)
+        emuDir: path.dirname(emu.exe),
+        home: process.env.HOME || process.env.USERPROFILE || ''
       };
       exe = emu.exe;
       args = splitArgs(emu.args).map((a) => fillPlaceholders(a, vars));
@@ -139,7 +181,9 @@ class Launcher extends EventEmitter {
       }
       this.emit('launching', { exe, args });
       cwd = emu.cwd || path.dirname(emu.exe);
-      dirs.push(path.dirname(emu.exe));
+      // Flatpak: nicht /usr/bin überwachen – beendet wird über „flatpak kill“
+      const fid = flatpakId(emu.exe, args);
+      if (fid) { cwd = emu.cwd || path.dirname(game.rom); this._flatpak = fid; } else { this._flatpak = ''; dirs.push(path.dirname(emu.exe)); }
     } else {
       if (!/^[a-z][a-z0-9+.-]+:/i.test(game.exe) && !fs.existsSync(game.exe)) throw new Error(`Programm nicht gefunden: ${game.exe}`);
       const target = this.resolveTarget(game);
@@ -208,7 +252,7 @@ class Launcher extends EventEmitter {
     } catch (err) {
       return this._spawnFailed(game, exe, err);
     }
-    this.current = { game, child, pid: child.pid, dirs, startedAt: Date.now() };
+    this.current = { game, child, pid: child.pid, dirs, startedAt: Date.now(), flatpak: game.type === 'rom' ? this._flatpak || '' : '' };
     child.on('error', (err) => {
       const cur = this.current;
       if (cur && cur.child === child) { clearTimeout(cur.poll); this.current = null; }
@@ -254,7 +298,8 @@ class Launcher extends EventEmitter {
   _waitForDirProcesses(appearTimeoutMs = 4000) {
     const cur = this.current;
     if (!cur || cur.poll) return;
-    if (!IS_WIN || !cur.dirs.length) return this._finish();
+    // Linux: selbst gestartete Prozesse melden ihr Ende selbst; Ordner-Überwachung nur für Steam/URL-Starts
+    if ((!IS_WIN && cur.child) || !cur.dirs.length) return this._finish();
     const started = Date.now();
     const tick = async () => {
       if (this.current !== cur) return;
@@ -291,8 +336,15 @@ class Launcher extends EventEmitter {
     const game = cur.game;
 
     if (!IS_WIN) {
-      try { process.kill(-cur.pid, 'SIGTERM'); } catch { try { cur.child && cur.child.kill('SIGTERM'); } catch { /* ignore */ } }
-      await new Promise((r) => setTimeout(r, 500));
+      // Prozessgruppe sanft beenden, Flatpak-Apps über flatpak kill, Prozesse aus dem Spielordner (Steam/Proton)
+      if (cur.pid) { try { process.kill(-cur.pid, 'SIGTERM'); } catch { try { cur.child && cur.child.kill('SIGTERM'); } catch { /* ignore */ } } }
+      if (cur.flatpak) await new Promise((r) => execFile('flatpak', ['kill', cur.flatpak], () => r()));
+      let pids = [];
+      for (const d of cur.dirs) if (isSafeKillDir(d)) pids = pids.concat(await pidsInDir(d));
+      await closeGracefully(pids, Math.min(cfg.controller.gracefulCloseMs || 1500, 3000));
+      // Nachzügler hart beenden
+      if (cur.pid) { try { process.kill(-cur.pid, 'SIGKILL'); } catch { /* weg */ } }
+      for (const d of cur.dirs) if (isSafeKillDir(d)) for (const pid of await pidsInDir(d)) { try { process.kill(pid, 'SIGKILL'); } catch { /* weg */ } }
       if (this.current === cur) this._finish();
       return true;
     }
@@ -314,17 +366,20 @@ class Launcher extends EventEmitter {
 
   /** Übrig gebliebene Prozesse des zuletzt gestarteten Spiels beenden (nur aus dessen Ordnern). */
   async _killRecent() {
-    if (!IS_WIN || !this.hasRecent()) return false;
+    if (!this.hasRecent()) return false;
     let pids = [];
     for (const d of this.last.dirs) pids = pids.concat(await pidsInDir(d));
     pids = [...new Set(pids)];
     if (!pids.length) return false;
     await closeGracefully(pids, this.getConfig().controller.gracefulCloseMs);
-    for (const pid of pids) await taskkill(['/PID', String(pid), '/T', '/F']);
+    for (const pid of pids) {
+      if (IS_WIN) await taskkill(['/PID', String(pid), '/T', '/F']);
+      else { try { process.kill(pid, 'SIGKILL'); } catch { /* weg */ } }
+    }
     this.emit('exited', { game: { id: this.last.game.id, name: this.last.game.name }, playedMs: 0 });
     this.last = null;
     return true;
   }
 }
 
-module.exports = { Launcher, splitArgs, fillPlaceholders, powershell, isSafeKillDir, readUrlFile };
+module.exports = { Launcher, splitArgs, fillPlaceholders, powershell, isSafeKillDir, readUrlFile, flatpakId, pidsInDir };

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Zurück zu AleGamestation
+Comment=Spielmodus starten (Konsolen-Oberfläche)
+Exec=/usr/bin/alegamestation-session game
+Icon=/usr/share/alegamestation/icon.png
+Categories=Game;
+Terminal=false

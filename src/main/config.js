@@ -291,6 +291,29 @@ function isObject(v) {
 }
 
 /** Tiefes Zusammenführen: fehlende Schlüssel werden aus den Defaults ergänzt, Arrays werden übernommen. */
+// ---------- Linux (AleGamestation OS / Linux-Desktop): Emulatoren als Flatpak, ROMs unter ~/ROMs ----------
+const RA_CORES = '{home}/.var/app/org.libretro.RetroArch/config/retroarch/cores';
+const LINUX_EMULATORS = [
+  { id: 'retroarch-snes', name: 'RetroArch (Snes9x)', exe: '/usr/bin/flatpak', args: `run org.libretro.RetroArch -f -L "${RA_CORES}/snes9x_libretro.so" "{rom}"` },
+  { id: 'retroarch-nes', name: 'RetroArch (Mesen)', exe: '/usr/bin/flatpak', args: `run org.libretro.RetroArch -f -L "${RA_CORES}/mesen_libretro.so" "{rom}"` },
+  { id: 'retroarch-gba', name: 'RetroArch (mGBA)', exe: '/usr/bin/flatpak', args: `run org.libretro.RetroArch -f -L "${RA_CORES}/mgba_libretro.so" "{rom}"` },
+  { id: 'retroarch-n64', name: 'RetroArch (Mupen64Plus-Next)', exe: '/usr/bin/flatpak', args: `run org.libretro.RetroArch -f -L "${RA_CORES}/mupen64plus_next_libretro.so" "{rom}"` },
+  { id: 'retroarch-md', name: 'RetroArch (Genesis Plus GX)', exe: '/usr/bin/flatpak', args: `run org.libretro.RetroArch -f -L "${RA_CORES}/genesis_plus_gx_libretro.so" "{rom}"` },
+  { id: 'melonds', name: 'melonDS', exe: '/usr/bin/flatpak', args: 'run net.kuribo64.melonDS -f "{rom}"' },
+  { id: 'dolphin', name: 'Dolphin', exe: '/usr/bin/flatpak', args: 'run org.DolphinEmu.dolphin-emu -b -e "{rom}"' },
+  { id: 'duckstation', name: 'DuckStation', exe: '/usr/bin/flatpak', args: 'run org.duckstation.DuckStation -batch -fullscreen -- "{rom}"' },
+  { id: 'pcsx2', name: 'PCSX2', exe: '/usr/bin/flatpak', args: 'run net.pcsx2.PCSX2 -batch -fullscreen -- "{rom}"' },
+  { id: 'ppsspp', name: 'PPSSPP', exe: '/usr/bin/flatpak', args: 'run org.ppsspp.PPSSPP --fullscreen "{rom}"' }
+];
+function linuxRomDir(winDir) {
+  const home = process.env.HOME || '/home/user';
+  return path.join(home, 'ROMs', String(winDir).split('\\').pop());
+}
+if (process.platform === 'linux') {
+  DEFAULT_CONFIG.emulators = LINUX_EMULATORS;
+  DEFAULT_CONFIG.systems = DEFAULT_CONFIG.systems.map((x) => ({ ...x, romDirs: (x.romDirs || []).map(linuxRomDir) }));
+}
+
 function mergeDefaults(defaults, user) {
   if (!isObject(user)) return structuredClone(defaults);
   const out = {};

@@ -1,0 +1,21 @@
+#!/usr/bin/bash
+# Zwischen Spielmodus (AleGamestation) und Linux-Desktop wechseln – als normaler Benutzer aufrufen.
+#   alegamestation-session desktop   → Linux-Desktop (KDE Plasma / GNOME)
+#   alegamestation-session game      → AleGamestation (Spielmodus)
+#   alegamestation-session steam     → Steam-Spielmodus von Bazzite
+set -euo pipefail
+mode="${1:-game}"
+case "$mode" in desktop|game|steam) ;; *) echo "Unbekannter Modus: $mode" >&2; exit 2 ;; esac
+
+# Anmelde-Sitzung für den nächsten automatischen Login festlegen (braucht root → pkexec, ohne Passwort für wheel)
+pkexec /usr/libexec/alegamestation-session-select "$mode"
+
+# Aktuelle Sitzung beenden – SDDM meldet automatisch in der neuen Sitzung an
+if systemctl --user is-active --quiet 'gamescope-session-plus@*.service'; then
+  systemctl --user stop 'gamescope-session-plus@*.service' || true
+fi
+if [ -n "${XDG_SESSION_ID:-}" ]; then
+  loginctl terminate-session "$XDG_SESSION_ID" || true
+else
+  loginctl terminate-user "$(id -un)" || true
+fi

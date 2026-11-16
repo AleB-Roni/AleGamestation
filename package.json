@@ -68,7 +68,28 @@
         "releaseType": "release"
       }
     ],
-    "npmRebuild": false
+    "npmRebuild": false,
+    "linux": {
+      "icon": "build/icon.png",
+      "executableName": "alegamestation",
+      "category": "Game",
+      "synopsis": "Konsolen-Oberfläche für Spiele und Emulatoren",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "tar.gz",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "AleGamestation-${version}-linux-${arch}.${ext}"
+    }
   },
   "repository": {
     "type": "git",

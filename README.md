@@ -5,6 +5,11 @@ Alle Spiele (Steam, Epic, GOG, eigene) und Emulator-Spiele in einer modernen Obe
 
 ![Startseite](docs/start.png)
 
+
+> **Neu: AleGamestation OS** – ein Linux-Betriebssystem, das direkt in AleGamestation bootet (wie eine Konsole),
+> für AMD/Intel/NVIDIA. Linux-Desktop per Menü oder Strg+Alt+D. Anleitung: [os/README.md](os/README.md).
+> Außerdem gibt es AleGamestation als Linux-App (AppImage) in jedem Release.
+
 ## Funktionen
 
 **Bibliothek**

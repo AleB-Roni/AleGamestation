@@ -773,3 +773,28 @@ test('RomM: Anmeldung, Plattformen, Liste mit „schon vorhanden“, Empfehlunge
     fake.close();
   }
 });
+
+test('Linux: Flatpak-ID erkennen, sichere Ordner, Prozesse im Spielordner finden und beenden', { skip: process.platform === 'win32' }, async () => {
+  const { flatpakId, isSafeKillDir, pidsInDir, Launcher } = require('../src/main/launcher');
+  assert.strictEqual(flatpakId('/usr/bin/flatpak', 'run org.libretro.RetroArch -f -L "x" "{rom}"'), 'org.libretro.RetroArch');
+  assert.strictEqual(flatpakId('/usr/bin/flatpak', ['run', '--branch=stable', 'org.DolphinEmu.dolphin-emu', '-b']), 'org.DolphinEmu.dolphin-emu');
+  assert.strictEqual(flatpakId('/usr/bin/retroarch', 'run x'), '');
+  for (const d of ['/usr/bin', '/usr', '/', process.env.HOME, '/var/lib/flatpak', '/usr/lib/steam']) assert.strictEqual(isSafeKillDir(d), false, d);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ags-game-'));
+  assert.strictEqual(isSafeKillDir(dir), true);
+  // „Spiel“ im Ordner starten (Befehlszeile enthält den Ordner, wie bei Proton)
+  const script = path.join(dir, 'game.js');
+  fs.writeFileSync(script, 'setInterval(() => {}, 1000);');
+  const { spawn } = require('child_process');
+  const child = spawn(process.execPath, [script], { stdio: 'ignore', detached: true });
+  await new Promise((r) => setTimeout(r, 300));
+  assert.ok((await pidsInDir(dir)).includes(child.pid), 'Prozess im Spielordner nicht gefunden');
+  // Steam-artiger Start: nur Ordner bekannt → Beenden findet und beendet ihn
+  const l = new Launcher(() => ({ controller: { gracefulCloseMs: 300 } }));
+  l.current = { game: { id: 'g', name: 'Spiel' }, child: null, pid: null, dirs: [dir], startedAt: Date.now() };
+  const exited = new Promise((r) => l.once('exited', r));
+  await l.kill();
+  await exited;
+  await new Promise((r) => setTimeout(r, 200));
+  assert.deepStrictEqual(await pidsInDir(dir), []);
+});

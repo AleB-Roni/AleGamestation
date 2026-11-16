@@ -1,0 +1,14 @@
+[Unit]
+Description=AleGamestation OS – Ersteinrichtung (Emulatoren, RetroArch-Cores, ROM-Ordner)
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=!%h/.config/alegamestation-os/setup-done
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/alegamestation-firstboot
+Restart=on-failure
+RestartSec=60
+
+[Install]
+WantedBy=default.target

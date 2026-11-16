@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
   build-windows:
@@ -75,10 +76,106 @@ jobs:
             { if (item) print item; item = "" }
             END { if (item) print item }' > notes.md || true
           [ -s notes.md ] || echo "- Verbesserungen und Fehlerbehebungen" > notes.md
-          printf '\n**Installation:** AleGamestation-Setup-%s.exe herunterladen und starten. Installierte Versionen aktualisieren sich über das Menü → „Nach Updates suchen“.\n' "$VER" >> notes.md
+          printf '\n**Installation (Windows):** AleGamestation-Setup-%s.exe herunterladen und starten. Installierte Versionen aktualisieren sich über das Menü → „Nach Updates suchen“.\n' "$VER" >> notes.md
+          printf '\n**Linux:** AleGamestation-%s-linux-x86_64.AppImage (ausführbar machen und starten).\n' "$VER" >> notes.md
+          printf '\n**AleGamestation OS:** Bazzite (Deck-Edition) installieren, dann einmalig `sudo bootc switch ghcr.io/aleb-roni/alegamestation-os:stable` (NVIDIA: `alegamestation-os-nvidia`) und neu starten. Anleitung: os/README.md\n' >> notes.md
           gh release create "$TAG" \
             "dist/AleGamestation-Setup-$VER.exe" \
             "dist/AleGamestation-Setup-$VER.exe.blockmap" \
             "dist/latest.yml" \
             --repo "$REPO" --title "AleGamestation $VER" --latest \
             --notes-file notes.md
+
+  build-linux:
+    needs: build-windows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Abhängigkeiten installieren
+        run: npm ci
+
+      - name: Tests (Linux)
+        run: npm test
+
+      - name: Linux-Version bauen (AppImage, tar.gz)
+        run: npx electron-builder --linux --publish never
+
+      - name: Zum Release hinzufügen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VER="$(node -p "require('./package.json').version")"
+          gh release upload "v$VER" dist/AleGamestation-$VER-linux-*.AppImage dist/AleGamestation-$VER-linux-*.tar.gz --repo "$GITHUB_REPOSITORY" --clobber
+
+      - name: App für das System-Abbild weitergeben
+        run: tar -C dist -czf linux-unpacked.tgz linux-unpacked
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-unpacked
+          path: linux-unpacked.tgz
+          retention-days: 3
+
+  build-os:
+    needs: build-linux
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: alegamestation-os
+            base: ghcr.io/ublue-os/bazzite-deck:stable
+          - image: alegamestation-os-nvidia
+            base: ghcr.io/ublue-os/bazzite-deck-nvidia:stable
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-unpacked
+
+      - name: App auspacken
+        run: mkdir -p dist && tar -C dist -xzf linux-unpacked.tgz && ls dist/linux-unpacked | head
+
+      - name: Speicherplatz schaffen (Bazzite-Abbild ist groß)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost || true
+          sudo docker image prune -af || true
+          sudo mkdir -p /mnt/containers && sudo chown "$USER" /mnt/containers
+          df -h / /mnt
+
+      - name: Abbild bauen
+        run: |
+          VER="$(node -p "require('./package.json').version")"
+          podman --root /mnt/containers build -f os/Containerfile \
+            --build-arg BASE_IMAGE=${{ matrix.base }} --build-arg APP_VERSION="$VER" \
+            -t "ghcr.io/aleb-roni/${{ matrix.image }}:stable" .
+          podman --root /mnt/containers tag "ghcr.io/aleb-roni/${{ matrix.image }}:stable" "ghcr.io/aleb-roni/${{ matrix.image }}:$VER"
+          podman --root /mnt/containers tag "ghcr.io/aleb-roni/${{ matrix.image }}:stable" "ghcr.io/aleb-roni/${{ matrix.image }}:latest"
+
+      - name: Prüfen (Dateien im Abbild)
+        run: |
+          podman --root /mnt/containers run --rm "ghcr.io/aleb-roni/${{ matrix.image }}:stable" bash -c '
+            set -e
+            test -x /usr/lib/alegamestation/alegamestation
+            test -x /usr/bin/alegamestation-session
+            test -f /usr/share/wayland-sessions/gamescope-session-alegamestation.desktop
+            test -f /usr/share/gamescope-session-plus/sessions.d/alegamestation
+            grep -q alegamestation /usr/lib/sddm/sddm.conf.d/holo.conf
+            command -v xprop
+            command -v gamescope-session-plus || ls /usr/share/gamescope-session-plus/gamescope-session-plus
+            echo "Abbild OK: $(cat /usr/share/alegamestation/os-version)"'
+
+      - name: Veröffentlichen (GitHub Container Registry)
+        run: |
+          VER="$(node -p "require('./package.json').version")"
+          echo "${{ secrets.GITHUB_TOKEN }}" | podman --root /mnt/containers login ghcr.io -u "${{ github.actor }}" --password-stdin
+          for t in stable latest "$VER"; do
+            podman --root /mnt/containers push "ghcr.io/aleb-roni/${{ matrix.image }}:$t"
+          done

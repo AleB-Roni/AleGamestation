@@ -1,0 +1,33 @@
+# AleGamestation OS – bootet direkt in AleGamestation (Gamescope-Spielmodus), Linux-Desktop per Menü oder Strg+Alt+D.
+# Basis: Bazzite (Fedora Atomic, bootc) mit Treibern für AMD/Intel (bazzite-deck) bzw. NVIDIA (bazzite-deck-nvidia).
+# Gebaut vom Release-Workflow aus dem Repo-Stamm: `dist/linux-unpacked` (Linux-Build der App) muss vorher existieren.
+ARG BASE_IMAGE=ghcr.io/ublue-os/bazzite-deck:stable
+FROM ${BASE_IMAGE}
+
+ARG APP_VERSION=0.0.0
+LABEL org.opencontainers.image.title="AleGamestation OS" \
+      org.opencontainers.image.description="Konsolen-Betriebssystem mit AleGamestation als Oberfläche" \
+      org.opencontainers.image.source="https://github.com/AleB-Roni/AleGamestation" \
+      org.opencontainers.image.version="${APP_VERSION}"
+
+# App (Linux-Build) und System-Dateien
+COPY dist/linux-unpacked/ /usr/lib/alegamestation/
+COPY os/system_files/ /
+COPY build/icon.png /usr/share/alegamestation/icon.png
+
+RUN set -eux; \
+    # Chromium-Sandbox der App
+    chmod 4755 /usr/lib/alegamestation/chrome-sandbox; \
+    ln -sf /usr/lib/alegamestation/alegamestation /usr/bin/alegamestation-app; \
+    chmod 0755 /usr/bin/alegamestation /usr/bin/alegamestation-session /usr/bin/return-to-gamemode \
+               /usr/libexec/alegamestation-session-select /usr/libexec/alegamestation-firstboot /usr/libexec/alegamestation-os-update; \
+    echo "${APP_VERSION}" > /usr/share/alegamestation/os-version; \
+    # xprop: eigene Fenster (Overlay, Tastatur) als Gamescope-Overlay markieren; unzip: RetroArch-Cores
+    dnf5 install -y --setopt=install_weak_deps=False xprop unzip || dnf install -y xprop unzip; \
+    dnf5 clean all || true; \
+    # Ersteinrichtung (Emulatoren, Cores, ROM-Ordner) für jeden Benutzer beim ersten Anmelden
+    systemctl --global enable alegamestation-firstboot.service; \
+    # Bazzite bootet sonst in die Steam-Oberfläche – AleGamestation ist der Spielmodus
+    sed -i 's/^Session=.*/Session=gamescope-session-alegamestation.desktop/' /usr/lib/sddm/sddm.conf.d/holo.conf || true; \
+    rm -rf /var/* /tmp/* || true; \
+    bootc container lint || true

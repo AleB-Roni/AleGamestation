@@ -1,0 +1,10 @@
+#!/usr/bin/bash
+# (root) AleGamestation OS aktualisieren – neues Abbild wird beim nächsten Neustart aktiv
+set -euo pipefail
+echo "Lade System-Update …"
+if command -v bootc >/dev/null; then
+  bootc upgrade 2>&1 | sed -u 's/^/  /'
+else
+  rpm-ostree upgrade 2>&1 | sed -u 's/^/  /'
+fi
+echo "System-Update geladen – aktiv nach dem Neustart"

@@ -334,6 +334,17 @@ function scanGog(cfg) {
   }).sort((a, b) => a.name.localeCompare(b.name, 'de'));
 }
 
+/** Ist der Emulator installiert? Bei „flatpak run <id>“ zählt, ob die Flatpak-App da ist (System oder Benutzer) */
+function emuInstalled(e) {
+  if (!e || !e.exe || !exists(e.exe)) return false;
+  if (path.basename(e.exe) !== 'flatpak') return true;
+  const { flatpakId } = require('./launcher');
+  const id = flatpakId(e.exe, e.args || '');
+  if (!id) return true;
+  const home = process.env.HOME || '';
+  return [path.join('/var/lib/flatpak/app', id), home && path.join(home, '.local/share/flatpak/app', id)].filter(Boolean).some(exists);
+}
+
 /** Bekannte Emulatoren und typische Installationsorte (für "Emulatoren automatisch suchen") */
 const KNOWN_EMULATORS = [
   { match: /^retroarch/, exe: 'retroarch.exe', dirs: ['C:\\RetroArch-Win64', 'C:\\RetroArch', '%PROGRAMFILES%\\RetroArch', '%APPDATA%\\RetroArch', '%STEAMAPPS%\\RetroArch'] },
@@ -404,7 +415,7 @@ function scanLibrary(cfg, opts = {}) {
   }
   for (const g of steam) g.source = 'Steam';
 
-  const emulators = cfg.emulators.map((e) => ({ id: e.id, name: e.name, exe: e.exe, found: !!e.exe && exists(e.exe) }));
+  const emulators = cfg.emulators.map((e) => ({ id: e.id, name: e.name, exe: e.exe, found: emuInstalled(e) }));
   applyOverrides(cfg, roms); // damit die Anzahl ausgeblendete ROMs nicht mitzählt
   const systems = [];
   if (steam.length) systems.push({ id: 'steam', kind: 'store', name: 'Steam', short: 'Steam', color: '#1b2838' });
@@ -417,7 +428,7 @@ function scanLibrary(cfg, opts = {}) {
     systems.push({
       id: s.id, kind: 'emulator', name: s.name, short: s.short || s.name, color: s.color || '#444',
       emulatorId: emu ? emu.id : '', emulatorName: emu ? emu.name : 'Kein Emulator',
-      emulatorFound: !!emu && exists(emu.exe),
+      emulatorFound: !!emu && emuInstalled(emu),
       count: roms.filter((g) => g.system === s.id && !g.hidden).length,
       hiddenCount: roms.filter((g) => g.system === s.id && g.hidden).length,
       logo: s.logo ? toImageUrl(s.logo) : '',
@@ -432,7 +443,7 @@ function scanLibrary(cfg, opts = {}) {
     if (used.has(e.id)) continue;
     systems.push({
       id: 'emu:' + e.id, kind: 'emulator', standalone: true, name: e.name, short: e.name, color: '#3b4260',
-      emulatorId: e.id, emulatorName: e.name, emulatorFound: !!e.exe && exists(e.exe), count: 0, logo: '', tileImage: '', romDirs: []
+      emulatorId: e.id, emulatorName: e.name, emulatorFound: emuInstalled(e), count: 0, logo: '', tileImage: '', romDirs: []
     });
   }
   // Heruntergeladene Bilder für PC-Spiele (Steam, Epic, GOG, eigene) aus dem Medienordner

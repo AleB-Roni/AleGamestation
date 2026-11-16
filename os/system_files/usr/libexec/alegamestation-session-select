@@ -1,0 +1,24 @@
+#!/usr/bin/bash
+# (root) Sitzung für den automatischen Login setzen: desktop | game | steam
+set -euo pipefail
+mode="${1:-game}"
+desktop_session() {
+  for s in plasma.desktop gnome-wayland.desktop gnome.desktop; do
+    [ -f "/usr/share/wayland-sessions/$s" ] && { echo "$s"; return; }
+  done
+  echo plasma.desktop
+}
+case "$mode" in
+  desktop) SESSION="$(desktop_session)" ;;
+  game)    SESSION="gamescope-session-alegamestation.desktop" ;;
+  steam)   SESSION="gamescope-session-ogui-steam.desktop"; [ -f "/usr/share/wayland-sessions/$SESSION" ] || SESSION="gamescope-session-steam.desktop" ;;
+  *) echo "Unbekannter Modus: $mode" >&2; exit 2 ;;
+esac
+mkdir -p /etc/sddm.conf.d
+# „zz-zz“: wird nach den Bazzite-Dateien gelesen und gewinnt
+cat > /etc/sddm.conf.d/zz-zz-alegamestation.conf <<CONF
+[Autologin]
+Relogin=true
+Session=${SESSION}
+CONF
+echo "Nächste Anmeldung: ${SESSION}"

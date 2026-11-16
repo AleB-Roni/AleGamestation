@@ -1,6 +1,10 @@
 'use strict';
 const { app, BrowserWindow, ipcMain, screen, shell, dialog, powerSaveBlocker, net, protocol } = require('electron');
 // Cover vom RomM-Server (mit Anmeldung, zwischengespeichert): agsromm://cover/<id>
+// AleGamestation OS (Linux, Gamescope-Spielmodus)
+const linuxOs = require('./linux-os');
+// Gamescope stellt Xwayland bereit – Electron dort als X11-Programm starten
+if (linuxOs.inGamescope()) app.commandLine.appendSwitch('ozone-platform', 'x11');
 protocol.registerSchemesAsPrivileged([{ scheme: 'agsromm', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 const fs = require('fs');
 const path = require('path');
@@ -84,7 +88,7 @@ const nativeHelper = new NativeHelper();
   };
 }
 const mouseMode = new MouseMode({ getConfig: () => store.get(), send: (line) => nativeHelper.send(line) });
-const osd = new Osd({ onShown: (w) => nativeHelper.top(hwndOf(w)) });
+const osd = new Osd({ onShown: (w) => { nativeHelper.top(hwndOf(w)); linuxOs.markOverlay(w); } });
 const overlay = new Overlay({ preload: path.join(__dirname, 'preload.js') });
 const { ScreenKeyboard } = require('./screen-keyboard');
 const screenKeyboard = new ScreenKeyboard({ preload: path.join(__dirname, 'preload.js') });
@@ -413,6 +417,7 @@ async function identifyDisplays() {
 // Vollbild laut Einstellung: Konsolenmodus „Vollbild“, Einrichtungsmodus „Vollbild im Einrichtungsmodus“
 function configuredFullscreen(c = cfg()) {
   if (isDev) return false;
+  if (linuxOs.inGamescope()) return true; // Spielmodus: immer Vollbild
   // Am PC spielen: wie im Konsolenmodus; Einrichten-Verknüpfung: eigene Einstellung
   return setupMode && !pcMode ? !!c.general.setupFullscreen : !!c.general.startFullscreen;
 }
@@ -741,6 +746,11 @@ function createWindow() {
       const on = toggleFullscreen();
       win.webContents.send('window:fullscreen', on);
     }
+    // Strg+Alt+D: auf AleGamestation OS zum Linux-Desktop wechseln
+    if (input.type === 'keyDown' && input.control && input.alt && String(input.key).toLowerCase() === 'd' && linuxOs.isOS()) {
+      e.preventDefault();
+      send('os:askDesktop');
+    }
   });
   win.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
   win.once('ready-to-show', () => {
@@ -945,6 +955,7 @@ async function openOverlay() {
   const focus = mode === 'focus';
   overlayTookFocus = focus;
   await overlay.show(display, focus).catch(() => {});
+  linuxOs.markOverlay(overlay.win);
   // Spiel anhalten: bleibt im Vollbild sichtbar, reagiert aber nicht auf den Controller
   if (mode === 'pause' && overlayGameHwnd && overlay.isVisible()) await pauseGame(overlayGameHwnd);
   if (focus) {
@@ -1130,6 +1141,7 @@ function showScreenKeyboard() {
   const display = win && !win.isDestroyed() ? screen.getDisplayMatching(win.getBounds()) : undefined;
   debug.info('tastatur', 'Bildschirmtastatur einblenden');
   screenKeyboard.show(display).then(() => {
+    linuxOs.markOverlay(screenKeyboard.win);
     const h = screenKeyboard.hwnd();
     nativeHelper.top(h);
     setTimeout(() => { if (screenKeyboard.isVisible()) nativeHelper.top(h); }, 350);
@@ -1293,6 +1305,20 @@ ipcMain.handle('bt:pair', () => btPair.run({ rounds: 3, timeout: 8 }));
 ipcMain.handle('bt:running', () => btPair.running);
 
 // ---------- Einrichtungsmodus und Desktop-Verknüpfung ----------
+// ---------- AleGamestation OS ----------
+ipcMain.handle('os:info', () => linuxOs.info());
+ipcMain.handle('os:session', async (_e, mode) => {
+  debug.info('os', `Wechsel in den ${mode === 'desktop' ? 'Desktop' : 'Spielmodus'}`);
+  if (mode === 'desktop') { await leaveConsoleMode().catch(() => {}); quitting = true; }
+  return linuxOs.switchSession(mode);
+});
+ipcMain.handle('os:setupEmulators', async () => {
+  const r = await linuxOs.setupEmulators((line) => send('os:progress', { kind: 'setup', line }));
+  refreshLibrary();
+  send('library:changed', library);
+  return r;
+});
+ipcMain.handle('os:update', () => linuxOs.updateSystem((line) => send('os:progress', { kind: 'update', line })));
 ipcMain.handle('window:toggleFullscreen', () => toggleFullscreen());
 // Fenster (nicht Vollbild): verschieben über die obere Leiste, Minimieren/Maximieren/Schließen
 const windowState = () => (win && !win.isDestroyed() ? { full: win.isFullScreen(), max: win.isMaximized() } : { full: false, max: false });
@@ -1523,8 +1549,10 @@ app.whenReady().then(async () => {
   // Erst einen evtl. übrig gebliebenen Stand (plötzlich beendet) zurückstellen – sonst würde der falsche Stand gemerkt
   await recoverAfterCrash();
   const listing = listDisplays().catch(() => []);
-  if (!setupMode && !forceTv && startMode() === 'pc') { pcMode = true; setupMode = true; }
-  if (!setupMode && !forceTv && startMode() === 'ask') {
+  // AleGamestation OS: das Gerät ist die Konsole – keine Frage „Fernseher oder PC“
+  const noAsk = forceTv || linuxOs.isOS();
+  if (!setupMode && !noAsk && startMode() === 'pc') { pcMode = true; setupMode = true; }
+  if (!setupMode && !noAsk && startMode() === 'ask') {
     // Vor dem Start fragen: kleines eigenes Fenster auf dem aktuellen Hauptbildschirm – die App öffnet sich erst danach
     choosing = true;
     debug.info('ablauf', 'Frage vor dem Start: Fernseher oder am PC?');
@@ -1558,7 +1586,8 @@ app.whenReady().then(async () => {
   updater = new Updater({ version: app.getVersion(), isPackaged: app.isPackaged, fetch: robustFetch, getConfig: cfg });
   updater.on('state', (s) => send('update:state', s));
   // Beim Start und danach alle 6 Stunden auf GitHub nach Updates suchen
-  if (cfg().general.autoUpdate !== false) {
+  // Auf AleGamestation OS kommt die App mit dem System-Update (bootc) – kein eigenes Update
+  if (cfg().general.autoUpdate !== false && !linuxOs.isOS()) {
     setTimeout(() => updater.check(), 5000);
     setInterval(() => { if (cfg().general.autoUpdate !== false && !launcher.isRunning()) updater.check(); }, 6 * 3600 * 1000);
   }

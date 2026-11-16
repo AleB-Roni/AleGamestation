@@ -1,0 +1,8 @@
+# AleGamestation als Oberfläche des Gamescope-Spielmodus (gamescope-session-plus)
+export ALEGAMESTATION_OS=1
+CLIENTCMD="/usr/bin/alegamestation --gamescope"
+
+# Stürzt die App beim Start mehrfach ab: zum Desktop, damit man das System trotzdem bedienen kann
+short_session_recover() {
+  pkexec /usr/libexec/alegamestation-session-select desktop || true
+}
