@@ -1342,9 +1342,48 @@ ipcMain.handle('dialog:pickFolder', async () => {
   return r.canceled ? null : r.filePaths[0];
 });
 ipcMain.handle('dialog:pickImage', async () => {
-  const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: [{ name: 'Bilder', extensions: ['png', 'jpg', 'jpeg', 'webp'] }] });
-  return r.canceled ? null : r.filePaths[0];
+  const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: [{ name: 'Bilder', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'] }] });
+  if (r.canceled) return null;
+  // Eine Kopie im App-Datenordner verwenden – das Original darf danach gelöscht oder verschoben werden
+  try { return importImage(r.filePaths[0]); } catch (err) { throw new Error('Bild konnte nicht übernommen werden: ' + err.message); }
 });
+
+// ---------- Eigene Bilder (Logos, Hintergründe, Cover) in den App-Datenordner kopieren ----------
+function imagesDir() { return path.join(app.getPath('userData'), 'images'); }
+/** Kopiert ein Bild nach …/AleGamestation/images (gleicher Inhalt = gleiche Datei) und gibt den neuen Pfad zurück */
+function importImage(src) {
+  if (!src) return src;
+  const dir = imagesDir();
+  const abs = path.resolve(src);
+  if (abs.toLowerCase().startsWith(dir.toLowerCase() + path.sep)) return abs; // liegt schon in der App
+  const buf = fs.readFileSync(abs);
+  const hash = require('crypto').createHash('sha1').update(buf).digest('hex').slice(0, 12);
+  const ext = (path.extname(abs) || '.png').toLowerCase();
+  const base = path.basename(abs, path.extname(abs)).replace(/[äöüÄÖÜß]/g, (c) => ({ ä: 'ae', ö: 'oe', ü: 'ue', Ä: 'Ae', Ö: 'Oe', Ü: 'Ue', ß: 'ss' }[c])).normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'bild';
+  const dest = path.join(dir, `${base}-${hash}${ext}`);
+  fs.mkdirSync(dir, { recursive: true });
+  if (!fs.existsSync(dest)) fs.writeFileSync(dest, buf);
+  debug.info('bilder', 'Bild übernommen', { von: abs, nach: dest });
+  return dest;
+}
+/** Einmalig beim Start: bisher verlinkte Bilder (Original-Pfad) in den App-Datenordner übernehmen */
+function adoptLinkedImages() {
+  const c = cfg();
+  let changed = 0;
+  const adopt = (obj, key) => {
+    const v = obj && obj[key];
+    if (!v || typeof v !== 'string' || /^(https?|data):/i.test(v)) return;
+    try {
+      if (!fs.existsSync(v)) return; // schon weg – nichts zu retten
+      const n = importImage(v);
+      if (n !== v) { obj[key] = n; changed++; }
+    } catch (err) { debug.warn('bilder', `Bild nicht übernommen: ${v} – ${err.message}`); }
+  };
+  for (const sys of c.systems || []) { adopt(sys, 'logo'); adopt(sys, 'tileImage'); }
+  for (const g of c.pcGames || []) adopt(g, 'cover');
+  for (const ov of Object.values(c.gameOverrides || {})) adopt(ov, 'cover');
+  if (changed) { store.save(c); debug.info('bilder', `${changed} eigene Bilder in den App-Datenordner übernommen`); }
+}
 
 // ---------- App-Lebenszyklus ----------
 // Nur für automatische Tests (AGS_TEST=1): Zugriff auf interne Objekte
@@ -1358,6 +1397,7 @@ app.on('second-instance', (_e, argv) => {
 
 app.whenReady().then(async () => {
   store.load();
+  adoptLinkedImages();
   applyAutostart();
   applyCombos();
   powerSaveBlocker.start('prevent-display-sleep');
