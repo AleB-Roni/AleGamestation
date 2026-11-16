@@ -820,7 +820,7 @@
       return r;
     } });
     items.push({ label: 'Cover-Bild ändern …', icon: 'image', action: async () => {
-      const p = await api.pickImage();
+      const p = await App.pickImage();
       if (p) { ov.cover = p; App.closeMenu(); await App.save({ immediate: true, rescan: true }); App.toast('Cover geändert', 'ok'); }
     } });
     if (ov.cover) items.push({ label: 'Standard-Cover verwenden', icon: 'undo', action: async () => { delete ov.cover; cleanup(); App.closeMenu(); await App.save({ immediate: true, rescan: true }); } });
@@ -894,7 +894,7 @@
         { type: 'info', label: 'Dateiendungen', value: (sysCfg.extensions || []).join(' ') },
         { label: 'Fehlende Cover für dieses System laden', icon: 'download', action: () => { App.closeMenu(); App.scrape({ system: s.id }); } },
         { label: sysCfg.logo ? 'Logo / Abbildung ändern …' : 'Eigenes Logo / Abbildung wählen …', icon: 'image', hint: 'oben rechts auf der Kachel', action: async () => {
-          const p = await api.pickImage();
+          const p = await App.pickImage();
           if (!p) return;
           sysCfg.logo = p;
           App.closeMenu();
@@ -903,7 +903,7 @@
         } },
         ...(sysCfg.logo ? [{ label: 'Eingebaute Abbildung verwenden', icon: 'undo', action: async () => { delete sysCfg.logo; App.closeMenu(); await App.save({ immediate: true, rescan: true }); } }] : []),
         { label: sysCfg.tileImage ? 'Hintergrundbild ändern …' : 'Hintergrundbild für die Kachel wählen …', icon: 'image', hint: 'z.B. Foto der Konsole', action: async () => {
-          const p = await api.pickImage();
+          const p = await App.pickImage();
           if (!p) return;
           sysCfg.tileImage = p;
           App.closeMenu();
@@ -1122,6 +1122,14 @@
     // Wer sich bewegt, entscheidet selbst: Countdown anhalten
     Input.on((action) => { if (!done && ['up', 'down', 'left', 'right'].includes(action)) stopCountdown(); });
     window.addEventListener('mousedown', () => { if (!done) stopCountdown(); }, { once: true });
+  };
+
+  /** Bild wählen: wird als PNG in den App-Datenordner kopiert (WebP, AVIF, GIF, SVG, BMP, ICO, JPG, TIFF, HEIC …) */
+  App.pickImage = async function () {
+    try { return await api.pickImage(); } catch (e) {
+      App.toast(String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''), 'error', 7000);
+      return null;
+    }
   };
 
   App.exitFlow = async function () {

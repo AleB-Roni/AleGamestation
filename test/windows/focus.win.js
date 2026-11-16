@@ -104,6 +104,21 @@ function hwndOfPid(pid) {
     console.log(`✔ Bluetooth-Skript läuft (${radio.ok ? 'Bluetooth vorhanden, Suche abgeschlossen' : 'kein Bluetooth auf dem Testrechner'})`);
   }
 
+  // Bilder umwandeln über Windows (WIC): wird für TIFF/HEIC benutzt – hier mit einem BMP geprüft
+  {
+    const fs = require('fs');
+    const os = require('os');
+    const { viaWic } = require('../../src/main/image-convert');
+    const bmp = path.join(os.tmpdir(), 'ags-test.bmp');
+    // 2x1-BMP (24 Bit)
+    const h = Buffer.alloc(54); h.write('BM'); h.writeUInt32LE(62, 2); h.writeUInt32LE(54, 10); h.writeUInt32LE(40, 14);
+    h.writeInt32LE(2, 18); h.writeInt32LE(1, 22); h.writeUInt16LE(1, 26); h.writeUInt16LE(24, 28); h.writeUInt32LE(8, 34);
+    fs.writeFileSync(bmp, Buffer.concat([h, Buffer.from([0, 0, 255, 0, 255, 0, 0, 0])]));
+    const png = await viaWic(bmp);
+    assert.ok(png && png.readUInt32BE(0) === 0x89504e47 && png.readUInt32BE(16) === 2, 'WIC-Umwandlung nach PNG fehlgeschlagen');
+    console.log('✔ Bildumwandlung über Windows (WIC) nach PNG funktioniert');
+  }
+
   // Absicherung: Wächter (per WMI gestartet) stellt nach hartem Beenden zurück
   {
     const fs = require('fs');

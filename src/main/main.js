@@ -98,6 +98,7 @@ const touchpad = new TouchpadMouse({
   }
 });
 let startupNotes = [];
+let mainWindowCreated = false;
 let win = null;
 let library = { systems: [], games: [] };
 let quitting = false;
@@ -678,6 +679,7 @@ function autoScrape() {
 }
 
 function createWindow() {
+  mainWindowCreated = true;
   win = new BrowserWindow({
     show: false,
     backgroundColor: '#07070c',
@@ -1342,46 +1344,52 @@ ipcMain.handle('dialog:pickFolder', async () => {
   return r.canceled ? null : r.filePaths[0];
 });
 ipcMain.handle('dialog:pickImage', async () => {
-  const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: [{ name: 'Bilder', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'] }] });
+  const { EXTENSIONS } = require('./image-convert');
+  const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: [{ name: 'Bilder', extensions: EXTENSIONS }, { name: 'Alle Dateien', extensions: ['*'] }] });
   if (r.canceled) return null;
-  // Eine Kopie im App-Datenordner verwenden – das Original darf danach gelöscht oder verschoben werden
-  try { return importImage(r.filePaths[0]); } catch (err) { throw new Error('Bild konnte nicht übernommen werden: ' + err.message); }
+  // Als PNG-Kopie im App-Datenordner speichern – das Original darf danach gelöscht oder verschoben werden
+  try { return await importImage(r.filePaths[0]); } catch (err) { throw new Error('Bild konnte nicht übernommen werden: ' + err.message); }
 });
 
 // ---------- Eigene Bilder (Logos, Hintergründe, Cover) in den App-Datenordner kopieren ----------
 function imagesDir() { return path.join(app.getPath('userData'), 'images'); }
-/** Kopiert ein Bild nach …/AleGamestation/images (gleicher Inhalt = gleiche Datei) und gibt den neuen Pfad zurück */
-function importImage(src) {
+/**
+ * Wandelt ein Bild (WebP, AVIF, GIF, SVG, BMP, ICO, JPG, TIFF, HEIC …) in PNG um, legt es unter …/AleGamestation/images ab
+ * (gleicher Inhalt = gleiche Datei) und gibt den neuen Pfad zurück
+ */
+async function importImage(src) {
   if (!src) return src;
   const dir = imagesDir();
   const abs = path.resolve(src);
-  if (abs.toLowerCase().startsWith(dir.toLowerCase() + path.sep)) return abs; // liegt schon in der App
-  const buf = fs.readFileSync(abs);
+  const inside = abs.toLowerCase().startsWith(dir.toLowerCase() + path.sep);
+  if (inside && path.extname(abs).toLowerCase() === '.png') return abs; // liegt schon als PNG in der App
+  const buf = await require('./image-convert').toPng(abs);
   const hash = require('crypto').createHash('sha1').update(buf).digest('hex').slice(0, 12);
-  const ext = (path.extname(abs) || '.png').toLowerCase();
+  const ext = '.png';
   const base = path.basename(abs, path.extname(abs)).replace(/[äöüÄÖÜß]/g, (c) => ({ ä: 'ae', ö: 'oe', ü: 'ue', Ä: 'Ae', Ö: 'Oe', Ü: 'Ue', ß: 'ss' }[c])).normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'bild';
   const dest = path.join(dir, `${base}-${hash}${ext}`);
   fs.mkdirSync(dir, { recursive: true });
   if (!fs.existsSync(dest)) fs.writeFileSync(dest, buf);
   debug.info('bilder', 'Bild übernommen', { von: abs, nach: dest });
+  if (inside && abs !== dest) fs.rmSync(abs, { force: true }); // alte Nicht-PNG-Kopie ersetzen
   return dest;
 }
 /** Einmalig beim Start: bisher verlinkte Bilder (Original-Pfad) in den App-Datenordner übernehmen */
-function adoptLinkedImages() {
+async function adoptLinkedImages() {
   const c = cfg();
   let changed = 0;
-  const adopt = (obj, key) => {
+  const adopt = async (obj, key) => {
     const v = obj && obj[key];
     if (!v || typeof v !== 'string' || /^(https?|data):/i.test(v)) return;
     try {
       if (!fs.existsSync(v)) return; // schon weg – nichts zu retten
-      const n = importImage(v);
+      const n = await importImage(v);
       if (n !== v) { obj[key] = n; changed++; }
     } catch (err) { debug.warn('bilder', `Bild nicht übernommen: ${v} – ${err.message}`); }
   };
-  for (const sys of c.systems || []) { adopt(sys, 'logo'); adopt(sys, 'tileImage'); }
-  for (const g of c.pcGames || []) adopt(g, 'cover');
-  for (const ov of Object.values(c.gameOverrides || {})) adopt(ov, 'cover');
+  for (const sys of c.systems || []) { await adopt(sys, 'logo'); await adopt(sys, 'tileImage'); }
+  for (const g of c.pcGames || []) await adopt(g, 'cover');
+  for (const ov of Object.values(c.gameOverrides || {})) await adopt(ov, 'cover');
   if (changed) { store.save(c); debug.info('bilder', `${changed} eigene Bilder in den App-Datenordner übernommen`); }
 }
 
@@ -1397,7 +1405,7 @@ app.on('second-instance', (_e, argv) => {
 
 app.whenReady().then(async () => {
   store.load();
-  adoptLinkedImages();
+  await adoptLinkedImages();
   applyAutostart();
   applyCombos();
   powerSaveBlocker.start('prevent-display-sleep');
@@ -1486,4 +1494,5 @@ app.on('before-quit', async (e) => {
   }
 });
 
-app.on('window-all-closed', () => app.quit());
+// Nur beenden, wenn das Hauptfenster schon da war (unsichtbare Hilfsfenster, z.B. Bildumwandlung beim Start, zählen nicht)
+app.on('window-all-closed', () => { if (mainWindowCreated) app.quit(); });

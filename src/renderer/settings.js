@@ -1239,7 +1239,7 @@
       else if (r.type === 'button' || r.type === 'item') await r.action();
       else if (r.type === 'text') { const inp = r.el.querySelector('input'); inp.focus(); inp.select(); }
       else if (r.type === 'path') {
-        const p = r.kind === 'folder' ? await api.pickFolder() : r.kind === 'image' ? await api.pickImage() : await api.pickFile();
+        const p = r.kind === 'folder' ? await api.pickFolder() : r.kind === 'image' ? await App.pickImage() : await api.pickFile();
         if (p) { r.set(p); await commit(!!r.rescan); }
       }
     }
