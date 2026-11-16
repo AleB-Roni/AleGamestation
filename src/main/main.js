@@ -120,6 +120,37 @@ let setupMode = process.argv.includes('--setup') || pcMode;
 let choosing = false;
 let startChoice = null; // { resolve, fallback }
 function startMode() { return cfg().general.startMode || 'ask'; } // 'ask' | 'tv' | 'pc'
+let chooserWin = null;
+/** Kleines Startfenster „Wo möchtest du spielen?“ → 'tv' | 'pc' | null (geschlossen = nicht starten) */
+function askStartChoice() {
+  return new Promise((resolve) => {
+    const d = screen.getPrimaryDisplay();
+    const w = 720; const h = 420;
+    chooserWin = new BrowserWindow({
+      x: Math.round(d.bounds.x + (d.bounds.width - w) / 2), y: Math.round(d.bounds.y + (d.bounds.height - h) / 2), width: w, height: h,
+      frame: false, transparent: true, resizable: false, maximizable: false, fullscreenable: false, show: false, alwaysOnTop: true,
+      backgroundColor: '#00000000', title: 'AleGamestation', icon: path.join(__dirname, '..', '..', 'build', 'icon.png'),
+      webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false }
+    });
+    let done = false;
+    const finish = (c) => {
+      if (done) return;
+      done = true;
+      startChoice = null;
+      const w2 = chooserWin; chooserWin = null;
+      if (w2 && !w2.isDestroyed()) w2.destroy();
+      resolve(c);
+    };
+    startChoice = { resolve: finish, fallback: null };
+    chooserWin.on('closed', () => finish(null));
+    chooserWin.once('ready-to-show', () => {
+      chooserWin.show();
+      chooserWin.focus();
+      nativeHelper.front(hwndOf(chooserWin), false);
+    });
+    chooserWin.loadFile(path.join(__dirname, '..', 'renderer', 'choose.html'));
+  });
+}
 
 function cfg() {
   return store.get();
@@ -1045,6 +1076,7 @@ watcher.on('connection', (c) => send('gamepad:connection', c));
 watcher.on('state', (s) => {
   mouseMode.update(s);
   // Xbox-Controller (XInput) steuern das Overlay ebenfalls direkt
+  if (chooserWin && !chooserWin.isDestroyed() && String(s.id).startsWith('xinput:')) chooserWin.webContents.send('pad:state', { mask: s.mask, axes: s.axes });
   if (overlay.isVisible() && String(s.id).startsWith('xinput:')) overlay.send('pad:state', { mask: s.mask, axes: s.axes });
   else if (screenKeyboard.isVisible() && String(s.id).startsWith('xinput:')) screenKeyboard.send('pad:state', { mask: s.mask, axes: s.axes });
 });
@@ -1058,6 +1090,7 @@ function uiAcceptsController() {
 }
 psWatcher.on('state', (s) => {
   mouseMode.update(s);
+  if (chooserWin && !chooserWin.isDestroyed()) chooserWin.webContents.send('pad:state', { mask: s.mask, axes: s.axes });
   if (overlay.isVisible()) overlay.send('pad:state', { mask: s.mask, axes: s.axes });
   else if (screenKeyboard.isVisible()) screenKeyboard.send('pad:state', { mask: s.mask, axes: s.axes });
   if (uiAcceptsController()) {
@@ -1274,7 +1307,6 @@ ipcMain.handle('window:control', (_e, cmd) => {
 });
 ipcMain.handle('app:mode', () => {
   // Oberfläche zeigt die Start-Frage selbst (mit Countdown) – Sicherheitsnetz abschalten
-  if (choosing && startChoice) clearTimeout(startChoice.fallback);
   const g = cfg().general;
   return {
     setup: setupMode && !pcMode, pc: pcMode, askTvOff: askTvOffOnExit(),
@@ -1282,7 +1314,7 @@ ipcMain.handle('app:mode', () => {
   };
 });
 ipcMain.handle('app:chooseStart', (_e, choice) => {
-  if (startChoice) startChoice.resolve(choice === 'pc' ? 'pc' : 'tv');
+  if (startChoice) startChoice.resolve(choice === 'pc' ? 'pc' : choice === 'cancel' ? null : 'tv');
   return true;
 });
 ipcMain.handle('app:setupShortcut', () => {
@@ -1467,6 +1499,7 @@ async function adoptLinkedImages() {
 if (process.env.AGS_TEST === '1') global.__ags = { watcher, launcher, osd, overlay, psWatcher };
 
 app.on('second-instance', (_e, argv) => {
+  if (chooserWin && !chooserWin.isDestroyed()) { chooserWin.show(); chooserWin.focus(); return; }
   bringToFront();
   // Einrichten-Verknüpfung, während AleGamestation schon läuft: direkt die Einstellungen zeigen
   if ((argv || []).includes('--setup')) send('app:openSettings', 'general');
@@ -1492,41 +1525,25 @@ app.whenReady().then(async () => {
   const listing = listDisplays().catch(() => []);
   if (!setupMode && !forceTv && startMode() === 'pc') { pcMode = true; setupMode = true; }
   if (!setupMode && !forceTv && startMode() === 'ask') {
-    // Erst fragen (auf dem aktuellen Hauptbildschirm), dann ggf. auf den Fernseher umschalten
+    // Vor dem Start fragen: kleines eigenes Fenster auf dem aktuellen Hauptbildschirm – die App öffnet sich erst danach
     choosing = true;
-    debug.info('ablauf', 'Frage beim Start: Fernseher oder am PC?');
-    refreshLibrary();
-    createWindow();
+    debug.info('ablauf', 'Frage vor dem Start: Fernseher oder am PC?');
     watcher.start();
     startPlayStationWatcher();
-    const choice = await new Promise((resolve) => {
-      // Sicherheitsnetz, falls die Oberfläche die Frage nie zeigt
-      startChoice = { resolve, fallback: setTimeout(() => resolve(cfg().general.startAskDefault === 'pc' ? 'pc' : 'tv'), 60000) };
-    });
-    clearTimeout(startChoice.fallback);
-    startChoice = null;
+    const choice = await askStartChoice();
     choosing = false;
+    if (!choice) { debug.info('ablauf', 'Start abgebrochen'); app.quit(); return; }
     debug.info('ablauf', `Start-Auswahl: ${choice === 'pc' ? 'am PC' : 'Fernseher'}`);
-    if (choice === 'pc') {
-      pcMode = true; setupMode = true;
-      placeWindow();
-    } else {
-      if (cfg().general.targetDisplay === 'tv') await listing;
-      await enterConsoleMode();
-      await listDisplays().catch(() => []);
-      placeWindow();
-      for (const n of startupNotes.splice(0)) send('toast', n);
-    }
-  } else {
-    if (cfg().general.targetDisplay === 'tv') await listing;
-    if (pcMode) debug.info('ablauf', 'Am PC: Fernseher, Bildschirme, Ton und Leistungsmodus bleiben unverändert');
-    else if (setupMode) debug.info('ablauf', 'Einrichtungsmodus: Fernseher, Bildschirme, Ton und Leistungsmodus bleiben unverändert');
-    else await enterConsoleMode();
-    refreshLibrary();
-    createWindow();
-    watcher.start();
-    startPlayStationWatcher();
+    if (choice === 'pc') { pcMode = true; setupMode = true; }
   }
+  if (cfg().general.targetDisplay === 'tv') await listing;
+  if (pcMode) debug.info('ablauf', 'Am PC: Fernseher, Bildschirme, Ton und Leistungsmodus bleiben unverändert');
+  else if (setupMode) debug.info('ablauf', 'Einrichtungsmodus: Fernseher, Bildschirme, Ton und Leistungsmodus bleiben unverändert');
+  else { await enterConsoleMode(); await listDisplays().catch(() => []); }
+  refreshLibrary();
+  createWindow();
+  watcher.start();
+  startPlayStationWatcher();
   // Hintergrundprogramme pausieren/schließen (läuft parallel, blockiert den Start nicht)
   perfPromise = (setupMode ? Promise.resolve([]) : perf.apply(cfg())).then((list) => {
     if (list.length) send('toast', { type: 'info', text: `Leistungsmodus: ${list.join(', ')} pausiert/beendet` });

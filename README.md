@@ -131,7 +131,7 @@ Die Änderungsliste im Update-Fenster wird automatisch aus den Commit-Nachrichte
 
 ## Einrichtungsmodus (ohne Fernseher)
 
-**Beim Start fragt AleGamestation: „Wo möchtest du spielen?“**
+**Vor dem Start fragt AleGamestation in einem kleinen Fenster: „Wo möchtest du spielen?“** – die App öffnet sich erst danach, gleich im gewählten Modus (○/Esc bricht den Start ab).
 - **Auf dem Fernseher**: Konsolenmodus wie gewohnt (Fernseher, Bildschirm-/Tonumschaltung, Leistungsmodus)
 - **Am PC**: alles bleibt, wie es ist – Bildschirme, Hauptbildschirm, Ton. Oben steht „AM PC“; über ☰ → „Auf den Fernseher wechseln“ geht es später auf den TV.
 

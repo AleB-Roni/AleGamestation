@@ -1,0 +1,21 @@
+/* Startfenster: Fernseher oder am PC */
+html, body.choose-body { background: transparent !important; margin: 0; height: 100%; overflow: hidden; }
+#choose { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; padding: 1.6rem 2rem 1rem; box-sizing: border-box;
+  background: radial-gradient(120% 140% at 20% 0%, color-mix(in srgb, var(--accent) 22%, #0e0e18) 0%, #0b0b14 60%); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 24px; -webkit-app-region: drag; opacity: 0; transform: scale(0.97); transition: opacity 0.18s ease, transform 0.22s cubic-bezier(.2,.8,.2,1); }
+body.open #choose { opacity: 1; transform: none; }
+.ch-brand { align-self: flex-start; color: var(--muted); font-size: 0.95rem; }
+.ch-brand b { color: var(--text); }
+#choose h1 { margin: 0.9rem 0 1.3rem; font-size: 1.9rem; letter-spacing: -0.01em; }
+.ch-options { display: flex; gap: 1.2rem; width: 100%; flex: 1; min-height: 0; }
+.ch-opt { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; border-radius: 18px; cursor: pointer;
+  background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.08); -webkit-app-region: no-drag; transition: transform 0.15s, background 0.15s, border-color 0.15s; text-align: center; padding: 0.8rem; }
+.ch-opt .icon { width: 3.2rem; height: 3.2rem; color: var(--accent-2, var(--accent)); }
+.ch-opt b { font-size: 1.3rem; }
+.ch-opt small { color: var(--muted); font-size: 0.85rem; line-height: 1.35; }
+.ch-opt.sel { background: var(--text); color: #0b0b14; border-color: var(--text); transform: scale(1.04); box-shadow: 0 16px 40px rgba(0,0,0,0.5); }
+.ch-opt.sel small, .ch-opt.sel .icon { color: #0b0b14; }
+.ch-countdown { margin-top: 1rem; color: var(--muted); font-size: 0.92rem; min-height: 1.2em; }
+.ch-countdown b { color: var(--text); }
+#chHints { margin-top: 0.6rem; display: flex; gap: 1.2rem; font-size: 0.82rem; color: var(--muted); -webkit-app-region: no-drag; }
+#chHints .hint { display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; }
