@@ -50,6 +50,6 @@ xorriso -osirrox on -indev "$OUT" -extract /EFI/BOOT/grub.cfg "$WORK/grub.cfg" 2
 grep -q "inst.ks=file:/alegamestation.ks" "$WORK/grub.cfg" || { echo "Startparameter fehlen in grub.cfg" >&2; exit 1; }
 grep -q "inst.stage2=$STAGE2" "$WORK/grub.cfg" || { echo "stage2-Adresse fehlt in grub.cfg" >&2; exit 1; }
 xorriso -osirrox on -indev "$OUT" -extract /images/pxeboot/initrd.img "$WORK/check-initrd.img" 2>/dev/null
-cmp -s "$WORK/check-initrd.img" "$WORK/initrd-ags.img" || { echo "initrd wurde nicht ersetzt" >&2; exit 1; }
+[ "$(sha256sum < "$WORK/check-initrd.img")" = "$(sha256sum < "$WORK/initrd-ags.img")" ] || { echo "initrd wurde nicht ersetzt" >&2; exit 1; }
 grep -A3 "linux" "$WORK/grub.cfg" | head -4
 ls -la "$OUT"
