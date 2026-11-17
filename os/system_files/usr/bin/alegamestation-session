@@ -23,6 +23,18 @@ fi
 if systemctl --user is-active --quiet 'gamescope-session-plus@*.service'; then
   systemctl --user stop 'gamescope-session-plus@*.service' || true
 fi
+# KDE Plasma läuft als systemd-Benutzerdienste weiter, wenn nur die Anmeldesitzung beendet wird – dann kämpfen
+# KWin und Gamescope um den Bildschirm (schwarzes Bild/Absturz). Deshalb Plasma ordentlich abmelden.
+if systemctl --user is-active --quiet plasma-workspace.target; then
+  for q in qdbus-qt6 qdbus6 qdbus; do
+    if command -v "$q" >/dev/null && "$q" org.kde.Shutdown /Shutdown org.kde.Shutdown.logout 2>/dev/null; then
+      # Warten, bis Plasma beendet ist (max. 15 s), sonst hart beenden
+      for _ in $(seq 1 30); do systemctl --user is-active --quiet plasma-workspace.target || exit 0; sleep 0.5; done
+      break
+    fi
+  done
+  systemctl --user stop plasma-workspace.target plasma-kwin_wayland.service 2>/dev/null || true
+fi
 if [ -n "${XDG_SESSION_ID:-}" ]; then
   loginctl terminate-session "$XDG_SESSION_ID" || true
 else
