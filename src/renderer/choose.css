@@ -19,3 +19,5 @@ body.open #choose { opacity: 1; transform: none; }
 .ch-countdown b { color: var(--text); }
 #chHints { margin-top: 0.6rem; display: flex; gap: 1.2rem; font-size: 0.82rem; color: var(--muted); -webkit-app-region: no-drag; }
 #chHints .hint { display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; }
+#choose h1 .ch-updated { display: block; font-size: 0.85rem; font-weight: 600; color: #3ddc84; margin-bottom: 0.35rem; text-align: center; }
+#choose h1 { text-align: center; }

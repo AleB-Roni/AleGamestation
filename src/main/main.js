@@ -125,6 +125,17 @@ let choosing = false;
 let startChoice = null; // { resolve, fallback }
 function startMode() { return cfg().general.startMode || 'ask'; } // 'ask' | 'tv' | 'pc'
 let chooserWin = null;
+const afterUpdateFile = () => path.join(app.getPath('userData'), 'after-update.json');
+/** Gerade nach einem Update neu gestartet? → { mode, from } (einmalig, max. 2 Stunden alt) */
+let afterUpdate = null;
+function readAfterUpdate() {
+  try {
+    const j = JSON.parse(fs.readFileSync(afterUpdateFile(), 'utf8'));
+    fs.rmSync(afterUpdateFile(), { force: true });
+    if (j && Date.now() - (j.at || 0) < 2 * 3600 * 1000) return j;
+  } catch { /* keine Datei */ }
+  return null;
+}
 /** Kleines Startfenster „Wo möchtest du spielen?“ → 'tv' | 'pc' | null (geschlossen = nicht starten) */
 function askStartChoice() {
   return new Promise((resolve) => {
@@ -148,9 +159,18 @@ function askStartChoice() {
     startChoice = { resolve: finish, fallback: null };
     chooserWin.on('closed', () => finish(null));
     chooserWin.once('ready-to-show', () => {
-      chooserWin.show();
-      chooserWin.focus();
-      nativeHelper.front(hwndOf(chooserWin), false);
+      // Windows gibt einem neu gestarteten Programm (z.B. nach dem Update-Installer) oft keinen Fokus –
+      // ganz nach vorne holen und mehrfach nachfassen, damit die Frage nicht unbemerkt im Hintergrund abläuft
+      const front = () => {
+        if (!chooserWin || chooserWin.isDestroyed()) return;
+        chooserWin.setAlwaysOnTop(true, 'screen-saver');
+        chooserWin.show();
+        chooserWin.focus();
+        nativeHelper.front(hwndOf(chooserWin), true);
+      };
+      front();
+      setTimeout(front, 600);
+      setTimeout(front, 1800);
     });
     chooserWin.loadFile(path.join(__dirname, '..', 'renderer', 'choose.html'));
   });
@@ -1381,7 +1401,10 @@ ipcMain.handle('app:mode', () => {
   const g = cfg().general;
   return {
     setup: setupMode && !pcMode, pc: pcMode, askTvOff: askTvOffOnExit(),
-    ask: choosing ? { seconds: g.startAskSeconds ?? 10, def: g.startAskDefault === 'pc' ? 'pc' : 'tv', tv: (cfg().display.tv || {}).name || '' } : null
+    ask: choosing ? (afterUpdate
+      // Nach einem Update: ohne Countdown warten, bisherigen Modus vorauswählen
+      ? { seconds: 0, def: afterUpdate.mode === 'pc' ? 'pc' : 'tv', tv: (cfg().display.tv || {}).name || '', updated: app.getVersion() }
+      : { seconds: g.startAskSeconds ?? 10, def: g.startAskDefault === 'pc' ? 'pc' : 'tv', tv: (cfg().display.tv || {}).name || '' }) : null
   };
 });
 ipcMain.handle('app:chooseStart', (_e, choice) => {
@@ -1501,6 +1524,8 @@ ipcMain.handle('update:install', async () => {
   if (!updater || updater.get().status !== 'ready') return false;
   // Anzeige vorher wiederherstellen, dann Installer starten (App startet danach automatisch neu)
   quitting = true;
+  // Nach dem Neustart: nicht automatisch weiterlaufen lassen, sondern fragen (mit dem bisherigen Modus vorausgewählt)
+  try { fs.writeFileSync(afterUpdateFile(), JSON.stringify({ mode: pcMode ? 'pc' : 'tv', from: app.getVersion(), at: Date.now() })); } catch { /* egal */ }
   watcher.stop();
   psWatcher.stop();
   await leaveConsoleMode();
@@ -1597,6 +1622,8 @@ app.whenReady().then(async () => {
   // AleGamestation OS: das Gerät ist die Konsole – keine Frage „Fernseher oder PC“
   const noAsk = forceTv || linuxOs.isOS();
   if (!setupMode && !noAsk && startMode() === 'pc') { pcMode = true; setupMode = true; }
+  afterUpdate = readAfterUpdate();
+  if (afterUpdate) debug.info('ablauf', `Neustart nach Update ${afterUpdate.from} → ${app.getVersion()}`);
   if (!setupMode && !noAsk && startMode() === 'ask') {
     // Vor dem Start fragen: kleines eigenes Fenster auf dem aktuellen Hauptbildschirm – die App öffnet sich erst danach
     choosing = true;

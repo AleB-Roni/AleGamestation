@@ -64,6 +64,10 @@
       mode = (await api.appMode()) || {};
     } catch { /* Standardwerte */ }
     S.ask = mode.ask || { seconds: 10, def: 'tv', tv: '' };
+    if (S.ask.updated) {
+      const h = document.querySelector('#choose h1');
+      if (h) h.innerHTML = `<small class="ch-updated">✔ Update auf Version ${esc(S.ask.updated)} installiert</small>Wo möchtest du spielen?`;
+    }
     S.sel = S.ask.def === 'pc' ? 1 : 0;
     S.left = Number(S.ask.seconds) || 0;
     if (S.left > 0) {
