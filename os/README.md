@@ -21,7 +21,8 @@ komplettes System-Abbild. Geht etwas schief, startest du einfach die vorige Vers
    - `AleGamestation-OS-NVIDIA-Installer-<version>.iso` für NVIDIA-Grafikkarten
 2. Das ISO auf einen USB-Stick schreiben – **1:1**, z. B. mit [Fedora Media Writer](https://fedoraproject.org/workstation/download)
    oder [balenaEtcher](https://etcher.balena.io). Mit [Rufus](https://rufus.ie) bei der Frage nach dem Modus unbedingt
-   **„DD-Image-Modus“** wählen (im ISO-Modus findet der Installer seinen Stick nicht: „inst.stage2 … /dev/root“). Ventoy nicht verwenden.
+   **„DD-Image-Modus“** wählen (im ISO-Modus findet der Installer seinen Stick nicht: „inst.stage2 … /dev/root“).
+   **Ventoy** geht ab Version 1.20.1 wie bei normalen Fedora-ISOs; hängt der Start, im Ventoy-Menü „Boot in grub2 mode“ wählen.
 3. Den Rechner per **LAN-Kabel** ans Internet anschließen (WLAN geht im Installer auch, Kabel ist einfacher) und vom Stick starten.
 4. Im Installer (Deutsch ist voreingestellt):
    - **Installationsziel:** Festplatte wählen (Achtung: Inhalte werden überschrieben, wenn du „automatisch“ wählst)
