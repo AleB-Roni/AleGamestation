@@ -300,7 +300,7 @@
         }, { desc: 'Öffnet AleGamestation nur zum Einstellen: im Fenster auf dem PC-Monitor, ohne Fernseher, Bildschirm-/Tonumschaltung und Leistungsmodus – mit Debug-Protokoll' }),
         toggle('Vollbild', () => C().general, 'startFullscreen', 'Mit F11 jederzeit an- und ausschalten'),
         toggle('Vollbild im Einrichtungsmodus', () => C().general, 'setupFullscreen', 'Auch beim Start über „Einrichten (ohne Fernseher)“ im Vollbild – z.B. um direkt am PC zu spielen. F11 schaltet um'),
-        select('Oberfläche anzeigen auf', () => C().general, 'targetDisplay', [{ value: 'primary', label: 'Hauptbildschirm' }, { value: 'tv', label: 'Fernseher (Einstellungen → Anzeige)' }].concat(S.displays.filter((d) => d.electronId != null && d.active !== false).map((d) => ({ value: 'id:' + d.electronId, label: displayLabel(d) }))), 'Bei „Nur Fernseher“ ist der TV automatisch der Hauptbildschirm'),
+        select('Oberfläche anzeigen auf', () => C().general, 'targetDisplay', [{ value: 'primary', label: 'Hauptbildschirm' }, { value: 'tv', label: 'Fernseher (Einstellungen → Bild & Ton)' }].concat(S.displays.filter((d) => d.electronId != null && d.active !== false).map((d) => ({ value: 'id:' + d.electronId, label: displayLabel(d) }))), 'Bei „Nur Fernseher“ ist der TV automatisch der Hauptbildschirm'),
         group('Beim Spielen'),
         select('Taskleiste ausblenden', () => C().general, 'hideTaskbar', [
           { value: 'game', label: 'Während ein Spiel läuft' }, { value: 'console', label: 'Im ganzen Konsolenmodus' }, { value: 'off', label: 'Nie' }
@@ -308,7 +308,7 @@
         toggle('Oberfläche minimieren, während ein Spiel läuft', () => C().general, 'minimizeOnLaunch'),
         toggle('Nach Spielende zurück in die Oberfläche', () => C().general, 'refocusAfterGame'),
         group('Darstellung'),
-        toggle('Konsolen als Foto zeigen', () => C().general, 'consolePhotos', 'Echte Konsolenfotos auf den Kacheln (sonst Umriss-Zeichnungen). Eigene Bilder: Einstellungen → Systeme & ROMs → Konsole → Logo', { get: () => C().general.consolePhotos !== false, rescan: true }),
+        toggle('Konsolen als Foto zeigen', () => C().general, 'consolePhotos', 'Echte Konsolenfotos auf den Kacheln (sonst Umriss-Zeichnungen). Eigene Bilder: Einstellungen → Emulatoren → Konsolen & ROMs → Konsole → Logo', { get: () => C().general.consolePhotos !== false, rescan: true }),
         select('Farbthema', () => C().general, 'theme', [
           { value: 'midnight', label: 'Mitternacht' }, { value: 'aurora', label: 'Polarlicht' }, { value: 'ocean', label: 'Ozean' },
           { value: 'sunset', label: 'Sonnenuntergang' }, { value: 'synthwave', label: 'Synthwave' }, { value: 'graphite', label: 'Graphit' }
@@ -340,7 +340,7 @@
       ]
     },
     {
-      id: 'display', title: 'Anzeige', rows: () => {
+      id: 'display', title: 'Bildschirme & Ton', rows: () => {
         const D = () => C().display;
         const startCustom = !!(D().startPlan && D().startPlan.mode === 'custom');
         const exitMode = (D().exitPlan && D().exitPlan.mode) || 'restore';
@@ -480,7 +480,7 @@
       }
     },
     {
-      id: 'systems', title: 'Systeme & ROMs', rows: () => {
+      id: 'systems', title: 'Konsolen & ROMs', rows: () => {
         const list = C().systems;
         const rows = [
           button('＋ Konsole hinzufügen …', () => App.addSystemWizard(), { desc: 'Assistent: Konsole → Emulator → ROM-Ordner' }),
@@ -636,7 +636,7 @@
       }
     },
     {
-      id: 'emudl', title: 'Emulatoren laden', rows: () => {
+      id: 'emudl', title: 'Laden & Updates', rows: () => {
         if (!C().emuManager) C().emuManager = { autoUpdate: true, installed: {}, sources: [] };
         const M = () => C().emuManager;
         const list = S.emuList;
@@ -840,7 +840,7 @@
           toggle('GOG', () => C().stores, 'gog', 'Installierte GOG-Spiele automatisch erkennen', { rescan: true }),
           group('Bibliothek', `${App.library.games.length} Spiele`),
           button('↻ Bibliothek jetzt neu einlesen', async () => { await App.refreshLibrary(); App.toast(`${App.library.games.length} Spiele gefunden`, 'ok'); render(); }),
-          ...(hidden.length ? [group('Ausgeblendete Spiele', 'Update-/DLC-Dateien: Einstellungen → Systeme & ROMs → Konsole')] : []),
+          ...(hidden.length ? [group('Ausgeblendete Spiele', 'Update-/DLC-Dateien: Einstellungen → Emulatoren → Konsolen & ROMs → Konsole')] : []),
           ...hidden.map((g) => button(`Wieder einblenden: ${g.name}`, async () => {
             delete (C().gameOverrides[g.id] || {}).hidden;
             await commit(true);
@@ -1316,16 +1316,113 @@
   }
 
   // ---------- Darstellung ----------
+  // ---------- Kategorien (Kachel-Übersicht) ----------
+  const CATEGORIES = [
+    { id: 'system', title: 'System', icon: 'settings', desc: 'Start, Updates, Leistung', sections: ['general', 'performance', 'about'] },
+    { id: 'display', title: 'Bild & Ton', icon: 'monitor', desc: 'Fernseher, Bildschirme, Tonausgabe', sections: ['display'] },
+    { id: 'controller', title: 'Controller', icon: 'gamepad', desc: 'Tasten, Overlay, Maus & Tastatur', sections: ['controller'] },
+    { id: 'emulation', title: 'Emulatoren', icon: 'grid', desc: 'Konsolen, Emulatoren, Downloads & Updates', sections: ['systems', 'emulators', 'emudl'] },
+    { id: 'library', title: 'Bibliothek', icon: 'list', desc: 'Eigene Spiele, Steam & Stores, Cover, RomM', sections: ['games', 'stores', 'media', 'romm'] },
+    { id: 'services', title: 'Verbindungen', icon: 'plug', desc: 'Home Assistant, Spotify, Clips, Fernzugriff', sections: ['ha', 'spotify', 'aleclip', 'remote'] }
+  ];
+  const secIndex = (id) => SECTIONS.findIndex((x) => x.id === id);
+  const catOf = (secIdx) => CATEGORIES.find((c) => c.sections.includes((SECTIONS[secIdx] || {}).id)) || CATEGORIES[0];
+  const catSections = (c) => c.sections.map(secIndex).filter((i) => i >= 0);
+
+  /** Kurzer Zustand pro Kachel */
+  function catStatus(c) {
+    const cf = C();
+    switch (c.id) {
+      case 'system': return S.update && S.update.available ? `Update ${S.update.available} verfügbar` : `Version ${(S.update && S.update.version) || ''}`.trim();
+      case 'display': return cf.display && cf.display.tv ? `Fernseher: ${cf.display.tv.name}` : 'Kein Fernseher gewählt';
+      case 'controller': return cf.controller && cf.controller.playstationHid !== false ? 'PlayStation-Controller direkt' : 'Xbox / Steam Input';
+      case 'emulation': {
+        const sys = (cf.systems || []).filter((x) => x.enabled !== false).length;
+        const upd = (S.emuList || []).filter((r) => r.installed && r.update).length;
+        return `${sys} Konsolen · ${(cf.emulators || []).length} Emulatoren${upd ? ` · ${upd} Update${upd > 1 ? 's' : ''}` : ''}`;
+      }
+      case 'library': return [cf.romm && cf.romm.enabled ? 'RomM an' : '', `${(cf.pcGames || []).length} eigene Spiele`].filter(Boolean).join(' · ');
+      case 'services': {
+        const on = [cf.homeassistant && cf.homeassistant.enabled ? 'Home Assistant' : '', S.spotify && S.spotify.connected ? 'Spotify' : '', S.ts && S.ts.state === 'running' ? 'Tailscale' : ''].filter(Boolean);
+        return on.length ? on.join(' · ') : 'Nichts verbunden';
+      }
+      default: return '';
+    }
+  }
+
   function renderTabs() {
     const t = $('#settingsTabs');
+    const crumb = $('#settingsCrumb');
     t.innerHTML = '';
-    SECTIONS.forEach((s, i) => {
+    if (S.overview) {
+      t.classList.add('hidden');
+      if (crumb) crumb.innerHTML = '';
+      return;
+    }
+    const home = document.querySelector('#settingsTitle .st-home');
+    if (home && !home.onclick) home.onclick = () => { if (!S.overview) openOverview(); };
+    const cat = catOf(S.section);
+    if (crumb) {
+      crumb.innerHTML = `<span class="sc-sep">${Icons.svg('chevron')}</span><span class="sc-cat">${Icons.svg(cat.icon)}${esc(cat.title)}</span>`;
+    }
+    const secs = catSections(cat);
+    t.classList.toggle('hidden', secs.length < 2);
+    secs.forEach((i) => {
       const e = document.createElement('div');
       e.className = 'tab' + (i === S.section ? ' active' : '');
-      e.textContent = s.title;
+      e.textContent = SECTIONS[i].title;
       e.onclick = () => { S.section = i; S.focus = 0; S.detail = null; render(); };
       t.appendChild(e);
     });
+  }
+
+  function renderOverview(body) {
+    body.classList.add('overview');
+    const focusables = [];
+    const grid = document.createElement('div');
+    grid.className = 's-tiles';
+    CATEGORIES.forEach((c, ci) => {
+      const tile = document.createElement('div');
+      tile.className = 's-tile';
+      tile.style.setProperty('--d', `${ci * 35}ms`);
+      tile.innerHTML = `<div class="st-icon">${Icons.svg(c.icon)}</div><div class="st-text"><b>${esc(c.title)}</b><small>${esc(c.desc)}</small></div>
+        <div class="st-status">${esc(catStatus(c))}</div>
+        <div class="st-subs">${catSections(c).map((i) => `<span>${esc(SECTIONS[i].title)}</span>`).join('')}</div>`;
+      const idx = focusables.length;
+      const r = { type: 'tile', el: tile, cat: c, action: () => openCategory(c) };
+      tile.onclick = () => { S.focus = idx; updateFocus(true); openCategory(c); };
+      tile.onmouseenter = () => { if (S.focus !== idx) { S.focus = idx; (S.focusables || []).forEach((x, i) => x.el.classList.toggle('focused', i === idx)); } };
+      focusables.push(r);
+      grid.appendChild(tile);
+    });
+    body.appendChild(grid);
+    return focusables;
+  }
+
+  function openCategory(c) {
+    Sounds.play('accept');
+    const first = catSections(c)[0];
+    S.overview = false;
+    S.section = first;
+    S.focus = 0;
+    S.detail = null;
+    S.overviewFocus = CATEGORIES.indexOf(c);
+    render();
+  }
+  function openOverview() {
+    S.overview = true;
+    S.detail = null;
+    S.focus = Math.max(0, S.overviewFocus || CATEGORIES.indexOf(catOf(S.section)));
+    Sounds.play('back');
+    render();
+  }
+  /** Kacheln: Spalten für die Steuerkreuz-Navigation */
+  function tileCols() {
+    const tiles = (S.focusables || []).map((x) => x.el);
+    if (tiles.length < 2) return 1;
+    const top = tiles[0].offsetTop;
+    const n = tiles.findIndex((t) => t.offsetTop !== top);
+    return n < 0 ? tiles.length : n;
   }
 
   function valueHtml(r) {
@@ -1345,6 +1442,20 @@
 
   function render() {
     renderTabs();
+    const bodyEl = $('#settingsBody');
+    bodyEl.classList.toggle('overview', !!S.overview);
+    if (S.overview) {
+      S.detail = null;
+      S.lastPage = 'overview';
+      bodyEl.classList.remove('detail');
+      bodyEl.innerHTML = '';
+      S.focusables = renderOverview(bodyEl);
+      S.rows = S.focusables;
+      S.focus = Math.min(S.focus, S.focusables.length - 1);
+      updateFocus(true, true);
+      App.renderHints();
+      return;
+    }
     let detail = null;
     if (S.detail) {
       detail = S.detail.builder();
@@ -1362,6 +1473,12 @@
     body.classList.toggle('detail', !!detail);
     body.innerHTML = '';
     const focusables = [];
+    // Zeilen in Karten gruppieren: jede Gruppe (Überschrift) beginnt eine neue Karte
+    let card = null;
+    const target = () => {
+      if (!card) { card = document.createElement('div'); card.className = 's-card'; body.appendChild(card); }
+      return card;
+    };
     S.rows.forEach((r) => {
       if (r.type === 'crumb') {
         const c = document.createElement('div');
@@ -1378,10 +1495,11 @@
         return;
       }
       if (r.type === 'group') {
+        card = null;
         const g = document.createElement('div');
         g.className = 's-group';
         g.innerHTML = `<span>${esc(r.label)}</span>${r.extra ? `<span>${esc(r.extra)}</span>` : ''}`;
-        body.appendChild(g);
+        target().appendChild(g);
         return;
       }
       const row = document.createElement('div');
@@ -1408,7 +1526,8 @@
       }
       r.el = row;
       focusables.push(r);
-      body.appendChild(row);
+      // „Zurück“-Knopf der Detailseite und Info-Zeilen ohne Gruppe stehen frei
+      if (r.type === 'button' && /^‹ Zurück/.test(r.label)) { card = null; body.appendChild(row); } else target().appendChild(row);
     });
     S.focusables = focusables;
     S.focus = Math.min(S.focus, focusables.length - 1);
@@ -1462,7 +1581,7 @@
 
   window.SettingsView = {
     async open(sectionId) {
-      if (sectionId) { S.section = Math.max(0, SECTIONS.findIndex((s) => s.id === sectionId)); S.focus = 0; S.detail = null; }
+      if (sectionId) { S.section = Math.max(0, SECTIONS.findIndex((s) => s.id === sectionId)); S.focus = 0; S.detail = null; S.overview = false; } else { S.overview = true; S.detail = null; S.focus = S.overviewFocus || 0; }
       try { S.displays = await api.listDisplays(); } catch { S.displays = []; }
       try { S.audio = await api.listAudio(); } catch { S.audio = []; }
       S.tv = null;
@@ -1484,13 +1603,28 @@
       render();
     },
     handle(a) {
+      if (S.overview) {
+        const n = S.focusables.length; const cols = tileCols();
+        const move = (to) => { if (to >= 0 && to < n && to !== S.focus) { S.focus = to; updateFocus(); Sounds.play('move'); } };
+        switch (a) {
+          case 'left': move(S.focus - 1); break;
+          case 'right': move(S.focus + 1); break;
+          case 'up': move(S.focus - cols); break;
+          case 'down': move(Math.min(n - 1, S.focus + cols)); break;
+          case 'accept': S.focusables[S.focus] && S.focusables[S.focus].action(); break;
+          case 'back': case 'select': Sounds.play('back'); App.backToLibrary(); App.pushForward(() => App.openSettings()); break;
+        }
+        return;
+      }
+      const secs = catSections(catOf(S.section));
+      const pos = secs.indexOf(S.section);
       switch (a) {
         case 'up': if (S.focus > 0) { S.focus--; updateFocus(); Sounds.play('move'); } break;
         case 'down': if (S.focus < S.focusables.length - 1) { S.focus++; updateFocus(); Sounds.play('move'); } break;
-        // L1/R1: Bereiche der Einstellungen wechseln
-        case 'lb': S.detail = null; S.section = (S.section + SECTIONS.length - 1) % SECTIONS.length; S.focus = 0; render(); Sounds.play('tab'); break;
-        case 'rb': S.detail = null; S.section = (S.section + 1) % SECTIONS.length; S.focus = 0; render(); Sounds.play('tab'); break;
-        case 'back': Sounds.play('back'); if (!closeDetail()) { const sec = SECTIONS[S.section].id; App.backToLibrary(); App.pushForward(() => App.openSettings(sec)); } break;
+        // L1/R1: Unterseiten der Kategorie wechseln
+        case 'lb': if (secs.length > 1) { S.detail = null; S.section = secs[(pos + secs.length - 1) % secs.length]; S.focus = 0; render(); Sounds.play('tab'); } break;
+        case 'rb': if (secs.length > 1) { S.detail = null; S.section = secs[(pos + 1) % secs.length]; S.focus = 0; render(); Sounds.play('tab'); } break;
+        case 'back': if (!closeDetail()) { const sec = SECTIONS[S.section].id; openOverview(); App.pushForward(() => App.openSettings(sec)); } else Sounds.play('back'); break;
         case 'select': Sounds.play('back'); S.detail = null; App.backToLibrary(); break;
         default: act(a);
       }
@@ -1498,7 +1632,9 @@
     refreshUpdate,
     rerender: () => render(),
     hints(hint, glyph) {
-      return hint(glyph('A'), S.detail ? 'Ändern' : 'Öffnen / Ändern') + hint(Glyphs.arrows(), 'Wert') + hint(glyph('LB') + glyph('RB'), 'Bereich') + hint(glyph('LT') + glyph('RT'), 'Kategorie') + hint(glyph('B'), S.detail ? 'Übersicht' : 'Zurück');
+      if (S.overview) return hint(glyph('A'), 'Öffnen') + hint(Glyphs.arrows(), 'Auswählen') + hint(glyph('LT') + glyph('RT'), 'Kategorie') + hint(glyph('B'), 'Zurück');
+      const multi = catSections(catOf(S.section)).length > 1;
+      return hint(glyph('A'), S.detail ? 'Ändern' : 'Öffnen / Ändern') + hint(Glyphs.arrows(), 'Wert') + (multi ? hint(glyph('LB') + glyph('RB'), 'Seite') : '') + hint(glyph('LT') + glyph('RT'), 'Kategorie') + hint(glyph('B'), S.detail ? 'Zurück' : 'Übersicht');
     }
   };
 })();

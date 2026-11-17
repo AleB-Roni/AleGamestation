@@ -18,12 +18,12 @@ Alle Spiele (Steam, Epic, GOG, eigene) und Emulator-Spiele in einer modernen Obe
 - Auf jeder Spielkachel und in den Details siehst du, **mit welchem Emulator** das Spiel startet – und kannst es **pro Spiel ändern**
 - **Eigene Spiele/Programme hinzufügen** (z. B. Kodi, Spiele ohne Launcher) direkt in der Oberfläche
 - ROM-Ordner werden durchsucht (inkl. Unterordner), Covers werden automatisch erkannt (`Spielname.png` im Ordner, in `covers/` oder `media/covers/`)
-- **Mehrere Emulatoren pro Konsole**: Einstellungen → Systeme & ROMs → Konsole: Standard-Emulator für alle Spiele, „Weiteren Emulator für diese Konsole“ (z.B. zweiter Switch-Emulator) und „Emulator pro Spiel“ – eine Liste aller Spiele, in der du für jedes den Emulator wählst
+- **Mehrere Emulatoren pro Konsole**: Einstellungen → Emulatoren → Konsolen & ROMs → Konsole: Standard-Emulator für alle Spiele, „Weiteren Emulator für diese Konsole“ (z.B. zweiter Switch-Emulator) und „Emulator pro Spiel“ – eine Liste aller Spiele, in der du für jedes den Emulator wählst
 - **Emulator-Tab**: alle Konsolen nebeneinander im Raster; Auswahl öffnet die Spieleseite der Konsole (Kopf mit Foto, Emulator und Anzahl, ROMs im großen Raster, ○ zurück). Konsolen umsortieren und ausblenden über △
 - **Sortieren & Filtern** (☰ Menü): A–Z, zuletzt gespielt, meiste Spielzeit, nach Konsole; alle / Favoriten / gespielt / noch nicht gespielt – gilt für alle Spiele-Raster und wird gemerkt
-- **Farbthemen** (Mitternacht, Polarlicht, Ozean, Sonnenuntergang, Synthwave, Graphit) und **Oberflächengröße** bis 200 % für weit entfernte Fernseher (Einstellungen → Allgemein)
-- **Konsolen als Foto**: Die Konsolen-Kacheln zeigen freigestellte Fotos der Konsolen (gemeinfrei, Evan Amos / Wikimedia Commons – siehe `licenses/console-photos.txt`); abschaltbar unter Einstellungen → Allgemein, eigene Bilder pro Konsole möglich
-- **Dateien ausblenden**: Update-, DLC- und Patch-Dateien (z. B. Switch-Updates `[v65536]`, `(Update)`, `[DLC]`, Ordner `Updates`) werden automatisch versteckt; eigene Regeln wie `Demo ; (Beta) ; Bonus` pro Konsole unter Einstellungen → Systeme & ROMs. Dort lassen sich einzelne Dateien auch wieder einblenden
+- **Farbthemen** (Mitternacht, Polarlicht, Ozean, Sonnenuntergang, Synthwave, Graphit) und **Oberflächengröße** bis 200 % für weit entfernte Fernseher (Einstellungen → System → Allgemein)
+- **Konsolen als Foto**: Die Konsolen-Kacheln zeigen freigestellte Fotos der Konsolen (gemeinfrei, Evan Amos / Wikimedia Commons – siehe `licenses/console-photos.txt`); abschaltbar unter Einstellungen → System → Allgemein, eigene Bilder pro Konsole möglich
+- **Dateien ausblenden**: Update-, DLC- und Patch-Dateien (z. B. Switch-Updates `[v65536]`, `(Update)`, `[DLC]`, Ordner `Updates`) werden automatisch versteckt; eigene Regeln wie `Demo ; (Beta) ; Bonus` pro Konsole unter Einstellungen → Emulatoren → Konsolen & ROMs. Dort lassen sich einzelne Dateien auch wieder einblenden
 - **Konsolen-Sounds**: sanfte, glockenartige Menüklänge mit Hall (Thema „Modern“), alternativ „Retro (8-Bit)“, Lautstärke einstellbar, Start-Klang
 - **Automatische Updates** direkt von GitHub
 - **Home Assistant**: Fernseher beim Start einschalten und auf den richtigen HDMI-Eingang schalten
@@ -37,12 +37,12 @@ Alle Spiele (Steam, Epic, GOG, eigene) und Emulator-Spiele in einer modernen Obe
 
 **Konsolenmodus**
 - **Leistungsmodus**: Hintergrundprogramme beim Start pausieren oder beenden und beim Verlassen wiederherstellen – z. B. Wallpaper Engine (voreingestellt), OneDrive, Teams, iCUE … Empfehlungen per Klick, oder aus den laufenden Programmen wählen. Optional Energieplan „Höchstleistung“
-- **Bildschirme beim Start und Beenden** (Einstellungen → Anzeige, wie AleVista): grafische Vorschau aller Monitore, pro Bildschirm **Aus / An / Hauptanzeige** – abgeschaltete werden eingeschaltet, Lücken geschlossen. Beim Beenden die vorherige Anordnung wiederherstellen oder eine eigene Auswahl. „Jetzt testen“ mit 15-Sekunden-Rückfrage (sonst automatisch zurück). Alternativ die Windows-Modi (Erweitern, nur zweiter Bildschirm …)
-- **Fernseher-Zustand und automatisch einschalten**: Einstellungen → Anzeige zeigt, ob der TV an ist (über Home Assistant), angesteckt ist und in Windows aktiv oder deaktiviert ist. Ist er angesteckt, aber in Windows abgeschaltet, schaltet AleGamestation ihn beim Start ein und beim Beenden wieder ab – am Schreibtisch bleibt er aus
-- **Fernseher festlegen**: Einstellungen → Anzeige → „Mein Fernseher“ (mit „Bildschirme identifizieren“). „Nur Fernseher“ schaltet genau diesen Bildschirm als einzigen ein – auch bei mehreren Monitoren. „Fernseher als Hauptbildschirm“ lässt alle Monitore an und macht nur den TV zur Hauptanzeige, damit Spiele dort starten (beim Beenden wird der alte Hauptbildschirm zurückgesetzt)
+- **Bildschirme beim Start und Beenden** (Einstellungen → Bild & Ton, wie AleVista): grafische Vorschau aller Monitore, pro Bildschirm **Aus / An / Hauptanzeige** – abgeschaltete werden eingeschaltet, Lücken geschlossen. Beim Beenden die vorherige Anordnung wiederherstellen oder eine eigene Auswahl. „Jetzt testen“ mit 15-Sekunden-Rückfrage (sonst automatisch zurück). Alternativ die Windows-Modi (Erweitern, nur zweiter Bildschirm …)
+- **Fernseher-Zustand und automatisch einschalten**: Einstellungen → Bild & Ton zeigt, ob der TV an ist (über Home Assistant), angesteckt ist und in Windows aktiv oder deaktiviert ist. Ist er angesteckt, aber in Windows abgeschaltet, schaltet AleGamestation ihn beim Start ein und beim Beenden wieder ab – am Schreibtisch bleibt er aus
+- **Fernseher festlegen**: Einstellungen → Bild & Ton → „Mein Fernseher“ (mit „Bildschirme identifizieren“). „Nur Fernseher“ schaltet genau diesen Bildschirm als einzigen ein – auch bei mehreren Monitoren. „Fernseher als Hauptbildschirm“ lässt alle Monitore an und macht nur den TV zur Hauptanzeige, damit Spiele dort starten (beim Beenden wird der alte Hauptbildschirm zurückgesetzt)
 - Eigene Befehle beim Start/Beenden (z. B. Tonausgabe auf den TV umstellen)
 - **Herunterfahren, Neustart, Energiesparen, zurück zum Desktop** direkt per Controller
-- **Emulatoren laden & aktualisieren** (Einstellungen → Emulatoren laden): Eden (Switch, von git.eden-emu.dev), RetroArch mit Cores, Dolphin, DuckStation, PCSX2, PPSSPP, melonDS, Cemu, Azahar, RPCS3 per Knopfdruck installieren und täglich automatisch aktualisieren (Linux: Flathub bzw. AppImage; Windows: Release-ZIPs nach `C:\Emulatoren`). **Eigene Quellen:** beliebige GitHub-/Forgejo-/Codeberg-Repositories oder Release-Seiten hinterlegen, optional mit Dateifilter (`*linux*.AppImage`) – neue Versionen werden automatisch geladen und als Emulator eingetragen
+- **Emulatoren laden & aktualisieren** (Einstellungen → Emulatoren → Laden & Updates): Eden (Switch, von git.eden-emu.dev), RetroArch mit Cores, Dolphin, DuckStation, PCSX2, PPSSPP, melonDS, Cemu, Azahar, RPCS3 per Knopfdruck installieren und täglich automatisch aktualisieren (Linux: Flathub bzw. AppImage; Windows: Release-ZIPs nach `C:\Emulatoren`). **Eigene Quellen:** beliebige GitHub-/Forgejo-/Codeberg-Repositories oder Release-Seiten hinterlegen, optional mit Dateifilter (`*linux*.AppImage`) – neue Versionen werden automatisch geladen und als Emulator eingetragen
 - **Fernzugriff mit Tailscale** (Einstellungen → Fernzugriff): Rechner per QR-Code-Anmeldung ins Tailnet bringen, Geräte im Tailnet sehen; RomM bekommt eine „Adresse für unterwegs“, die automatisch genutzt wird, wenn das Heimnetz nicht erreichbar ist
 - **RomM-Server** (ab 5.x, im Heimnetz): Einstellungen → RomM → Adresse + Client-Token (oder Benutzer/Passwort) → „Verbindung testen“. Danach:
   - Konsolen-Seite: Reihe **„Auf dem RomM-Server“** mit allen Spielen der Konsole – was du schon hast (gleicher Datei-/Ordnername oder Titel), ist als **„Heruntergeladen“** markiert und startet direkt
@@ -120,7 +120,7 @@ Die Änderungsliste im Update-Fenster wird automatisch aus den Commit-Nachrichte
 | **BACK + START halten** | Laufendes Spiel beenden | |
 | **PS- / Xbox-Taste** (im Spiel) | Schnellmenü: ✕ Spiel beenden · △ Zur Oberfläche · ○ Weiterspielen | |
 
-**Maus** (alles bedienbar): Seitentasten **zurück/vor** wechseln zwischen den Menüs (auch Alt + ← / →), **Rechtsklick** = zurück (abschaltbar unter Einstellungen → Allgemein), **„‹ Zurück“** und **☰ Menü** oben, **Mausrad** scrollt. Klick auf eine Kachel startet bzw. öffnet sie, beim Darüberfahren erscheinen **★ Favorit** und **ⓘ Details** (bei Konsolen **⚙**). Die **Tasten-Symbole in der Hinweisleiste unten sind anklickbar** (z.B. LB/RB, LT/RT, Menü), ebenso **◀ ▶** in Auswahlfeldern; ein Klick neben ein Menü schließt es.
+**Maus** (alles bedienbar): Seitentasten **zurück/vor** wechseln zwischen den Menüs (auch Alt + ← / →), **Rechtsklick** = zurück (abschaltbar unter Einstellungen → System → Allgemein), **„‹ Zurück“** und **☰ Menü** oben, **Mausrad** scrollt. Klick auf eine Kachel startet bzw. öffnet sie, beim Darüberfahren erscheinen **★ Favorit** und **ⓘ Details** (bei Konsolen **⚙**). Die **Tasten-Symbole in der Hinweisleiste unten sind anklickbar** (z.B. LB/RB, LT/RT, Menü), ebenso **◀ ▶** in Auswahlfeldern; ein Klick neben ein Menü schließt es.
 
 **Tastatur** (komplett bedienbar, Symbole wechseln automatisch zwischen Tastatur und Controller):
 
@@ -142,11 +142,11 @@ Die Änderungsliste im Update-Fenster wird automatisch aus den Commit-Nachrichte
 - **Auf dem Fernseher**: Konsolenmodus wie gewohnt (Fernseher, Bildschirm-/Tonumschaltung, Leistungsmodus)
 - **Am PC**: alles bleibt, wie es ist – Bildschirme, Hauptbildschirm, Ton. Oben steht „AM PC“; über ☰ → „Auf den Fernseher wechseln“ geht es später auf den TV.
 
-Ohne Auswahl geht es nach 10 Sekunden automatisch weiter (Standard: Fernseher). Wer mit dem Controller etwas bewegt, hält den Countdown an. Einstellbar unter Einstellungen → Allgemein → **Beim Start** (Fragen / Immer Fernseher / Immer am PC), **Ohne Antwort** und **Automatisch nach**. Startparameter: `--tv` bzw. `--pc` überspringen die Frage.
+Ohne Auswahl geht es nach 10 Sekunden automatisch weiter (Standard: Fernseher). Wer mit dem Controller etwas bewegt, hält den Countdown an. Einstellbar unter Einstellungen → System → Allgemein → **Beim Start** (Fragen / Immer Fernseher / Immer am PC), **Ohne Antwort** und **Automatisch nach**. Startparameter: `--tv` bzw. `--pc` überspringen die Frage.
 
-Einstellungen → Allgemein → **„Verknüpfung „Einrichten (ohne Fernseher)“ auf dem Desktop“** legt eine zweite Verknüpfung an. Darüber startet AleGamestation nur zum Einstellen: im Fenster auf dem PC-Monitor, direkt in den Einstellungen und **ohne** Fernseher/Home Assistant, Bildschirm- und Tonumschaltung, Leistungsmodus und AleClip-Start (mit Debug-Protokoll). Oben steht „EINRICHTEN“. „Jetzt in den Konsolenmodus wechseln“ startet danach normal neu. Startparameter: `--setup`.
+Einstellungen → System → Allgemein → **„Verknüpfung „Einrichten (ohne Fernseher)“ auf dem Desktop“** legt eine zweite Verknüpfung an. Darüber startet AleGamestation nur zum Einstellen: im Fenster auf dem PC-Monitor, direkt in den Einstellungen und **ohne** Fernseher/Home Assistant, Bildschirm- und Tonumschaltung, Leistungsmodus und AleClip-Start (mit Debug-Protokoll). Oben steht „EINRICHTEN“. „Jetzt in den Konsolenmodus wechseln“ startet danach normal neu. Startparameter: `--setup`.
 
-Mit **„Vollbild im Einrichtungsmodus“** (Einstellungen → Allgemein) startet auch dieser Modus im Vollbild – praktisch, um direkt am PC zu spielen, ohne den Fernseher. **F11** schaltet das Vollbild der Oberfläche in jedem Modus an und aus (auch im Menü ☰ → „Vollbild an / aus“).
+Mit **„Vollbild im Einrichtungsmodus“** (Einstellungen → System → Allgemein) startet auch dieser Modus im Vollbild – praktisch, um direkt am PC zu spielen, ohne den Fernseher. **F11** schaltet das Vollbild der Oberfläche in jedem Modus an und aus (auch im Menü ☰ → „Vollbild an / aus“).
 
 ## Debug-Modus (Fehlersuche)
 
@@ -158,9 +158,9 @@ Protokolliert werden: jede Eingabe mit aktueller Ansicht und Auswahl, Fehler all
 
 ## Emulatoren im Vollbild starten
 
-**Taskleiste bleibt sichtbar?** Manche Emulatoren (z.B. Switch) nutzen ein randloses Vollbild, über dem die Windows-Taskleiste liegt. Einstellungen → Allgemein → **Taskleiste ausblenden**: „Während ein Spiel läuft“ (Standard) oder „Im ganzen Konsolenmodus“. Danach wird sie immer wieder eingeblendet – auch wenn AleGamestation abstürzt.
+**Taskleiste bleibt sichtbar?** Manche Emulatoren (z.B. Switch) nutzen ein randloses Vollbild, über dem die Windows-Taskleiste liegt. Einstellungen → System → Allgemein → **Taskleiste ausblenden**: „Während ein Spiel läuft“ (Standard) oder „Im ganzen Konsolenmodus“. Danach wird sie immer wieder eingeblendet – auch wenn AleGamestation abstürzt.
 
-Unter **Einstellungen → Emulatoren → „Spiele im Vollbild starten“** (Standard: an) ergänzt AleGamestation bei bekannten Emulatoren automatisch das Vollbild-Argument – auch wenn es nicht in den Start-Argumenten steht:
+Unter **Einstellungen → Emulatoren → Emulatoren → „Spiele im Vollbild starten“** (Standard: an) ergänzt AleGamestation bei bekannten Emulatoren automatisch das Vollbild-Argument – auch wenn es nicht in den Start-Argumenten steht:
 
 | Emulator | Vollbild-Argument | Empfohlene Start-Argumente |
 |---|---|---|
@@ -266,9 +266,9 @@ Bilder liegen in `%APPDATA%\AleGamestation\media` (Speicherort änderbar). Eigen
 
 ## Einrichtung der Emulatoren
 
-1. **Einstellungen → Emulatoren → „Installierte Emulatoren automatisch suchen“** (findet RetroArch, Dolphin, PCSX2, DuckStation, PPSSPP, melonDS an typischen Orten)
+1. **Einstellungen → Emulatoren → Emulatoren → „Installierte Emulatoren automatisch suchen“** (findet RetroArch, Dolphin, PCSX2, DuckStation, PPSSPP, melonDS an typischen Orten)
 2. Sonst Pfad zur `.exe` manuell eintragen. Start-Argumente nutzen Platzhalter: `{rom}`, `{romName}`, `{romDir}`, `{emuDir}`
-3. **Einstellungen → Systeme & ROMs**: ROM-Ordner, Dateiendungen und Standard-Emulator je System festlegen
+3. **Einstellungen → Emulatoren → Konsolen & ROMs**: ROM-Ordner, Dateiendungen und Standard-Emulator je System festlegen
 4. Einzelnes Spiel mit anderem Emulator starten: Spiel auswählen → **Y** → „Starten mit“
 
 Vorbelegte Beispiele (anpassbar):
@@ -285,11 +285,11 @@ Vorbelegte Beispiele (anpassbar):
 ## Gut zu wissen
 
 - **Controller**: Die globale Beenden-Kombination funktioniert mit Xbox-Controllern (XInput) und PlayStation-Controllern (direkt per HID). Switch-Controller brauchen dafür Steam Input. In der Oberfläche selbst funktionieren alle gängigen Controller.
-- **Falscher Bildschirm?** In Einstellungen → Anzeige den Fernseher festlegen und „Beim Start“ auf „Nur Fernseher (ausgewählt)“ stellen.
-- **Bildschirm „nur TV“** setzt voraus, dass Windows den TV als zweiten Bildschirm erkennt. Klappt es nicht, im Menü → „Bildschirm umschalten“ testen und die Wartezeit in Einstellungen → Anzeige erhöhen.
-- **Ton auf den TV**: Einstellungen → Anzeige → **Tonausgabe im Konsolenmodus** – das Gerät wird beim Start umgestellt (auch wenn der Fernseher erst eingeschaltet wird) und beim Beenden zurückgestellt.
+- **Falscher Bildschirm?** In Einstellungen → Bild & Ton den Fernseher festlegen und „Beim Start“ auf „Nur Fernseher (ausgewählt)“ stellen.
+- **Bildschirm „nur TV“** setzt voraus, dass Windows den TV als zweiten Bildschirm erkennt. Klappt es nicht, im Menü → „Bildschirm umschalten“ testen und die Wartezeit in Einstellungen → Bild & Ton erhöhen.
+- **Ton auf den TV**: Einstellungen → Bild & Ton → **Tonausgabe im Konsolenmodus** – das Gerät wird beim Start umgestellt (auch wenn der Fernseher erst eingeschaltet wird) und beim Beenden zurückgestellt.
 - Spiel lässt sich nicht per Controller beenden? Bei eigenen Spielen „Beenden per Controller“ auf *Alle Prozesse aus dem Spielordner* oder *Nach Prozessname* stellen.
-- Alle Einstellungen liegen in `%APPDATA%\AleGamestation\config.json` (Menü → Einstellungen → Allgemein → „Konfigurationsdatei öffnen“).
+- Alle Einstellungen liegen in `%APPDATA%\AleGamestation\config.json` (Menü → Einstellungen → System → Allgemein → „Konfigurationsdatei öffnen“).
 
 ## Projektstruktur
 

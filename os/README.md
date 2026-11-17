@@ -55,7 +55,7 @@ sudo bootc switch ghcr.io/aleb-roni/alegamestation-os:stable
   Aktiv wird es nach dem Neustart. Neue App-Versionen landen automatisch im Abbild, sobald ein Release
   erstellt wird.
 - **Emulatoren ergänzen/reparieren:** ☰-Menü → „Emulatoren einrichten / ergänzen“.
-- **Emulatoren laden & aktualisieren:** ☰-Menü → „Emulatoren laden & aktualisieren“ (oder Einstellungen → Emulatoren laden):
+- **Emulatoren laden & aktualisieren:** ☰-Menü → „Emulatoren laden & aktualisieren“ (oder Einstellungen → Emulatoren → Laden & Updates):
   Eden (Switch), RetroArch, Dolphin, DuckStation, PCSX2, PPSSPP, melonDS, Cemu, Azahar, RPCS3 per Knopfdruck, eigene
   GitHub-/Forgejo-Quellen, tägliche automatische Updates.
 - **Fernzugriff (Tailscale):** Einstellungen → Fernzugriff → „Verbinden“ → QR-Code mit dem Handy scannen. Danach ist der

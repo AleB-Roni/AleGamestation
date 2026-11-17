@@ -365,7 +365,7 @@
     App.emuOpen = null;
     await App.save({ immediate: true });
     renderHome();
-    App.toast(`${s.short} ausgeblendet – wieder einblenden unter Einstellungen → Systeme & ROMs`, 'info', 5000);
+    App.toast(`${s.short} ausgeblendet – wieder einblenden unter Einstellungen → Emulatoren → Konsolen & ROMs`, 'info', 5000);
   }
 
   function cardHtml(item, wide) {
@@ -862,7 +862,7 @@
     items.push({ label: game.hidden ? 'Wieder anzeigen' : 'Aus Bibliothek ausblenden', icon: 'eye', action: async () => {
       if (game.hidden) { if (game.hiddenBy === 'manual') delete ov.hidden; else ov.hidden = false; } else ov.hidden = true;
       cleanup(); App.closeMenu(); await App.save({ immediate: true, rescan: true });
-      App.toast(game.hidden ? 'Spiel wird wieder angezeigt' : (game.type === 'rom' ? 'Ausgeblendet – wieder einblenden unter Einstellungen → Systeme & ROMs → Konsole' : 'Ausgeblendet – wieder einblenden unter Einstellungen → Steam & Stores'), 'info', 4000);
+      App.toast(game.hidden ? 'Spiel wird wieder angezeigt' : (game.type === 'rom' ? 'Ausgeblendet – wieder einblenden unter Einstellungen → Emulatoren → Konsolen & ROMs → Konsole' : 'Ausgeblendet – wieder einblenden unter Einstellungen → Bibliothek → Steam & Stores'), 'info', 4000);
     } });
     if (game.type === 'pc' && game.system === 'pc') {
       items.push({ label: 'Spiel entfernen', icon: 'trash', danger: true, action: async () => {

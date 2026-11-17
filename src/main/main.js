@@ -241,7 +241,7 @@ function targetDisplay() {
 async function applyTvOnly(manual = false, mode = 'only') {
   const d = cfg().display;
   const tv = d.tv;
-  if (!tv) return { ok: false, error: 'Kein Fernseher ausgewählt (Einstellungen → Anzeige)' };
+  if (!tv) return { ok: false, error: 'Kein Fernseher ausgewählt (Einstellungen → Bild & Ton)' };
   let list = await listDisplays();
   let entry = findTv(list);
   if (!entry) {
@@ -273,7 +273,7 @@ async function applyTvOnly(manual = false, mode = 'only') {
 /** Fernseher in Windows einschalten (erweitern), falls er deaktiviert ist. @param {boolean} wait warten, bis er erkannt wird */
 async function activateTv(wait = false) {
   const d = cfg().display;
-  if (!d.tv) return { ok: false, error: 'Kein Fernseher ausgewählt (Einstellungen → Anzeige)' };
+  if (!d.tv) return { ok: false, error: 'Kein Fernseher ausgewählt (Einstellungen → Bild & Ton)' };
   let list = await listDisplays();
   let entry = findTv(list);
   const deadline = Date.now() + (wait ? (d.tvWaitSeconds || 15) * 1000 : 0);
@@ -550,7 +550,7 @@ async function enterConsoleMode() {
   if (aleclip.enabled() && cfg().aleclip.autoStart !== false && aleclip.findExe()) {
     aleclip.status().then((st) => { if (st.offline) return aleclip.start(); return null; }).catch((err) => debug.warn('aleclip', err.message));
   }
-  // Neue Monitor-Auswahl (Einstellungen → Anzeige → Beim Start: Eigene Auswahl) ersetzt die älteren Optionen
+  // Neue Monitor-Auswahl (Einstellungen → Bild & Ton → Beim Start: Eigene Auswahl) ersetzt die älteren Optionen
   const plan = d.startPlan && d.startPlan.mode === 'custom' ? d.startPlan : null;
   if (!skipDisplaySwitch && plan) {
     const r = await applyPlan(plan, true);

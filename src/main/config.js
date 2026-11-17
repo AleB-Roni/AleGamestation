@@ -267,7 +267,7 @@ const DEFAULT_CONFIG = {
 
   // Pro Spiel: { emulator: 'dolphin', hidden: true, name: 'Eigener Name', cover: 'C:\\bild.png' }
   gameOverrides: {},
-  // Emulatoren herunterladen/aktualisieren (Einstellungen → Emulatoren laden)
+  // Emulatoren herunterladen/aktualisieren (Einstellungen → Emulatoren → Laden & Updates)
   emuManager: {
     autoUpdate: true,   // installierte Emulatoren täglich aktualisieren
     dir: '',            // leer = Linux ~/Emulatoren, Windows C:\\Emulatoren

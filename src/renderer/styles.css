@@ -514,3 +514,53 @@ html.windowed #topbar #updateBadge, html.windowed #topbar .debug-badge { -webkit
   html.windowed .brand { display: none; }
   html.windowed #tabL, html.windowed #tabR { display: none; }
 }
+
+/* ---------- Einstellungen: Kacheln, Karten, Unter-Tabs ---------- */
+.settings-head { flex-wrap: wrap; row-gap: 0.4rem; }
+#settingsTitle { display: inline-flex; align-items: center; gap: 0.6rem; }
+#settingsTitle .st-home { cursor: pointer; transition: color 0.15s; }
+#settingsCrumb { display: inline-flex; align-items: center; gap: 0.6rem; font-size: 0.75em; color: var(--muted); font-weight: 600; }
+#settingsCrumb .sc-sep { display: inline-flex; opacity: 0.5; }
+#settingsCrumb .sc-sep .icon { width: 1.1rem; height: 1.1rem; }
+#settingsCrumb .sc-cat { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--text); }
+#settingsCrumb .sc-cat .icon { width: 1.4rem; height: 1.4rem; color: var(--accent-2, var(--accent)); }
+#settingsTabs.hidden { display: none; }
+#settingsTabs .tab { transition: background 0.18s, color 0.18s; }
+
+/* Kachel-Übersicht */
+#settingsBody.overview { padding-top: 1.4rem; }
+.s-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.2rem; max-width: 1320px; }
+@media (max-width: 1100px) { .s-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.s-tile { position: relative; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto 1fr auto; gap: 0.5rem 1rem; padding: 1.4rem 1.5rem 1.2rem;
+  min-height: 11.5rem; border-radius: 22px; cursor: pointer; overflow: hidden;
+  background: linear-gradient(150deg, color-mix(in srgb, var(--accent) 14%, var(--panel)) 0%, var(--panel) 60%);
+  border: 1px solid var(--line); backdrop-filter: blur(16px);
+  transition: transform 0.2s cubic-bezier(.2,.8,.2,1), box-shadow 0.2s, border-color 0.2s, background 0.2s;
+  animation: tileIn 0.35s cubic-bezier(.2,.8,.2,1) both; animation-delay: var(--d, 0ms); }
+@keyframes tileIn { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: none; } }
+.s-tile::after { content: ''; position: absolute; inset: auto -30% -60% auto; width: 70%; aspect-ratio: 1; border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 22%, transparent) 0%, transparent 70%); pointer-events: none; transition: opacity 0.2s; opacity: 0.5; }
+.s-tile .st-icon { grid-row: 1 / 3; width: 3.4rem; height: 3.4rem; border-radius: 16px; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--text); }
+.s-tile .st-icon .icon { width: 1.8rem; height: 1.8rem; }
+.s-tile .st-text { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
+.s-tile .st-text b { font-size: 1.35rem; }
+.s-tile .st-text small { color: var(--muted); font-size: 0.88rem; line-height: 1.35; }
+.s-tile .st-status { grid-column: 2; align-self: start; font-size: 0.85rem; color: var(--text); opacity: 0.85; }
+.s-tile .st-subs { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.3rem; }
+.s-tile .st-subs span { font-size: 0.72rem; padding: 0.22rem 0.6rem; border-radius: 999px; background: rgba(255,255,255,0.07); color: var(--muted); }
+.s-tile.focused { transform: translateY(-4px) scale(1.02); border-color: color-mix(in srgb, var(--accent) 70%, white 10%);
+  box-shadow: 0 0 0 1px var(--accent), 0 18px 45px rgba(0,0,0,0.45), 0 0 40px color-mix(in srgb, var(--accent) 30%, transparent); }
+.s-tile.focused::after { opacity: 1; }
+.s-tile.focused .st-icon { background: var(--accent); }
+
+/* Gruppen als Karten */
+#settingsBody:not(.overview) > * { animation: pageIn 0.22s ease both; }
+@keyframes pageIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.s-card { max-width: 1200px; margin: 0 0 1.1rem; padding: 0.35rem; border-radius: 20px; background: var(--panel); border: 1px solid var(--line); backdrop-filter: blur(16px); }
+.s-card > .s-group { margin: 0.75rem 0.95rem 0.45rem; }
+.s-card > .s-row { background: transparent; border: 1px solid transparent; margin: 0.12rem 0; border-radius: 14px; backdrop-filter: none; }
+.s-card > .s-row + .s-row { box-shadow: inset 0 1px 0 rgba(255,255,255,0.05); }
+.s-card > .s-row.focused { background: rgba(255,255,255,0.1); border-color: color-mix(in srgb, var(--accent) 70%, white 10%); transform: none;
+  box-shadow: 0 0 0 1px var(--accent), 0 8px 26px rgba(0,0,0,0.35); }
+.s-card > .s-row:hover:not(.focused) { background: rgba(255,255,255,0.04); }
