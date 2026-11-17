@@ -1354,6 +1354,16 @@ async function autoUpdateEmulators() {
     if (done.length) send('toast', { type: 'ok', text: `Emulatoren aktualisiert: ${done.join(', ')}`, ms: 6000 });
   } catch (err) { debug.warn('emulatoren', 'Auto-Update: ' + err.message); }
 }
+// ---------- Tailscale (Fernzugriff) ----------
+const { Tailscale } = require('./tailscale');
+const tailscale = new Tailscale();
+tailscale.on('login', (l) => send('tailscale:login', l));
+tailscale.on('connected', () => { send('tailscale:connected'); romm.clearCache(); });
+ipcMain.handle('tailscale:status', () => tailscale.status());
+ipcMain.handle('tailscale:up', () => tailscale.up({ hostname: (cfg().tailscale || {}).hostname || '' }));
+ipcMain.handle('tailscale:down', () => tailscale.down());
+ipcMain.handle('tailscale:logout', () => tailscale.logout());
+ipcMain.handle('tailscale:download', async () => { const st = await tailscale.status(); if (st.download) await shell.openExternal(st.download); return true; });
 ipcMain.handle('window:toggleFullscreen', () => toggleFullscreen());
 // Fenster (nicht Vollbild): verschieben über die obere Leiste, Minimieren/Maximieren/Schließen
 const windowState = () => (win && !win.isDestroyed() ? { full: win.isFullScreen(), max: win.isMaximized() } : { full: false, max: false });

@@ -667,6 +667,42 @@
       }
     },
     {
+      id: 'remote', title: 'Fernzugriff', rows: () => {
+        if (!C().tailscale) C().tailscale = { hostname: '' };
+        const t = S.ts;
+        const rows = [group('Tailscale', 'Sicherer Zugriff von unterwegs – auf diesen Rechner und deinen RomM-Server')];
+        if (!t) rows.push({ type: 'info', label: 'Prüfe Tailscale …', desc: '', get: () => '' });
+        else if (t.state === 'not-installed') {
+          rows.push({ type: 'item', label: 'Tailscale ist nicht installiert', desc: App.os && App.os.os ? 'Sollte in AleGamestation OS enthalten sein – System aktualisieren' : 'Kostenlos von tailscale.com – danach hier verbinden', status: 'bad', statusText: 'fehlt', action: () => api.tailscaleDownload() });
+          rows.push(button('Tailscale herunterladen', () => api.tailscaleDownload()));
+        } else {
+          const on = t.state === 'running';
+          rows.push({ type: 'item', label: on ? `Verbunden als ${t.name || 'dieser Rechner'}` : t.state === 'no-daemon' ? 'Tailscale-Dienst läuft nicht' : 'Nicht verbunden',
+            desc: on ? [t.ip, t.dns, t.user].filter(Boolean).join('  ·  ') : (t.error || 'Mit „Verbinden“ anmelden – per QR-Code mit dem Handy'),
+            status: on ? 'ok' : 'off', statusText: on ? 'verbunden' : 'aus', action: () => refreshTs() });
+          rows.push(on
+            ? button('Trennen', async () => { try { await api.tailscaleDown(); App.toast('Tailscale getrennt', 'info'); } catch (e) { App.toast(cleanErr(e), 'error', 8000); } refreshTs(); })
+            : button('Verbinden …', () => tailscaleConnect()));
+          rows.push(text('Gerätename im Tailnet', () => C().tailscale, 'hostname', 'Leer = Rechnername – z.B. „alegamestation“. Gilt beim nächsten Verbinden'));
+          if (on && t.peers && t.peers.length) {
+            rows.push(group('Geräte im Tailnet', `${t.peers.filter((p) => p.online).length} online`));
+            for (const p of t.peers.slice(0, 20)) {
+              rows.push({ type: 'item', label: p.name, desc: [p.ip, p.dns, p.os].filter(Boolean).join('  ·  '), status: p.online ? 'ok' : 'off', statusText: p.online ? 'online' : 'offline',
+                action: async () => {
+                  if (!(await App.confirm(`${esc(p.name)} als RomM unterwegs?`, `Als „Adresse für unterwegs“ für RomM eintragen: http://${esc(p.dns || p.ip)}:8080 (Port bei Bedarf in den RomM-Einstellungen anpassen).`, 'Eintragen'))) return;
+                  C().romm = C().romm || {};
+                  C().romm.remoteUrl = `http://${p.dns || p.ip}:8080`;
+                  await App.save({ immediate: true });
+                  App.toast('Eingetragen – Einstellungen → RomM', 'ok', 5000);
+                } });
+            }
+          }
+          rows.push({ type: 'info', label: 'So nutzt du es', desc: 'Installiere Tailscale auch auf dem RomM-Server und deinem Handy/Laptop und melde dich mit demselben Konto an. Dann trägst du bei RomM die Tailscale-Adresse als „Adresse für unterwegs“ ein – AleGamestation nimmt sie automatisch, wenn das Heimnetz nicht erreichbar ist.', get: () => '' });
+        }
+        return rows;
+      }
+    },
+    {
       id: 'romm', title: 'RomM', rows: () => {
         if (!C().romm) C().romm = { enabled: false, url: '', token: '', user: '', password: '', recommend: true, serverRow: true, platformMap: {} };
         const R = () => C().romm;
@@ -680,6 +716,7 @@
           group('Verbindung', st.version ? `RomM ${st.version}${st.user ? ' · ' + st.user : ''} · ${st.platforms} Plattformen · ${st.roms} Spiele` : 'Eigener ROM-Server im Heimnetz'),
           { ...toggle('RomM verwenden', R, 'enabled', 'Spiele vom Server auf den Konsolen-Seiten, Empfehlungen und Herunterladen'), rescan: false },
           text('Server-Adresse', R, 'url', 'z.B. http://192.168.1.20:8080 – so, wie du RomM im Browser öffnest'),
+          text('Adresse für unterwegs (optional)', R, 'remoteUrl', 'z.B. über Tailscale: http://romm-server:8080 – wird automatisch genommen, wenn die Heimadresse nicht erreichbar ist'),
           text('Client-Token (empfohlen)', R, 'token', 'In RomM: Profil → Client-Tokens → neues Token mit „roms.read“ und „platforms.read“ (beginnt mit rmm_)', { secret: true }),
           text('Benutzername', R, 'user', 'Nur nötig ohne Client-Token'),
           text('Passwort', R, 'password', 'Nur nötig ohne Client-Token', { secret: true }),
@@ -1150,6 +1187,34 @@
     });
   }
 
+  // ---------- Tailscale ----------
+  async function refreshTs() {
+    try { S.ts = await api.tailscaleStatus(); } catch (e) { S.ts = { state: 'stopped', error: cleanErr(e) }; }
+    if (App.view === 'settings' && SECTIONS[S.section].id === 'remote' && !S.detail) render();
+  }
+  async function tailscaleConnect() {
+    App.toast('Verbinde mit Tailscale …', 'info', 3000);
+    let shown = false;
+    const offLogin = api.onTailscaleLogin((l) => {
+      shown = true;
+      App.menu({
+        title: 'Bei Tailscale anmelden',
+        text: `${l.qr ? `<div style="text-align:center"><img src="${esc(l.qr)}" alt="QR-Code" style="width:240px;height:240px;image-rendering:pixelated;background:#fff;padding:10px;border-radius:12px"></div>` : ''}
+          QR-Code mit dem Handy scannen oder auf einem anderen Gerät öffnen:<br><b style="user-select:all">${esc(l.url)}</b><br><small>Die Seite schließt sich nach der Anmeldung von selbst.</small>`,
+        items: [{ label: 'Abbrechen', icon: 'x', action: () => App.closeMenu() }]
+      });
+    });
+    const offConn = api.onTailscaleConnected(() => { if (shown) App.closeMenu(); });
+    try {
+      await api.tailscaleUp();
+      App.toast('✔ Mit Tailscale verbunden', 'ok', 5000);
+    } catch (e) { App.toast(cleanErr(e), 'error', 9000); }
+    if (shown && App.modalStack.length) App.closeMenu();
+    if (offLogin) offLogin();
+    if (offConn) offConn();
+    refreshTs();
+  }
+
   function cleanErr(e) {
     return String((e && e.message) || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
   }
@@ -1405,6 +1470,7 @@
       try { S.spotify = await api.spotifyStatus(); } catch { S.spotify = {}; }
       try { S.aleclip = await api.aleclipStatus(); } catch { S.aleclip = {}; }
       if (api.emuMgrList && !S.emuList) loadEmuList(true);
+      if (api.tailscaleStatus) refreshTs();
       if (api.onEmuMgrProgress && !S.emuProgressHooked) {
         S.emuProgressHooked = true;
         api.onEmuMgrProgress((p) => {

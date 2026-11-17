@@ -274,10 +274,13 @@ const DEFAULT_CONFIG = {
     installed: {},      // id -> { version, exe, file, at }
     sources: []         // eigene Quellen: { id, name, url, asset, exe, args, prerelease }
   },
+  // Tailscale (Fernzugriff): Gerätename im Tailnet (leer = Rechnername)
+  tailscale: { hostname: '' },
   // RomM-Server (Heimnetz): ROMs anzeigen, empfehlen, herunterladen
   romm: {
     enabled: false,
     url: '',          // z.B. http://192.168.1.20:8080
+    remoteUrl: '',    // unterwegs, z.B. über Tailscale: http://romm-server:8080 oder http://100.x.y.z:8080
     token: '',        // Client-Token (rmm_…) – oder Benutzer + Passwort
     user: '',
     password: '',

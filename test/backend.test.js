@@ -874,3 +874,45 @@ test('Emulator-Verwaltung: eingebautes Eden legt die Switch-Konsole an', () => {
   const sw = conf.systems.find((s) => s.id === 'switch');
   assert.ok(sw && sw.emulator === 'eden' && sw.extensions.includes('.xci'));
 });
+
+test('RomM: unterwegs automatisch die zweite Adresse (z.B. Tailscale) verwenden', async () => {
+  const { RomM } = require('../src/main/romm');
+  const fake = await require('./fake-romm').start();
+  const conf = { romm: { enabled: true, url: 'http://127.0.0.1:9', remoteUrl: fake.url, token: 'rmm_test' } };
+  const r = new RomM({ getConfig: () => conf, fetch: (u, o) => fetch(u, o), cacheDir: fs.mkdtempSync(path.join(os.tmpdir(), 'ags-romm2-')) });
+  try {
+    const t = await r.test();
+    assert.strictEqual(t.version, '5.4.0');
+    assert.strictEqual(r.base(), fake.url);
+    // Ohne zweite Adresse: verständlicher Fehler
+    conf.romm.remoteUrl = ''; r.useRemote = false; r.clearCache();
+    await assert.rejects(() => r.test(), /RomM nicht erreichbar/);
+  } finally { fake.close(); }
+});
+
+test('Tailscale: Zustand ohne installierte Tailscale-Kommandozeile', async () => {
+  const { Tailscale, cli } = require('../src/main/tailscale');
+  const st = await new Tailscale().status();
+  if (!cli()) assert.strictEqual(st.state, 'not-installed');
+  else assert.ok(['running', 'needs-login', 'stopped', 'no-daemon'].includes(st.state));
+});
+
+test('Tailscale: verbinden mit Anmelde-Link/QR, Status mit Geräten, trennen', { skip: process.platform === 'win32' }, async () => {
+  const stateFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ags-ts-')), 'state');
+  process.env.AGS_TAILSCALE_CLI = path.join(__dirname, 'fixtures', 'fake-tailscale.js');
+  process.env.FAKE_TS_STATE_FILE = stateFile;
+  try {
+    const { Tailscale } = require('../src/main/tailscale');
+    const ts = new Tailscale();
+    assert.strictEqual((await ts.status()).state, 'needs-login');
+    const login = new Promise((r) => ts.once('login', r));
+    await ts.up({});
+    const l = await login;
+    assert.strictEqual(l.url, 'https://login.tailscale.com/a/abc123');
+    assert.ok(l.qr.startsWith('data:image/png'));
+    const st = await ts.status();
+    assert.deepStrictEqual([st.state, st.ip, st.dns, st.peers[0].name, st.peers[0].online], ['running', '100.64.0.5', 'alegamestation.tail1234.ts.net', 'romm-server', true]);
+    await ts.down();
+    assert.strictEqual((await ts.status()).state, 'stopped');
+  } finally { delete process.env.AGS_TAILSCALE_CLI; }
+});

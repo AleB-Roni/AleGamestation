@@ -71,7 +71,9 @@
     ],
     debugLog: async () => true, debugState: async () => ({ enabled: true, errors: 0, warnings: 0 }), debugReport: async () => 'C:\\Users\\Ale\\Desktop\\AleGamestation-Debugbericht.txt', debugOpenFolder: async () => true,
     onDebugEvent: () => () => {}, onNavCommand: () => () => {}, onOpenSettings: () => () => {}, onAskExit: () => () => {}, onBtProgress: () => () => {}, btPair: async () => ({ ok: true, paired: 1, removed: 1, failed: 0, names: ['DualSense Wireless Controller'] }),
-    appMode: async () => ({ setup: /setup/.test(location.hash), pc: false, ask: /ask/.test(location.hash) ? { seconds: 10, def: 'tv', tv: 'LG TV' } : null }), chooseStart: async () => true, emuMgrList: async () => [
+    appMode: async () => ({ setup: /setup/.test(location.hash), pc: false, ask: /ask/.test(location.hash) ? { seconds: 10, def: 'tv', tv: 'LG TV' } : null }), chooseStart: async () => true, tailscaleStatus: async () => ({ state: 'running', name: 'alegamestation', ip: '100.64.0.5', dns: 'alegamestation.tail1234.ts.net', user: 'ale@example.com',
+      peers: [{ name: 'romm-server', ip: '100.64.0.9', dns: 'romm-server.tail1234.ts.net', online: true, os: 'linux' }, { name: 'handy', ip: '100.64.0.7', dns: 'handy.tail1234.ts.net', online: false, os: 'android' }] }),
+    tailscaleUp: async () => true, tailscaleDown: async () => true, tailscaleLogout: async () => true, tailscaleDownload: async () => true, onTailscaleLogin: () => noop, onTailscaleConnected: () => noop, emuMgrList: async () => [
       { id: 'eden', name: 'Eden', console: 'Nintendo Switch', kind: 'release', installed: true, version: 'v0.2.0', latest: 'v0.2.1', update: true, source: 'https://git.eden-emu.dev/eden-emu/eden/releases' },
       { id: 'retroarch', name: 'RetroArch', console: 'NES, SNES, N64, GBA, Mega Drive …', kind: 'flatpak', installed: true, version: '1.21.0', update: false },
       { id: 'cemu', name: 'Cemu', console: 'Wii U', kind: 'flatpak', installed: false },

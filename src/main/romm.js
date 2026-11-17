@@ -74,7 +74,9 @@ class RomM extends EventEmitter {
 
   cfg() { return this.getConfig().romm || {}; }
   enabled() { const c = this.cfg(); return !!(c.enabled && c.url); }
-  base() { return String(this.cfg().url || '').trim().replace(/\/+$/, '').replace(/\/api$/, ''); }
+  /** Aktive Adresse: Heimnetz, sonst (wenn nicht erreichbar) die Adresse für unterwegs (z.B. Tailscale) */
+  base() { return this.useRemote && this.cfg().remoteUrl ? this.clean(this.cfg().remoteUrl) : this.clean(this.cfg().url); }
+  clean(u) { return String(u || '').trim().replace(/\/+$/, '').replace(/\/api$/, ''); }
 
   headers() {
     const c = this.cfg();
@@ -96,6 +98,14 @@ class RomM extends EventEmitter {
     try {
       r = await this.fetch(u.toString(), { headers: { Accept: 'application/json', ...this.headers() }, signal: ctl.signal });
     } catch (err) {
+      clearTimeout(t);
+      // Heimnetz nicht erreichbar → einmal die Adresse für unterwegs (Tailscale) versuchen, und umgekehrt
+      if (!this._retrying && this.cfg().remoteUrl && this.clean(this.cfg().remoteUrl) !== this.clean(this.cfg().url)) {
+        this._retrying = true;
+        this.useRemote = !this.useRemote;
+        this.trace(`RomM: wechsle auf ${this.useRemote ? 'Adresse für unterwegs' : 'Heimnetz-Adresse'} (${this.base()})`);
+        try { return await this.request(p, { query, timeout, raw }); } catch (e2) { this.useRemote = !this.useRemote; throw e2; } finally { this._retrying = false; }
+      }
       throw new Error(`RomM nicht erreichbar (${this.base()}): ${err.name === 'AbortError' ? 'Zeitüberschreitung' : err.message}`);
     } finally { clearTimeout(t); }
     if (r.status === 401 || r.status === 403) throw new Error('RomM: Anmeldung abgelehnt – Benutzer/Passwort oder Client-Token prüfen (Rechte: roms.read, platforms.read)');

@@ -169,6 +169,7 @@ jobs:
             test -f /usr/share/gamescope-session-plus/sessions.d/alegamestation
             grep -q alegamestation /usr/lib/sddm/sddm.conf.d/holo.conf
             command -v xprop
+            command -v tailscale && test -x /usr/libexec/alegamestation-tailscale
             command -v gamescope-session-plus || ls /usr/share/gamescope-session-plus/gamescope-session-plus
             echo "Abbild OK: $(cat /usr/share/alegamestation/os-version)"'
 

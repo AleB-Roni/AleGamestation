@@ -1,0 +1,13 @@
+#!/usr/bin/bash
+# (root, per pkexec) Tailscale verbinden/trennen – setzt den aufrufenden Benutzer als „Operator“,
+# damit AleGamestation Tailscale danach ohne Passwort steuern kann.
+#   alegamestation-tailscale up [--json --hostname=…]   |   alegamestation-tailscale down
+set -euo pipefail
+cmd="${1:-up}"; shift || true
+user="$(id -nu "${PKEXEC_UID:-1000}" 2>/dev/null || echo "")"
+systemctl enable --now tailscaled.service >/dev/null 2>&1 || true
+case "$cmd" in
+  up)   exec tailscale up ${user:+--operator="$user"} "$@" ;;
+  down) exec tailscale down ;;
+  *) echo "Unbekannter Befehl: $cmd" >&2; exit 2 ;;
+esac

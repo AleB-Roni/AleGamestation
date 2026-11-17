@@ -55,6 +55,11 @@ sudo bootc switch ghcr.io/aleb-roni/alegamestation-os:stable
   Aktiv wird es nach dem Neustart. Neue App-Versionen landen automatisch im Abbild, sobald ein Release
   erstellt wird.
 - **Emulatoren ergänzen/reparieren:** ☰-Menü → „Emulatoren einrichten / ergänzen“.
+- **Emulatoren laden & aktualisieren:** ☰-Menü → „Emulatoren laden & aktualisieren“ (oder Einstellungen → Emulatoren laden):
+  Eden (Switch), RetroArch, Dolphin, DuckStation, PCSX2, PPSSPP, melonDS, Cemu, Azahar, RPCS3 per Knopfdruck, eigene
+  GitHub-/Forgejo-Quellen, tägliche automatische Updates.
+- **Fernzugriff (Tailscale):** Einstellungen → Fernzugriff → „Verbinden“ → QR-Code mit dem Handy scannen. Danach ist der
+  Rechner in deinem Tailnet erreichbar, und RomM kann über seine Tailscale-Adresse auch unterwegs genutzt werden.
 - **ROMs:** in `~/ROMs/<konsole>` kopieren, z. B. über den Desktop, per Netzwerkfreigabe oder über RomM.
 
 **Ohne passende Grafik** (z. B. in Hyper-V oder einer VM ohne 3D-Beschleunigung) kann der Gamescope-Spielmodus
