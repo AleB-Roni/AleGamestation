@@ -197,7 +197,7 @@ jobs:
             iso: AleGamestation-OS-NVIDIA-Installer
     steps:
       - name: Werkzeuge installieren
-        run: dnf install -y --setopt=install_weak_deps=False lorax xorriso isomd5sum curl git gh
+        run: dnf install -y --setopt=install_weak_deps=False lorax xorriso isomd5sum cpio curl git gh
 
       - uses: actions/checkout@v5
 
