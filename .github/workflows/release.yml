@@ -78,7 +78,7 @@ jobs:
           [ -s notes.md ] || echo "- Verbesserungen und Fehlerbehebungen" > notes.md
           printf '\n**Installation (Windows):** AleGamestation-Setup-%s.exe herunterladen und starten. Installierte Versionen aktualisieren sich über das Menü → „Nach Updates suchen“.\n' "$VER" >> notes.md
           printf '\n**Linux:** AleGamestation-%s-linux-x86_64.AppImage (ausführbar machen und starten).\n' "$VER" >> notes.md
-          printf '\n**AleGamestation OS:** Bazzite (Deck-Edition) installieren, dann einmalig `sudo bootc switch ghcr.io/aleb-roni/alegamestation-os:stable` (NVIDIA: `alegamestation-os-nvidia`) und neu starten. Anleitung: os/README.md\n' >> notes.md
+          printf '\n**AleGamestation OS:** AleGamestation-OS-Installer-%s.iso (NVIDIA: AleGamestation-OS-NVIDIA-Installer) auf einen USB-Stick schreiben, davon starten und installieren – Internet nötig. Anleitung: os/README.md\n' "$VER" >> notes.md
           gh release create "$TAG" \
             "dist/AleGamestation-Setup-$VER.exe" \
             "dist/AleGamestation-Setup-$VER.exe.blockmap" \
@@ -179,3 +179,39 @@ jobs:
           for t in stable latest "$VER"; do
             podman --root /mnt/containers push "ghcr.io/aleb-roni/${{ matrix.image }}:$t"
           done
+
+  build-iso:
+    needs: build-os
+    runs-on: ubuntu-latest
+    container:
+      image: registry.fedoraproject.org/fedora:latest
+      options: --privileged
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: alegamestation-os
+            iso: AleGamestation-OS-Installer
+          - image: alegamestation-os-nvidia
+            iso: AleGamestation-OS-NVIDIA-Installer
+    steps:
+      - name: Werkzeuge installieren
+        run: dnf install -y --setopt=install_weak_deps=False lorax xorriso isomd5sum curl git gh
+
+      - uses: actions/checkout@v5
+
+      - name: Installer-ISO bauen
+        run: |
+          VER="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' package.json | head -1)"
+          os/installer/build-iso.sh "ghcr.io/aleb-roni/${{ matrix.image }}:stable" "dist/${{ matrix.iso }}-$VER.iso"
+          SIZE=$(stat -c %s "dist/${{ matrix.iso }}-$VER.iso")
+          echo "Größe: $((SIZE / 1048576)) MB"
+          [ "$SIZE" -lt 2000000000 ] || { echo "ISO zu groß für GitHub-Releases" >&2; exit 1; }
+
+      - name: Zum Release hinzufügen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          VER="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' package.json | head -1)"
+          gh release upload "v$VER" "dist/${{ matrix.iso }}-$VER.iso" --repo "$GITHUB_REPOSITORY" --clobber

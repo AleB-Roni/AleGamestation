@@ -14,21 +14,36 @@ komplettes System-Abbild. Geht etwas schief, startest du einfach die vorige Vers
 
 ## Installation
 
-1. **Bazzite (Deck-Edition) installieren:** Auf [bazzite.gg](https://bazzite.gg) „Bazzite Deck“ für deine
-   Grafik wählen (AMD/Intel bzw. NVIDIA), das ISO auf einen USB-Stick schreiben (z. B. mit Fedora Media Writer
-   oder balenaEtcher), davon starten und installieren.
-2. **Auf AleGamestation OS umstellen:** Nach dem ersten Start zum Desktop wechseln (im Steam-Spielmodus:
-   Ein/Aus → „Zum Desktop wechseln“), ein Terminal (Konsole) öffnen und eingeben:
-   ```bash
-   sudo bootc switch ghcr.io/aleb-roni/alegamestation-os:stable
-   ```
-   (NVIDIA: `alegamestation-os-nvidia:stable`), danach neu starten.
-3. Fertig. Der Rechner startet jetzt direkt in AleGamestation. Beim ersten Start richtet das System im
-   Hintergrund die Emulatoren (Flatpak), die RetroArch-Cores und die ROM-Ordner unter `~/ROMs` ein.
-   Das dauert je nach Internet ein paar Minuten. Den Fortschritt siehst du unten rechts.
+### Mit dem AleGamestation-OS-Installer (empfohlen)
 
-> Hinweis: Das Abbild liegt in der GitHub Container Registry. Falls `bootc switch` „unauthorized“ meldet,
-> unter GitHub → Profil → Packages → `alegamestation-os` → Package settings die Sichtbarkeit auf **Public** stellen.
+1. Aus dem neuesten [Release](https://github.com/AleB-Roni/AleGamestation/releases/latest) herunterladen:
+   - `AleGamestation-OS-Installer-<version>.iso` für AMD/Intel (z. B. Ryzen 5600G mit integrierter Grafik)
+   - `AleGamestation-OS-NVIDIA-Installer-<version>.iso` für NVIDIA-Grafikkarten
+2. Das ISO auf einen USB-Stick schreiben (z. B. mit [Fedora Media Writer](https://fedoraproject.org/workstation/download),
+   [balenaEtcher](https://etcher.balena.io) oder [Rufus](https://rufus.ie) im „DD-Modus“).
+3. Den Rechner per **LAN-Kabel** ans Internet anschließen (WLAN geht im Installer auch, Kabel ist einfacher) und vom Stick starten.
+4. Im Installer (Deutsch ist voreingestellt):
+   - **Installationsziel:** Festplatte wählen (Achtung: Inhalte werden überschrieben, wenn du „automatisch“ wählst)
+   - **Benutzer anlegen:** Name und Passwort. Dieser Benutzer wird automatisch angemeldet
+   - „Installation beginnen“. AleGamestation OS wird jetzt aus dem Internet geladen (ca. 8 GB, dauert etwas)
+5. Neu starten und den Stick abziehen. Der Rechner startet direkt in AleGamestation. Beim ersten Start werden
+   im Hintergrund die Emulatoren eingerichtet.
+
+**Secure Boot:** Ist Secure Boot im BIOS an, erscheint nach der Installation einmalig ein blauer Bildschirm
+„MOK management“: **Enroll MOK → Continue → Yes**, Passwort **`universalblue`**, dann **Reboot**. Alternativ
+Secure Boot im BIOS ausschalten.
+
+### Alternativ: bestehendes Bazzite umstellen
+
+Bazzite (Deck-Edition) von [bazzite.gg](https://bazzite.gg) installieren, im Desktop ein Terminal öffnen und
+```bash
+sudo bootc switch ghcr.io/aleb-roni/alegamestation-os:stable
+```
+(NVIDIA: `alegamestation-os-nvidia:stable`) ausführen, dann neu starten.
+
+> Hinweis: Installer und Updates laden das System aus der GitHub Container Registry. Die Pakete
+> `alegamestation-os` und `alegamestation-os-nvidia` müssen dafür auf GitHub **öffentlich** sein
+> (Profil → Packages → Paket → Package settings → Change visibility → Public).
 
 ## Bedienung
 
@@ -63,6 +78,9 @@ os/
     usr/share/gamescope-session-plus/sessions.d/alegamestation   Gamescope-Sitzung
     usr/share/wayland-sessions/gamescope-session-alegamestation.desktop
     etc/sddm.conf.d/zz-zz-alegamestation.conf   Autologin in den Spielmodus
+  installer/
+    alegamestation.ks                 Kickstart: installiert das Abbild aus der Registry (ostreecontainer)
+    build-iso.sh                      Fedora-netinst-ISO + Kickstart → Installer-ISO (mkksiso)
 ```
 
-Gebaut wird automatisch im Release-Workflow (`build-linux` → `build-os`), für beide Varianten.
+Gebaut wird automatisch im Release-Workflow (`build-linux` → `build-os` → `build-iso`), für beide Varianten.
