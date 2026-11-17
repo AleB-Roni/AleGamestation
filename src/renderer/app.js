@@ -1215,6 +1215,11 @@
     App.toast('Wechsle zum Desktop …', 'info', 5000);
     try { await api.osSession('desktop'); } catch (e) { App.toast(osErr(e), 'error', 8000); }
   };
+  App.osGameMode = async function () {
+    if (!(await App.confirm('Zum Spielmodus wechseln?', 'Der Desktop wird beendet und AleGamestation startet im Spielmodus (Vollbild über Gamescope).', 'Wechseln'))) return;
+    App.toast('Wechsle zum Spielmodus …', 'info', 5000);
+    try { await api.osSession('game'); } catch (e) { App.toast(osErr(e), 'error', 8000); }
+  };
   App.osUpdate = async function () {
     if (!(await App.confirm('System aktualisieren?', 'Lädt die neueste Version von AleGamestation OS (inkl. App). Aktiv nach dem nächsten Neustart. Das kann einige Minuten dauern.', 'Aktualisieren'))) return;
     App.toast('Suche nach System-Updates …', 'info', 4000);
@@ -1271,7 +1276,9 @@
       items: [
         ...(App.update && App.update.status === 'ready' ? [{ label: `Update auf v${App.update.available} installieren`, icon: 'update', hint: 'App startet neu', action: () => { App.closeMenu(); App.installUpdate(); } }] : []),
         ...(App.os && App.os.os ? [
-          { label: 'Zum Linux-Desktop wechseln', icon: 'monitor', hint: 'Strg+Alt+D', action: () => { App.closeMenu(); App.osDesktop(); } },
+          App.os.gamescope
+            ? { label: 'Zum Linux-Desktop wechseln', icon: 'monitor', hint: 'Strg+Alt+D', action: () => { App.closeMenu(); App.osDesktop(); } }
+            : { label: 'Zum Spielmodus wechseln', icon: 'tv', hint: 'AleGamestation im Vollbild', action: () => { App.closeMenu(); App.osGameMode(); } },
           { label: 'System aktualisieren', icon: 'refresh', hint: App.os.version ? `AleGamestation OS ${App.os.version}` : '', action: () => { App.closeMenu(); App.osUpdate(); } },
           { label: 'Emulatoren laden & aktualisieren', icon: 'download', hint: 'Eden, RetroArch, Dolphin …', action: () => { App.closeMenu(); openSettings('emudl'); } }
         ] : [

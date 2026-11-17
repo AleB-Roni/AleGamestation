@@ -767,7 +767,7 @@ function createWindow() {
       win.webContents.send('window:fullscreen', on);
     }
     // Strg+Alt+D: auf AleGamestation OS zum Linux-Desktop wechseln
-    if (input.type === 'keyDown' && input.control && input.alt && String(input.key).toLowerCase() === 'd' && linuxOs.isOS()) {
+    if (input.type === 'keyDown' && input.control && input.alt && String(input.key).toLowerCase() === 'd' && linuxOs.isOS() && linuxOs.inGamescope()) {
       e.preventDefault();
       send('os:askDesktop');
     }
@@ -1329,7 +1329,9 @@ ipcMain.handle('bt:running', () => btPair.running);
 ipcMain.handle('os:info', () => linuxOs.info());
 ipcMain.handle('os:session', async (_e, mode) => {
   debug.info('os', `Wechsel in den ${mode === 'desktop' ? 'Desktop' : 'Spielmodus'}`);
-  if (mode === 'desktop') { await leaveConsoleMode().catch(() => {}); quitting = true; }
+  // Aus dem Spielmodus in den Desktop: vorher aufräumen. Im Desktop selbst wird nicht abgemeldet.
+  if (mode === 'desktop' && !linuxOs.inGamescope()) throw new Error('Du bist schon im Desktop');
+  if (mode === 'desktop' || mode === 'game') { await leaveConsoleMode().catch(() => {}); quitting = true; }
   return linuxOs.switchSession(mode);
 });
 ipcMain.handle('os:setupEmulators', async () => {

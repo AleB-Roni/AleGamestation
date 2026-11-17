@@ -10,6 +10,15 @@ case "$mode" in desktop|game|steam) ;; *) echo "Unbekannter Modus: $mode" >&2; e
 # Anmelde-Sitzung für den nächsten automatischen Login festlegen (braucht root → pkexec, ohne Passwort für wheel)
 pkexec /usr/libexec/alegamestation-session-select "$mode"
 
+# Schon im gewünschten Modus? Dann nur die Einstellung merken – nicht abmelden
+# (sonst startet z.B. der Desktop unnötig neu und KDE stürzt dabei gelegentlich ab)
+in_gamescope=0
+systemctl --user is-active --quiet 'gamescope-session-plus@*.service' && in_gamescope=1
+if [ "$mode" = desktop ] && [ "$in_gamescope" = 0 ]; then
+  echo "Schon im Desktop – nächster Start: Desktop"
+  exit 0
+fi
+
 # Aktuelle Sitzung beenden – SDDM meldet automatisch in der neuen Sitzung an
 if systemctl --user is-active --quiet 'gamescope-session-plus@*.service'; then
   systemctl --user stop 'gamescope-session-plus@*.service' || true

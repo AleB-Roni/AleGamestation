@@ -5,7 +5,8 @@ Wants=network-online.target
 ConditionPathExists=!%h/.config/alegamestation-os/setup-done
 
 [Service]
-Type=oneshot
+# exec statt oneshot: darf den Start des Spielmodus nicht aufhalten (dauert beim ersten Start ~15 Minuten)
+Type=exec
 ExecStart=/usr/libexec/alegamestation-firstboot
 Restart=on-failure
 RestartSec=60

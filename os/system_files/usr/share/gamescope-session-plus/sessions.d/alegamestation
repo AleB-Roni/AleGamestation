@@ -2,6 +2,11 @@
 export ALEGAMESTATION_OS=1
 CLIENTCMD="/usr/bin/alegamestation --gamescope"
 
+# Gamescope OHNE „--steam“ starten: Im Steam-Modus zeigt Gamescope nur Fenster an, die der Steam-Client freigibt
+# (Fokus über Steam-App-IDs) – AleGamestation und die daraus gestarteten Spiele blieben schwarz.
+# Ohne den Modus bekommt das jeweils neueste Fenster (App bzw. gestartetes Spiel) den Fokus.
+GAMESCOPECMD="/usr/bin/gamescope --prefer-output ${OUTPUT_CONNECTOR:-*,eDP-1} --xwayland-count 2 --hide-cursor-delay 3000 --fade-out-duration 200"
+
 # Ohne nutzbare Grafik (z.B. Hyper-V, manche VMs, fehlender Treiber) bleibt Gamescope schwarz:
 # dann gleich den Desktop starten statt eines schwarzen Bildschirms.
 if [ -x /usr/libexec/alegamestation-gpu-check ] && ! /usr/libexec/alegamestation-gpu-check; then

@@ -32,6 +32,7 @@ function info() {
 /** In den Desktop- (desktop) oder Spielmodus (game) wechseln – meldet die Sitzung ab, SDDM meldet neu an */
 function switchSession(mode) {
   if (!isOS()) return Promise.reject(new Error('Nur auf AleGamestation OS verfügbar'));
+  // Schon im Desktop (App läuft dort als Fenster): nicht abmelden – das Skript merkt sich nur den Modus
   return new Promise((resolve, reject) => {
     execFile(SESSION_CMD, [mode === 'desktop' ? 'desktop' : mode === 'steam' ? 'steam' : 'game'], { timeout: 30000 }, (err, _out, stderr) => {
       if (err) reject(new Error((stderr || err.message).trim().split('\n').pop()));
