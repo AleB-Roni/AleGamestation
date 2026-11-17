@@ -14,6 +14,12 @@ ostreecontainer --url=@IMAGE@ --transport=registry --no-signature-verification
 # Hauptbenutzer in „wheel“: automatische Anmeldung im Spielmodus, Desktop-Wechsel und Updates ohne Passwort
 %post --log=/root/alegamestation-install.log
 set -x
+# Kein Benutzer im Installer angelegt? Dann Standardbenutzer „spieler“ (Passwort: alegamestation) –
+# sonst gibt es niemanden, der automatisch angemeldet werden kann
+if ! awk -F: '$3>=1000 && $3<60000 {f=1} END {exit !f}' /etc/passwd; then
+  useradd -m -u 1000 -G wheel -c "Spieler" spieler
+  echo 'spieler:alegamestation' | chpasswd
+fi
 for u in $(awk -F: '$3>=1000 && $3<60000 {print $1}' /etc/passwd); do
   usermod -aG wheel "$u" || true
 done

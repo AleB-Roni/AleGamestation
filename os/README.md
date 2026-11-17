@@ -24,7 +24,8 @@ komplettes System-Abbild. Geht etwas schief, startest du einfach die vorige Vers
 3. Den Rechner per **LAN-Kabel** ans Internet anschließen (WLAN geht im Installer auch, Kabel ist einfacher) und vom Stick starten.
 4. Im Installer (Deutsch ist voreingestellt):
    - **Installationsziel:** Festplatte wählen (Achtung: Inhalte werden überschrieben, wenn du „automatisch“ wählst)
-   - **Benutzer anlegen:** Name und Passwort. Dieser Benutzer wird automatisch angemeldet
+   - **Benutzer erstellen:** Name und Passwort, Haken bei „Diesen Benutzer zum Administrator machen“. Dieser Benutzer wird
+     automatisch angemeldet. Legst du keinen an, erstellt der Installer `spieler` mit dem Passwort `alegamestation`
    - „Installation beginnen“. AleGamestation OS wird jetzt aus dem Internet geladen (ca. 8 GB, dauert etwas)
 5. Neu starten und den Stick abziehen. Der Rechner startet direkt in AleGamestation. Beim ersten Start werden
    im Hintergrund die Emulatoren eingerichtet.
