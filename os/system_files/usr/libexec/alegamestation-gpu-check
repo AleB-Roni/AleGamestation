@@ -1,0 +1,16 @@
+#!/usr/bin/bash
+# Gibt es eine Grafik, mit der der Gamescope-Spielmodus läuft?
+#   Exit 0 = ja, 1 = nein (z.B. Hyper-V ohne GPU, VM ohne 3D, kein Treiber)
+# Gamescope braucht einen Render-Knoten (/dev/dri/renderD*) mit Vulkan-Treiber.
+shopt -s nullglob
+nodes=(/dev/dri/renderD*)
+[ ${#nodes[@]} -gt 0 ] || exit 1
+
+# Hyper-V hat zwar ein Bild, aber keine 3D-Grafik (außer mit GPU-Partitionierung, dann gibt es renderD + echten Treiber)
+for n in "${nodes[@]}"; do
+  drv="$(basename "$(readlink -f "/sys/class/drm/$(basename "$n")/device/driver" 2>/dev/null)" 2>/dev/null)"
+  case "$drv" in
+    amdgpu|radeon|i915|xe|nouveau|nvidia|virtio-pci|virtio_gpu|vmwgfx) exit 0 ;;
+  esac
+done
+exit 1

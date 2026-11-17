@@ -57,6 +57,11 @@ sudo bootc switch ghcr.io/aleb-roni/alegamestation-os:stable
 - **Emulatoren ergänzen/reparieren:** ☰-Menü → „Emulatoren einrichten / ergänzen“.
 - **ROMs:** in `~/ROMs/<konsole>` kopieren, z. B. über den Desktop, per Netzwerkfreigabe oder über RomM.
 
+**Ohne passende Grafik** (z. B. in Hyper-V oder einer VM ohne 3D-Beschleunigung) kann der Gamescope-Spielmodus
+nicht laufen. AleGamestation OS erkennt das und startet dann den Desktop mit AleGamestation als normalem Fenster
+statt eines schwarzen Bildschirms. In Hyper-V vor der Installation **Secure Boot ausschalten**
+(VM-Einstellungen → Sicherheit), mindestens 8 GB RAM und 64 GB Festplatte.
+
 ## Was ist drin?
 
 - AleGamestation (die gleiche App wie unter Windows, inkl. RomM, Home Assistant, Spotify, Bildschirmtastatur …)

@@ -2,6 +2,14 @@
 export ALEGAMESTATION_OS=1
 CLIENTCMD="/usr/bin/alegamestation --gamescope"
 
+# Ohne nutzbare Grafik (z.B. Hyper-V, manche VMs, fehlender Treiber) bleibt Gamescope schwarz:
+# dann gleich den Desktop starten statt eines schwarzen Bildschirms.
+if [ -x /usr/libexec/alegamestation-gpu-check ] && ! /usr/libexec/alegamestation-gpu-check; then
+  echo "AleGamestation: keine Grafik für den Spielmodus gefunden – starte den Desktop" >&2
+  pkexec /usr/libexec/alegamestation-session-select desktop || true
+  exit 0
+fi
+
 # Stürzt die App beim Start mehrfach ab: zum Desktop, damit man das System trotzdem bedienen kann
 short_session_recover() {
   pkexec /usr/libexec/alegamestation-session-select desktop || true

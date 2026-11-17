@@ -20,7 +20,8 @@ RUN set -eux; \
     chmod 4755 /usr/lib/alegamestation/chrome-sandbox; \
     ln -sf /usr/lib/alegamestation/alegamestation /usr/bin/alegamestation-app; \
     chmod 0755 /usr/bin/alegamestation /usr/bin/alegamestation-session /usr/bin/return-to-gamemode \
-               /usr/libexec/alegamestation-session-select /usr/libexec/alegamestation-firstboot /usr/libexec/alegamestation-os-update; \
+               /usr/libexec/alegamestation-session-select /usr/libexec/alegamestation-firstboot /usr/libexec/alegamestation-os-update \
+               /usr/libexec/alegamestation-gpu-check; \
     echo "${APP_VERSION}" > /usr/share/alegamestation/os-version; \
     # xprop: eigene Fenster (Overlay, Tastatur) als Gamescope-Overlay markieren; unzip: RetroArch-Cores
     dnf5 install -y --setopt=install_weak_deps=False xprop unzip || dnf install -y xprop unzip; \
