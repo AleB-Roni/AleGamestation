@@ -636,6 +636,37 @@
       }
     },
     {
+      id: 'emudl', title: 'Emulatoren laden', rows: () => {
+        if (!C().emuManager) C().emuManager = { autoUpdate: true, installed: {}, sources: [] };
+        const M = () => C().emuManager;
+        const list = S.emuList;
+        const busy = S.emuBusy || {};
+        const rows = [
+          group('Emulatoren', App.os && App.os.os ? 'Flathub und Release-Seiten – per Knopfdruck' : 'Release-Seiten (GitHub, Forgejo …) – per Knopfdruck'),
+          { ...toggle('Automatisch aktualisieren', M, 'autoUpdate', 'Installierte Emulatoren täglich auf neue Versionen prüfen und aktualisieren (nicht während eines Spiels)'), get: () => M().autoUpdate !== false },
+          button('Nach Updates suchen', () => loadEmuList(true))
+        ];
+        if (!list) rows.push({ type: 'info', label: 'Lade Liste …', desc: 'Prüft installierte Versionen und die neuesten Releases', get: () => '' });
+        else {
+          const upd = list.filter((r) => r.installed && r.update);
+          if (upd.length) rows.push(button(`Alle aktualisieren (${upd.length})`, async () => {
+            App.toast('Aktualisiere Emulatoren …', 'info', 3000);
+            try { const done = await api.emuMgrUpdateAll(); App.toast(done.length ? `✔ Aktualisiert: ${done.join(', ')}` : 'Nichts zu aktualisieren', 'ok', 6000); } catch (e) { App.toast(cleanErr(e), 'error', 8000); }
+            loadEmuList(true);
+          }));
+          for (const r of list.filter((x) => !x.custom)) rows.push(emuRow(r, busy[r.id]));
+          rows.push(group('Eigene Quellen', 'GitHub-, Forgejo- oder Codeberg-Repository bzw. Release-Seite'));
+          for (const r of list.filter((x) => x.custom)) rows.push(emuRow(r, busy[r.id]));
+        }
+        rows.push(button('Eigene Quelle hinzufügen …', () => {
+          const id = 'eigen-' + Date.now().toString(36);
+          M().sources = [...(M().sources || []), { id, name: 'Neuer Emulator', url: '', asset: '', exe: '', args: '"{rom}"', prerelease: false }];
+          openEmuSource(id);
+        }));
+        return rows;
+      }
+    },
+    {
       id: 'romm', title: 'RomM', rows: () => {
         if (!C().romm) C().romm = { enabled: false, url: '', token: '', user: '', password: '', recommend: true, serverRow: true, platformMap: {} };
         const R = () => C().romm;
@@ -1044,6 +1075,81 @@
     });
   }
 
+  // ---------- Emulatoren laden ----------
+  async function loadEmuList(online = true) {
+    if (online) S.emuList = S.emuList || null;
+    try { S.emuList = await api.emuMgrList({ checkOnline: online }); } catch (e) { App.toast(cleanErr(e), 'error', 6000); S.emuList = S.emuList || []; }
+    if (SECTIONS[S.section].id === 'emudl') render();
+  }
+  const fmtMB = (b) => (b ? (b >= 1073741824 ? (b / 1073741824).toFixed(1).replace('.', ',') + ' GB' : Math.max(1, Math.round(b / 1048576)) + ' MB') : '');
+  function emuRow(r, step) {
+    const state = step ? step : r.installed ? (r.update ? `Update: ${r.latest || 'neu'}` : r.version ? r.version : 'installiert') : r.error ? 'nicht erreichbar' : 'nicht installiert';
+    const desc = [r.console, r.installed ? `installiert${r.version ? ' ' + r.version : ''}` : r.latest ? `neueste: ${r.latest}${r.size ? ' · ' + fmtMB(r.size) : ''}` : '', r.kind === 'flatpak' ? 'Flathub' : r.source, r.error && !r.installed ? r.error : ''].filter(Boolean).join('  ·  ');
+    return {
+      type: 'item', label: r.name, desc, status: step ? 'off' : r.installed ? (r.update ? 'off' : 'ok') : r.error ? 'bad' : '', statusText: state,
+      action: () => emuMenu(r)
+    };
+  }
+  function emuMenu(r) {
+    const doInstall = async () => {
+      App.closeMenu();
+      App.toast(`${r.installed ? 'Aktualisiere' : 'Installiere'} ${r.name} …`, 'info', 3000);
+      try { await api.emuMgrInstall(r.id); App.toast(`✔ ${r.name} ${r.installed ? 'aktualisiert' : 'installiert'}`, 'ok', 5000); } catch (e) { App.toast(cleanErr(e), 'error', 9000); }
+      loadEmuList(false);
+    };
+    const items = [];
+    if (!r.installed) items.push({ label: 'Installieren', icon: 'download', hint: r.latest || '', action: doInstall });
+    else {
+      items.push({ label: r.update ? `Aktualisieren auf ${r.latest || 'neue Version'}` : 'Neu installieren / aktualisieren', icon: 'refresh', action: doInstall });
+      items.push({ label: 'Entfernen', icon: 'trash', action: async () => {
+        App.closeMenu();
+        if (!(await App.confirm(`${r.name} entfernen?`, 'Die Programmdateien werden gelöscht. Spielstände und Einstellungen des Emulators bleiben normalerweise erhalten.', 'Entfernen'))) return;
+        try { await api.emuMgrRemove(r.id); App.toast(`${r.name} entfernt`, 'info', 4000); } catch (e) { App.toast(cleanErr(e), 'error', 8000); }
+        loadEmuList(false);
+      } });
+    }
+    if (r.custom) items.push({ label: 'Quelle bearbeiten …', icon: 'settings', action: () => { App.closeMenu(); openEmuSource(r.id); } });
+    App.menu({ title: r.name, text: [r.console, r.kind === 'flatpak' ? 'Quelle: Flathub' : `Quelle: ${esc(r.source || '')}`].filter(Boolean).join('<br>'), items });
+  }
+  function openEmuSource(id) {
+    openDetail(() => {
+      const list = C().emuManager.sources || [];
+      const i = list.findIndex((x) => x.id === id);
+      if (i < 0) return null;
+      const o = () => C().emuManager.sources[i];
+      const emuOpts = [{ value: o().id, label: 'Eigener Eintrag' }].concat(C().emulators.map((e) => ({ value: e.id, label: e.name })));
+      return {
+        title: o().name || 'Eigene Quelle',
+        rows: [
+          text('Name', o, 'name', 'z.B. Ryujinx'),
+          text('Adresse', o, 'url', 'Repository oder Release-Seite, z.B. https://github.com/name/projekt oder https://git.eden-emu.dev/eden-emu/eden'),
+          text('Dateifilter (optional)', o, 'asset', 'Welche Datei aus dem Release: Platzhalter * erlaubt, z.B. *linux*x86_64*.AppImage – leer = automatisch'),
+          text('Startdatei (optional)', o, 'exe', 'Bei ZIP/Archiven: Name der .exe bzw. des Programms, z.B. Ryujinx.exe'),
+          text('Start-Argumente', o, 'args', 'Platzhalter {rom} – z.B. -f "{rom}"'),
+          { ...select('Als Emulator', o, 'emu', emuOpts, 'Vorhandenen Emulator-Eintrag aktualisieren oder neuen anlegen'), get: () => o().emu || o().id },
+          toggle('Vorabversionen verwenden', o, 'prerelease', 'Auch „Pre-Release“-Versionen laden (manche Projekte veröffentlichen nur solche)'),
+          button('Quelle prüfen', async () => {
+            await App.save({ immediate: true });
+            try { const r = await api.emuMgrTest({ url: o().url, asset: o().asset, prerelease: o().prerelease }); App.toast(`✔ ${r.version}: ${r.name}${r.size ? ' (' + fmtMB(r.size) + ')' : ''}`, 'ok', 8000); } catch (e) { App.toast(cleanErr(e), 'error', 9000); }
+          }),
+          button('Jetzt installieren', async () => {
+            await App.save({ immediate: true });
+            App.toast(`Installiere ${o().name} …`, 'info', 3000);
+            try { await api.emuMgrInstall(o().id); App.toast(`✔ ${o().name} installiert`, 'ok', 5000); } catch (e) { App.toast(cleanErr(e), 'error', 9000); }
+            loadEmuList(false);
+          }),
+          button('Quelle löschen', async () => {
+            if (!(await App.confirm('Quelle löschen?', 'Die Quelle wird aus der Liste entfernt. Ein bereits installierter Emulator bleibt erhalten.', 'Löschen'))) return;
+            C().emuManager.sources.splice(i, 1);
+            await commit(false);
+            closeDetail();
+            loadEmuList(false);
+          }, { danger: true })
+        ]
+      };
+    });
+  }
+
   function cleanErr(e) {
     return String((e && e.message) || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
   }
@@ -1298,6 +1404,15 @@
       api.tvStatus().then((t) => { S.tv = t; if (SECTIONS[S.section].id === 'display' && !S.detail) render(); }).catch(() => {});
       try { S.spotify = await api.spotifyStatus(); } catch { S.spotify = {}; }
       try { S.aleclip = await api.aleclipStatus(); } catch { S.aleclip = {}; }
+      if (api.emuMgrList && !S.emuList) loadEmuList(true);
+      if (api.onEmuMgrProgress && !S.emuProgressHooked) {
+        S.emuProgressHooked = true;
+        api.onEmuMgrProgress((p) => {
+          S.emuBusy = S.emuBusy || {};
+          if (p.step) S.emuBusy[p.id] = p.total ? `${p.step} ${Math.floor((p.received / p.total) * 100)} %` : p.step; else delete S.emuBusy[p.id];
+          if (App.view === 'settings' && SECTIONS[S.section].id === 'emudl' && !S.detail) render();
+        });
+      }
       if (C().romm && C().romm.enabled && C().romm.url && !S.rommPlatforms) api.rommPlatforms().then((p) => { S.rommPlatforms = p; if (SECTIONS[S.section].id === 'romm') render(); }).catch(() => {});
       try { S.update = await api.updateState(); } catch { S.update = {}; }
       render();

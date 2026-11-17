@@ -798,3 +798,79 @@ test('Linux: Flatpak-ID erkennen, sichere Ordner, Prozesse im Spielordner finden
   await new Promise((r) => setTimeout(r, 200));
   assert.deepStrictEqual(await pidsInDir(dir), []);
 });
+
+test('Emulator-Verwaltung: Quellen erkennen und passende Datei wählen (Eden, eigene Quellen)', () => {
+  const { parseSource, pickAsset, CATALOG } = require('../src/main/emu-manager');
+  const eden = parseSource('https://git.eden-emu.dev/eden-emu/eden/releases');
+  assert.strictEqual(eden.api, 'https://git.eden-emu.dev/api/v1/repos/eden-emu/eden/releases?limit=15');
+  assert.strictEqual(parseSource('stenzek/duckstation').api, 'https://api.github.com/repos/stenzek/duckstation/releases?per_page=15');
+  assert.strictEqual(parseSource('github.com/PCSX2/pcsx2/releases/tag/v2.0').repo, 'pcsx2');
+  assert.throws(() => parseSource('https://github.com/nur-ein-teil'));
+  const names = ['Eden-Linux-v0.2.1-aarch64-clang-pgo.AppImage', 'Eden-Linux-v0.2.1-amd64-clang-pgo.AppImage', 'Eden-Linux-v0.2.1-amd64-clang-pgo.AppImage.zsync',
+    'Eden-Linux-v0.2.1-amd64-gcc-standard.AppImage', 'Eden-Linux-v0.2.1-legacy-gcc-standard.AppImage', 'Eden-Windows-v0.2.1-amd64-msvc-standard.zip',
+    'Eden-Windows-v0.2.1-arm64-clang-pgo.zip', 'Eden-Android-v0.2.1-standard.apk', 'Eden-macOS-v0.2.1.dmg', 'Eden-v0.2.1.torrent'].map((name) => ({ name }));
+  const e = CATALOG.find((x) => x.id === 'eden');
+  assert.strictEqual(pickAsset(names, 'linux', e.asset.linux).name, 'Eden-Linux-v0.2.1-amd64-clang-pgo.AppImage');
+  assert.strictEqual(pickAsset(names, 'win32', e.asset.win32).name, 'Eden-Windows-v0.2.1-amd64-msvc-standard.zip');
+  // Ohne Filter: automatisch (x86_64, kein ARM, keine .zsync)
+  assert.match(pickAsset(names, 'linux').name, /amd64.*\.AppImage$/);
+  assert.strictEqual(pickAsset(names, 'win32').name, 'Eden-Windows-v0.2.1-amd64-msvc-standard.zip');
+  // Eigener Filter als Platzhalter
+  assert.strictEqual(pickAsset(names, 'linux', '*gcc-standard*').name, 'Eden-Linux-v0.2.1-amd64-gcc-standard.AppImage');
+});
+
+test('Emulator-Verwaltung: neueste Version von einer Forgejo-Release-Seite laden, eintragen, Konsole anlegen, aktualisieren', async () => {
+  const http = require('http');
+  const { EmuManager } = require('../src/main/emu-manager');
+  let version = 'v0.2.0';
+  const srv = http.createServer((req, res) => {
+    if (req.url.startsWith('/api/v1/repos/eden-emu/eden/releases')) {
+      res.setHeader('Content-Type', 'application/json');
+      return res.end(JSON.stringify([{ tag_name: version, prerelease: false, assets: [
+        { name: `Eden-Linux-${version}-amd64-clang-pgo.AppImage`, size: 4, browser_download_url: `http://127.0.0.1:${srv.address().port}/dl/eden.AppImage` },
+        { name: `Eden-Windows-${version}-amd64-msvc-standard.zip`, size: 4, browser_download_url: `http://127.0.0.1:${srv.address().port}/dl/eden.zip` }
+      ] }]));
+    }
+    if (req.url === '/dl/eden.AppImage') return res.end('#!/bin/sh\necho eden ' + version + '\n');
+    if (req.url === '/dl/eden.zip') return res.end(require('./fake-zip')([['eden.exe', 'MZ'], ['eden-room.exe', 'MZ']]));
+    res.statusCode = 404; res.end();
+  });
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ags-emus-'));
+  const conf = { emulators: [], systems: [], emuManager: { dir, installed: {}, sources: [] } };
+  const m = new EmuManager({ getConfig: () => conf, updateConfig: (fn) => fn(conf), fetch: (u, o) => fetch(u, o) });
+  // Eden-Quelle auf den Testserver umbiegen (eigene Quelle mit gleichem Aufbau)
+  conf.emuManager.sources.push({ id: 'eden-test', name: 'Eden Test', url: `http://127.0.0.1:${srv.address().port}/eden-emu/eden`, emu: 'eden', args: '-f -g "{rom}"' });
+  try {
+    let rows = await m.list();
+    const row = rows.find((r) => r.id === 'eden-test');
+    assert.deepStrictEqual([row.installed, row.latest], [false, 'v0.2.0']);
+    await m.install('eden-test');
+    const inst = conf.emuManager.installed['eden-test'];
+    assert.strictEqual(inst.version, 'v0.2.0');
+    assert.ok(fs.existsSync(inst.exe));
+    if (process.platform !== 'win32') assert.ok(fs.statSync(inst.exe).mode & 0o111, 'AppImage ausführbar');
+    assert.strictEqual(conf.emulators.find((x) => x.id === 'eden').exe, inst.exe);
+    // neue Version auf dem Server → Update erkannt und installiert
+    version = 'v0.2.1';
+    m.cache.clear();
+    rows = await m.list();
+    assert.strictEqual(rows.find((r) => r.id === 'eden-test').update, true);
+    assert.deepStrictEqual(await m.updateAll(), ['Eden Test']);
+    assert.strictEqual(conf.emuManager.installed['eden-test'].version, 'v0.2.1');
+    // Entfernen
+    await m.remove('eden-test');
+    assert.ok(!conf.emuManager.installed['eden-test']);
+    assert.ok(!fs.existsSync(path.join(dir, 'eden-test')));
+  } finally { srv.close(); }
+});
+
+test('Emulator-Verwaltung: eingebautes Eden legt die Switch-Konsole an', () => {
+  const { EmuManager } = require('../src/main/emu-manager');
+  const conf = { emulators: [], systems: [], emuManager: {} };
+  const m = new EmuManager({ getConfig: () => conf, updateConfig: (fn) => fn(conf), fetch: () => {} });
+  m.register(m.entry('eden'), '/opt/eden.AppImage', '-f -g "{rom}"');
+  assert.strictEqual(conf.emulators[0].args, '-f -g "{rom}"');
+  const sw = conf.systems.find((s) => s.id === 'switch');
+  assert.ok(sw && sw.emulator === 'eden' && sw.extensions.includes('.xci'));
+});

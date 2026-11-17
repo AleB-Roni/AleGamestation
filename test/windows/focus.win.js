@@ -119,6 +119,30 @@ function hwndOfPid(pid) {
     console.log('✔ RomM: mehrteilige Spiele (ZIP) werden entpackt');
   }
 
+  // Emulator-Verwaltung: Windows-ZIP von einer Release-Seite laden, entpacken, eden.exe finden
+  {
+    const fs = require('fs');
+    const os = require('os');
+    const http = require('http');
+    const { EmuManager } = require('../../src/main/emu-manager');
+    const srv = http.createServer((req, res) => {
+      if (req.url.startsWith('/api/v1/repos/eden-emu/eden/releases')) {
+        res.setHeader('Content-Type', 'application/json');
+        return res.end(JSON.stringify([{ tag_name: 'v0.2.1', assets: [{ name: 'Eden-Windows-v0.2.1-amd64-msvc-standard.zip', browser_download_url: `http://127.0.0.1:${srv.address().port}/eden.zip` }] }]));
+      }
+      res.end(require('../fake-zip')([['eden.exe', 'MZ'], ['eden-room.exe', 'MZ'], ['user/README.txt', 'x']]));
+    });
+    await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ags-emus-'));
+    const conf = { emulators: [], systems: [], emuManager: { dir, installed: {}, sources: [{ id: 'eden-test', url: `http://127.0.0.1:${srv.address().port}/eden-emu/eden`, emu: 'eden', exe: 'eden.exe' }] } };
+    const m = new EmuManager({ getConfig: () => conf, updateConfig: (fn) => fn(conf), fetch: (u, o) => fetch(u, o) });
+    await m.install('eden-test');
+    srv.close();
+    const exe = conf.emuManager.installed['eden-test'].exe;
+    assert.ok(/eden\.exe$/i.test(exe) && fs.existsSync(exe), 'eden.exe nicht gefunden: ' + exe);
+    console.log('✔ Emulator-Verwaltung: Windows-ZIP geladen, entpackt und eingetragen');
+  }
+
   // Bilder umwandeln über Windows (WIC): wird für TIFF/HEIC benutzt – hier mit einem BMP geprüft
   {
     const fs = require('fs');

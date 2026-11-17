@@ -1273,7 +1273,7 @@
         ...(App.os && App.os.os ? [
           { label: 'Zum Linux-Desktop wechseln', icon: 'monitor', hint: 'Strg+Alt+D', action: () => { App.closeMenu(); App.osDesktop(); } },
           { label: 'System aktualisieren', icon: 'refresh', hint: App.os.version ? `AleGamestation OS ${App.os.version}` : '', action: () => { App.closeMenu(); App.osUpdate(); } },
-          { label: 'Emulatoren einrichten / ergänzen', icon: 'download', hint: 'Flatpak + RetroArch-Cores', action: () => { App.closeMenu(); App.osSetup(); } }
+          { label: 'Emulatoren laden & aktualisieren', icon: 'download', hint: 'Eden, RetroArch, Dolphin …', action: () => { App.closeMenu(); openSettings('emudl'); } }
         ] : [
           { label: 'Nach Updates suchen', icon: 'refresh', hint: App.update && App.update.available ? `v${App.update.available} verfügbar` : `v${(App.update && App.update.version) || ''}`, action: () => { App.closeMenu(); App.updateDialog(true); } }
         ]),

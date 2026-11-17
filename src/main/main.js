@@ -1319,6 +1319,41 @@ ipcMain.handle('os:setupEmulators', async () => {
   return r;
 });
 ipcMain.handle('os:update', () => linuxOs.updateSystem((line) => send('os:progress', { kind: 'update', line })));
+// ---------- Emulatoren herunterladen / aktualisieren ----------
+const { EmuManager } = require('./emu-manager');
+const emuManager = new EmuManager({
+  getConfig: cfg,
+  updateConfig: (fn) => {
+    const c = cfg();
+    fn(c);
+    store.save(c);
+    refreshLibrary();
+    send('config:changed', store.get());
+    send('library:changed', library);
+  },
+  fetch: (u, o) => net.fetch(u, o),
+  trace: (m) => debug.info('emulatoren', m)
+});
+emuManager.on('progress', (p) => send('emumgr:progress', p));
+ipcMain.handle('emumgr:list', (_e, opts) => emuManager.list(opts || {}));
+ipcMain.handle('emumgr:install', (_e, id) => emuManager.install(id));
+ipcMain.handle('emumgr:remove', (_e, id) => emuManager.remove(id));
+ipcMain.handle('emumgr:updateAll', () => emuManager.updateAll());
+ipcMain.handle('emumgr:test', async (_e, src) => {
+  // Eigene Quelle prüfen: findet sich eine passende Datei?
+  const { parseSource } = require('./emu-manager');
+  parseSource(src.url);
+  return emuManager.latestRelease({ id: 'test', release: src.url, asset: { [process.platform === 'win32' ? 'win32' : 'linux']: src.asset || '' }, prerelease: !!src.prerelease });
+});
+/** Automatische Emulator-Updates (beim Start und täglich), nie während ein Spiel läuft */
+async function autoUpdateEmulators() {
+  const c = cfg().emuManager || {};
+  if (c.autoUpdate === false || launcher.isRunning()) return;
+  try {
+    const done = await emuManager.updateAll();
+    if (done.length) send('toast', { type: 'ok', text: `Emulatoren aktualisiert: ${done.join(', ')}`, ms: 6000 });
+  } catch (err) { debug.warn('emulatoren', 'Auto-Update: ' + err.message); }
+}
 ipcMain.handle('window:toggleFullscreen', () => toggleFullscreen());
 // Fenster (nicht Vollbild): verschieben über die obere Leiste, Minimieren/Maximieren/Schließen
 const windowState = () => (win && !win.isDestroyed() ? { full: win.isFullScreen(), max: win.isMaximized() } : { full: false, max: false });
@@ -1578,6 +1613,8 @@ app.whenReady().then(async () => {
     return list;
   }).catch(() => []);
   setTimeout(autoScrape, 8000);
+  setTimeout(autoUpdateEmulators, 90 * 1000);
+  setInterval(autoUpdateEmulators, 24 * 3600 * 1000);
   // Erst über Chromium (System-Proxy), bei Fehlern über Node erneut versuchen
   const robustFetch = async (u, o) => {
     try { const r = await net.fetch(u, o); if (r.ok) return r; } catch { /* Fallback */ }

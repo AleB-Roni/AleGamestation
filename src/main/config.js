@@ -267,6 +267,13 @@ const DEFAULT_CONFIG = {
 
   // Pro Spiel: { emulator: 'dolphin', hidden: true, name: 'Eigener Name', cover: 'C:\\bild.png' }
   gameOverrides: {},
+  // Emulatoren herunterladen/aktualisieren (Einstellungen → Emulatoren laden)
+  emuManager: {
+    autoUpdate: true,   // installierte Emulatoren täglich aktualisieren
+    dir: '',            // leer = Linux ~/Emulatoren, Windows C:\\Emulatoren
+    installed: {},      // id -> { version, exe, file, at }
+    sources: []         // eigene Quellen: { id, name, url, asset, exe, args, prerelease }
+  },
   // RomM-Server (Heimnetz): ROMs anzeigen, empfehlen, herunterladen
   romm: {
     enabled: false,
