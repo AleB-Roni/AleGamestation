@@ -19,8 +19,9 @@ komplettes System-Abbild. Geht etwas schief, startest du einfach die vorige Vers
 1. Aus dem neuesten [Release](https://github.com/AleB-Roni/AleGamestation/releases/latest) herunterladen:
    - `AleGamestation-OS-Installer-<version>.iso` für AMD/Intel (z. B. Ryzen 5600G mit integrierter Grafik)
    - `AleGamestation-OS-NVIDIA-Installer-<version>.iso` für NVIDIA-Grafikkarten
-2. Das ISO auf einen USB-Stick schreiben (z. B. mit [Fedora Media Writer](https://fedoraproject.org/workstation/download),
-   [balenaEtcher](https://etcher.balena.io) oder [Rufus](https://rufus.ie) im „DD-Modus“).
+2. Das ISO auf einen USB-Stick schreiben – **1:1**, z. B. mit [Fedora Media Writer](https://fedoraproject.org/workstation/download)
+   oder [balenaEtcher](https://etcher.balena.io). Mit [Rufus](https://rufus.ie) bei der Frage nach dem Modus unbedingt
+   **„DD-Image-Modus“** wählen (im ISO-Modus findet der Installer seinen Stick nicht: „inst.stage2 … /dev/root“). Ventoy nicht verwenden.
 3. Den Rechner per **LAN-Kabel** ans Internet anschließen (WLAN geht im Installer auch, Kabel ist einfacher) und vom Stick starten.
 4. Im Installer (Deutsch ist voreingestellt):
    - **Installationsziel:** Festplatte wählen (Achtung: Inhalte werden überschrieben, wenn du „automatisch“ wählst)

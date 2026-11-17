@@ -22,6 +22,7 @@ curl -fL --retry 3 -o "$WORK/base.iso" "$ISO_URL"
 
 sed "s|@IMAGE@|$IMAGE|g" "$HERE/alegamestation.ks" > "$WORK/alegamestation.ks"
 mkdir -p "$(dirname "$OUT")"
-# -V: Datenträgername (max. 32 Zeichen) – Kickstart wird automatisch eingebunden (inst.ks)
-mkksiso --ks "$WORK/alegamestation.ks" -V "AleGamestation-OS" "$WORK/base.iso" "$OUT"
+# Kickstart wird automatisch eingebunden (inst.ks). Datenträgername bleibt der von Fedora: Der Installer findet sich
+# darüber wieder (inst.stage2=hd:LABEL=…), und USB-Tools wie Rufus kennen ihn – ein eigener Name ließ den Start scheitern.
+mkksiso --ks "$WORK/alegamestation.ks" "$WORK/base.iso" "$OUT"
 ls -la "$OUT"
