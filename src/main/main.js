@@ -1405,6 +1405,19 @@ ipcMain.handle('os:setupEmulators', async () => {
   send('library:changed', library);
   return r;
 });
+ipcMain.handle('os:checkUpdate', () => linuxOs.checkSystemUpdate());
+/** AleGamestation OS: regelmäßig nach System-Updates suchen und in der Oberfläche fragen (nie während eines Spiels) */
+let osUpdateAnnounced = false;
+async function autoCheckSystemUpdate() {
+  if (!linuxOs.isOS() || osUpdateAnnounced || launcher.isRunning() || (cfg().general || {}).osAutoCheck === false) return;
+  try {
+    if (await linuxOs.checkSystemUpdate()) {
+      osUpdateAnnounced = true;
+      debug.info('os', 'System-Update verfügbar');
+      send('os:updateAvailable');
+    }
+  } catch (err) { debug.warn('os', 'Update-Suche: ' + err.message); }
+}
 ipcMain.handle('os:update', () => linuxOs.updateSystem((p) => send('os:progress', { kind: 'update', line: p.text || '', pct: p.pct })));
 // ---------- Emulatoren herunterladen / aktualisieren ----------
 const { EmuManager } = require('./emu-manager');
@@ -1718,6 +1731,8 @@ app.whenReady().then(async () => {
   }).catch(() => []);
   setTimeout(autoScrape, 8000);
   setTimeout(autoUpdateEmulators, 90 * 1000);
+  setTimeout(autoCheckSystemUpdate, 2 * 60 * 1000);
+  setInterval(autoCheckSystemUpdate, 6 * 3600 * 1000);
   setInterval(autoUpdateEmulators, 24 * 3600 * 1000);
   // Erst über Chromium (System-Proxy), bei Fehlern über Node erneut versuchen
   const robustFetch = async (u, o) => {

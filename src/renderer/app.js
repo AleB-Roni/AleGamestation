@@ -1220,9 +1220,9 @@
     App.toast('Wechsle zum Spielmodus …', 'info', 5000);
     try { await api.osSession('game'); } catch (e) { App.toast(osErr(e), 'error', 8000); }
   };
-  App.osUpdate = async function () {
+  App.osUpdate = async function (confirmed = false) {
     if (App.osUpdating) { App.osUpdateShow(); return; }
-    if (!(await App.confirm('System aktualisieren?', 'Lädt die neueste Version von AleGamestation OS (inkl. App). Aktiv nach dem nächsten Neustart. Das kann einige Minuten dauern.', 'Aktualisieren'))) return;
+    if (!confirmed && !(await App.confirm('System aktualisieren?', 'Lädt die neueste Version von AleGamestation OS (inkl. App). Aktiv nach dem nächsten Neustart. Das kann einige Minuten dauern.', 'Aktualisieren'))) return;
     App.osUpdating = { text: 'Suche nach System-Updates …', pct: null };
     App.osUpdateShow();
     try {
@@ -1562,6 +1562,12 @@
     // Einrichtungsmodus (Desktop-Verknüpfung): direkt die Einstellungen, ohne Fernseher & Co.
     try { App.os = (api.osInfo && (await api.osInfo())) || { os: false }; } catch { App.os = { os: false }; }
     if (api.onOsAskDesktop) api.onOsAskDesktop(() => App.osDesktop());
+    // System-Update gefunden → fragen, ob gleich aktualisiert werden soll (danach Frage nach Neustart)
+    if (api.onOsUpdateAvailable) api.onOsUpdateAvailable(async () => {
+      if (App.running || App.osUpdating) return;
+      Sounds.play('open');
+      if (await App.confirm('System-Update verfügbar', 'Eine neue Version von AleGamestation OS ist da – mit der neuesten App und allen Verbesserungen. Jetzt herunterladen? Danach kannst du direkt neu starten.', 'Jetzt aktualisieren')) App.osUpdate(true);
+    });
     if (api.onOsProgress) {
       let lastToast = 0;
       api.onOsProgress((p) => {

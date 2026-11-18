@@ -925,6 +925,10 @@ test('AleGamestation OS: System-Update zeigt Fortschritt (bootc --progress-fd) u
   fs.chmodSync(path.join(bin, 'bootc'), 0o755);
   const script = path.join(__dirname, '..', 'os', 'system_files', 'usr', 'libexec', 'alegamestation-os-update');
   const runScript = (mode) => spawnSync('bash', [script], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, FAKE_BOOTC_MODE: mode } });
+  // Nur prüfen (automatische Suche der App)
+  const check = (mode) => parseBootcProgress(spawnSync('bash', [script, '--check'], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, FAKE_BOOTC_MODE: mode } }).stdout.trim());
+  assert.deepStrictEqual(check('update'), { check: true, update: true });
+  assert.deepStrictEqual(check('current'), { check: true, update: false });
   // Kein Update
   let r = runScript('current');
   assert.strictEqual(r.status, 0);

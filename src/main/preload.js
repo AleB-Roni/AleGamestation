@@ -91,6 +91,8 @@ contextBridge.exposeInMainWorld('api', {
   osSession: (mode) => ipcRenderer.invoke('os:session', mode),
   osSetupEmulators: () => ipcRenderer.invoke('os:setupEmulators'),
   osUpdate: () => ipcRenderer.invoke('os:update'),
+  osCheckUpdate: () => ipcRenderer.invoke('os:checkUpdate'),
+  onOsUpdateAvailable: on('os:updateAvailable'),
   onOsProgress: on('os:progress'),
   onOsAskDesktop: on('os:askDesktop'),
   rommTest: () => ipcRenderer.invoke('romm:test'),

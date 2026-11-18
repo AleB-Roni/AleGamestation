@@ -53,7 +53,7 @@ sudo bootc switch ghcr.io/aleb-roni/alegamestation-os:stable
 - **Spielmodus** (Standard): AleGamestation im Vollbild über Gamescope. Spiele und Emulatoren laufen darin.
 - **Zum Linux-Desktop:** ☰-Menü → „Zum Linux-Desktop wechseln“, oder **Strg+Alt+D**.
 - **Zurück zu AleGamestation:** Desktop-Symbol „Zurück zu AleGamestation“ (auch im Startmenü unter Spiele).
-- **System aktualisieren:** ☰-Menü → „System aktualisieren“. Das lädt das neueste Abbild samt neuester App.
+- **System aktualisieren:** AleGamestation sucht beim Start und alle 6 Stunden selbst nach Updates und fragt, ob gleich aktualisiert werden soll (abschaltbar: Einstellungen → System → Allgemein). Manuell: ☰-Menü → „System aktualisieren“. Das lädt das neueste Abbild samt neuester App.
   Aktiv wird es nach dem Neustart. Neue App-Versionen landen automatisch im Abbild, sobald ein Release
   erstellt wird.
 - **Emulatoren ergänzen/reparieren:** ☰-Menü → „Emulatoren einrichten / ergänzen“.

@@ -60,6 +60,16 @@ function setupEmulators(onLine) {
   return runWithProgress(FIRSTBOOT, ['--force'], onLine);
 }
 
+/** Gibt es ein System-Update? (nur prüfen, nichts laden) → true/false */
+function checkSystemUpdate() {
+  if (!fs.existsSync(UPDATE)) return Promise.resolve(false);
+  let available = false;
+  return runWithProgress('pkexec', [UPDATE, '--check'], (line) => {
+    const pr = parseBootcProgress(line);
+    if (pr && pr.check) available = pr.update;
+  }).then(() => available);
+}
+
 /** Systemupdate (bootc): neues Abbild laden – aktiv nach dem Neustart */
 /**
  * Fortschritt von bootc (--progress-fd, JSON-Zeilen) in etwas Lesbares übersetzen.
@@ -71,6 +81,7 @@ function parseBootcProgress(line) {
   try { e = JSON.parse(line); } catch { return null; }
   const gb = (b) => (b >= 1073741824 ? (b / 1073741824).toFixed(1).replace('.', ',') + ' GB' : Math.round(b / 1048576) + ' MB');
   if (e.type === 'AgsDone') return { done: true, update: !!e.update };
+  if (e.type === 'AgsCheck') return { check: true, update: !!e.update };
   if (e.type === 'ProgressBytes') {
     const total = e.bytesTotal || 0;
     const pct = total ? Math.min(100, Math.floor((e.bytes / total) * 100)) : (e.stepsTotal ? Math.floor((e.steps / e.stepsTotal) * 100) : undefined);
@@ -112,4 +123,4 @@ function markOverlay(win) {
   } catch { /* ohne xprop: Fenster erscheint nur, wenn es den Fokus hat */ }
 }
 
-module.exports = { isOS, inGamescope, info, switchSession, setupEmulators, updateSystem, markOverlay, parseBootcProgress, SESSION_CMD };
+module.exports = { isOS, inGamescope, info, switchSession, setupEmulators, updateSystem, checkSystemUpdate, markOverlay, parseBootcProgress, SESSION_CMD };
