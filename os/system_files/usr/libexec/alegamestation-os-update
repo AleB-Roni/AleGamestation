@@ -1,10 +1,31 @@
 #!/usr/bin/bash
-# (root) AleGamestation OS aktualisieren – neues Abbild wird beim nächsten Neustart aktiv
-set -euo pipefail
-echo "Lade System-Update …"
+# (root) AleGamestation OS aktualisieren – neues Abbild wird beim nächsten Neustart aktiv.
+# Letzte Zeile (für die App): UPDATE_STAGED | UPDATE_NONE
+set -uo pipefail
+LOCK=/run/alegamestation-os-update.lock
+exec 9>"$LOCK"
+flock -n 9 || { echo "Es läuft bereits ein System-Update"; exit 3; }
+
+echo "Suche nach System-Updates …"
+OUT="$(mktemp)"
 if command -v bootc >/dev/null; then
-  bootc upgrade 2>&1 | sed -u 's/^/  /'
+  bootc upgrade 2>&1 | tee "$OUT" | sed -u 's/^/  /'
+  rc=${PIPESTATUS[0]}
 else
-  rpm-ostree upgrade 2>&1 | sed -u 's/^/  /'
+  rpm-ostree upgrade 2>&1 | tee "$OUT" | sed -u 's/^/  /'
+  rc=${PIPESTATUS[0]}
 fi
-echo "System-Update geladen – aktiv nach dem Neustart"
+[ "$rc" = 0 ] || { echo "System-Update fehlgeschlagen (Code $rc)"; rm -f "$OUT"; exit "$rc"; }
+
+# Ist ein neues System für den nächsten Start vorgemerkt?
+if rpm-ostree status --json 2>/dev/null | grep -q '"staged" *: *true'; then
+  echo "System-Update geladen – aktiv nach dem Neustart"
+  echo "UPDATE_STAGED"
+elif grep -qiE "no changes|no update" "$OUT"; then
+  echo "System ist aktuell"
+  echo "UPDATE_NONE"
+else
+  echo "System-Update geladen – aktiv nach dem Neustart"
+  echo "UPDATE_STAGED"
+fi
+rm -f "$OUT"

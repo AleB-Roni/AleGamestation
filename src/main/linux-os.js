@@ -61,9 +61,32 @@ function setupEmulators(onLine) {
 }
 
 /** Systemupdate (bootc): neues Abbild laden – aktiv nach dem Neustart */
-function updateSystem(onLine) {
+/** Ist schon ein neues System für den nächsten Start vorgemerkt? → Version oder '' */
+function stagedUpdate() {
+  return new Promise((resolve) => {
+    execFile('rpm-ostree', ['status', '--json'], { timeout: 15000 }, (err, out) => {
+      try {
+        const d = JSON.parse(out).deployments || [];
+        const s = d.find((x) => x.staged || (!x.booted && d.indexOf(x) === 0 && d.some((y) => y.booted) && x.version !== (d.find((y) => y.booted) || {}).version));
+        resolve(s ? String(s.version || 'neu') : '');
+      } catch { resolve(''); }
+    });
+  });
+}
+
+let updating = null;
+/** Systemupdate (bootc): neues Abbild laden – aktiv nach dem Neustart. Ergebnis: { staged, version } bzw. { none } */
+async function updateSystem(onLine) {
   if (!fs.existsSync(UPDATE)) return Promise.reject(new Error('Systemupdate nur auf AleGamestation OS verfügbar'));
-  return runWithProgress('pkexec', [UPDATE], onLine);
+  if (updating) return Promise.reject(new Error('Es läuft bereits ein System-Update'));
+  updating = (async () => {
+    const pending = await stagedUpdate();
+    if (pending) return { staged: true, version: pending, already: true };
+    const last = await runWithProgress('pkexec', [UPDATE], (l) => { if (!/^UPDATE_/.test(l)) onLine(l); });
+    if (/UPDATE_NONE/.test(last)) return { none: true };
+    return { staged: true, version: await stagedUpdate() };
+  })();
+  try { return await updating; } finally { updating = null; }
 }
 
 /**
@@ -80,4 +103,4 @@ function markOverlay(win) {
   } catch { /* ohne xprop: Fenster erscheint nur, wenn es den Fokus hat */ }
 }
 
-module.exports = { isOS, inGamescope, info, switchSession, setupEmulators, updateSystem, markOverlay, SESSION_CMD };
+module.exports = { isOS, inGamescope, info, switchSession, setupEmulators, updateSystem, stagedUpdate, markOverlay, SESSION_CMD };

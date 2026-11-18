@@ -1220,13 +1220,34 @@
     App.toast('Wechsle zum Spielmodus …', 'info', 5000);
     try { await api.osSession('game'); } catch (e) { App.toast(osErr(e), 'error', 8000); }
   };
+  App.osUpdating = false;
   App.osUpdate = async function () {
+    if (App.osUpdating) return App.toast('Das System-Update läuft bereits …', 'info', 4000);
     if (!(await App.confirm('System aktualisieren?', 'Lädt die neueste Version von AleGamestation OS (inkl. App). Aktiv nach dem nächsten Neustart. Das kann einige Minuten dauern.', 'Aktualisieren'))) return;
-    App.toast('Suche nach System-Updates …', 'info', 4000);
+    App.osUpdating = true;
+    // Fortschritt in einem Fenster (läuft auch weiter, wenn man es schließt)
+    App.menu({
+      title: 'System wird aktualisiert …',
+      text: '<span id="osUpdLine">Suche nach System-Updates …</span><br><small>Das kann einige Minuten dauern. Du kannst weiterspielen – am Ende kommt eine Meldung.</small>',
+      items: [{ label: 'Im Hintergrund weiterlaufen lassen', icon: 'later', action: () => App.closeMenu() }]
+    });
+    const off = api.onOsProgress ? api.onOsProgress((p) => {
+      const el = document.getElementById('osUpdLine');
+      if (el && p.kind === 'update' && p.line) el.textContent = p.line.trim();
+    }) : null;
     try {
-      await api.osUpdate();
-      if (await App.confirm('Update bereit', 'Das neue System ist geladen. Jetzt neu starten?', 'Neu starten')) api.power('restart');
-    } catch (e) { App.toast(osErr(e), 'error', 9000); }
+      const r = await api.osUpdate();
+      if (document.getElementById('osUpdLine')) App.closeMenu();
+      if (r && r.none) App.toast('✔ System ist aktuell', 'ok', 5000);
+      else if (await App.confirm('Update bereit', `${r && r.already ? 'Ein neues System ist bereits geladen' : 'Das neue System ist geladen'}${r && r.version ? ` (Version ${esc(r.version)})` : ''}. Aktiv wird es nach dem Neustart. Jetzt neu starten?`, 'Neu starten')) api.power('restart');
+      else App.toast('Update wird beim nächsten Neustart aktiv', 'info', 5000);
+    } catch (e) {
+      if (document.getElementById('osUpdLine')) App.closeMenu();
+      App.toast(osErr(e), 'error', 9000);
+    } finally {
+      App.osUpdating = false;
+      if (typeof off === 'function') off();
+    }
   };
   App.osSetup = async function () {
     App.toast('Richte Emulatoren ein – das kann einige Minuten dauern …', 'info', 6000);
@@ -1537,7 +1558,7 @@
     if (api.onOsAskDesktop) api.onOsAskDesktop(() => App.osDesktop());
     if (api.onOsProgress) {
       let lastToast = 0;
-      api.onOsProgress((p) => { if (Date.now() - lastToast > 1500) { lastToast = Date.now(); App.toast(p.line, 'info', 2500); } });
+      api.onOsProgress((p) => { if (p.kind === 'update' && (App.osUpdating || document.getElementById('osUpdLine'))) return; if (Date.now() - lastToast > 1500) { lastToast = Date.now(); App.toast(p.line, 'info', 2500); } });
     }
     let mode = {};
     try { mode = (await api.appMode()) || {}; } catch { mode = {}; }
