@@ -428,7 +428,17 @@
         ], 'Welche Symbole in der Oberfläche angezeigt werden'),
         toggle('PlayStation-Controller direkt unterstützen', () => C().controller, 'playstationHid', 'DualSense / DualShock 4 per USB oder Bluetooth – Beenden-Kombination funktioniert ohne Steam Input oder DS4Windows'),
         group('Ohne Controller', 'Tastatur während eines Spiels'),
-        { ...toggle('Tastenkürzel im Spiel', () => C().controller, 'keyboardShortcuts', 'Shift+Tab = Overlay (dort Pfeiltasten, Enter, Esc) · Alt+F4 oder Strg+Q = Spiel beenden'), get: () => C().controller.keyboardShortcuts !== false },
+        { ...toggle('Tastenkürzel im Spiel', () => C().controller, 'keyboardShortcuts', 'Overlay und Spiel beenden per Tastatur – im Overlay: Pfeiltasten, Enter, Esc'), get: () => C().controller.keyboardShortcuts !== false },
+        ...(C().controller.keyboardShortcuts !== false ? [
+          { ...select('Overlay öffnen', () => C().controller, 'overlayKey', [
+            { value: 'Shift+Tab', label: 'Shift+Tab' }, { value: 'Control+Shift+O', label: 'Strg+Shift+O' }, { value: 'Control+Alt+O', label: 'Strg+Alt+O' },
+            { value: 'Alt+O', label: 'Alt+O' }, { value: 'F10', label: 'F10' }, { value: 'off', label: 'Aus' }
+          ], 'Bei Steam-Spielen unter Windows gehört Shift+Tab dem Steam-Overlay – dort gilt dann Strg+Shift+O'), get: () => C().controller.overlayKey || 'Shift+Tab' },
+          { ...select('Spiel beenden', () => C().controller, 'quitKey', [
+            { value: 'Alt+F4|Control+Q', label: 'Alt+F4 oder Strg+Q' }, { value: 'Alt+F4', label: 'Alt+F4' }, { value: 'Control+Q', label: 'Strg+Q' },
+            { value: 'Control+Shift+Q', label: 'Strg+Shift+Q' }, { value: 'off', label: 'Aus' }
+          ], 'Beendet das laufende Spiel bzw. den Emulator sofort'), get: () => C().controller.quitKey || 'Alt+F4|Control+Q' }
+        ] : []),
         group('Maus & Tastatur per Controller', 'z.B. für Launcher-Fenster, Logins, Browser'),
         select('Tastenkombination „Maussteuerung“', () => C().controller, 'mouseModeCombo', comboOptions(C().controller.mouseModeCombo), 'Ein-/Ausschalten – funktioniert überall in Windows'),
         button('Kombination „Maussteuerung“ aufnehmen …', () => recordCombo('mouseModeCombo')),

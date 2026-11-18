@@ -54,6 +54,7 @@ Alle Spiele (Steam, Epic, GOG, eigene) und Emulator-Spiele in einer modernen Obe
 - Autostart mit Windows, Vollbild auf wählbarem Bildschirm, Mauszeiger wird ausgeblendet
 
 **Controller**
+- **Ohne Controller spielen** (Windows und AleGamestation OS): Während ein Spiel läuft, öffnet **Shift+Tab** das Overlay (darin Pfeiltasten, Enter, Esc) und **Alt+F4** bzw. **Strg+Q** beendet das Spiel. Tasten einstellbar unter Einstellungen → Controller → Ohne Controller. Bei Steam-Spielen unter Windows gehört Shift+Tab dem Steam-Overlay – dort öffnet **Strg+Shift+O** das AleGamestation-Overlay
 - **PS5-Controller verbinden** (☰ Menü, Overlay → System oder Einstellungen → Controller): PS + Create gedrückt halten, bis das Licht schnell blinkt, dann „Suche starten“. Gekoppelte, aber nicht verbundene PS-Controller werden vorher aus Windows entfernt (Windows-Fehler beim Neu-Koppeln), verbundene bleiben verbunden; gefundene Controller werden automatisch gekoppelt
 - **PlayStation-Controller werden erkannt** (DualSense, DualSense Edge, DualShock 4): Oberfläche zeigt ✕ ○ □ △, L1/R1, Options, PS. Xbox- und Nintendo-Symbole ebenfalls – automatisch oder fest einstellbar
 - PlayStation-Controller werden per USB/Bluetooth **direkt ausgelesen** – die Beenden-Kombination (*Create + Options*) funktioniert ohne Steam Input oder DS4Windows
