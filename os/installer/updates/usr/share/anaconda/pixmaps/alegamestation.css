@@ -1,0 +1,67 @@
+/* AleGamestation OS – Aussehen des Installers (Anaconda, GTK3) */
+@define-color anaconda_bg_color #120f24;
+@define-color ags_accent #7c5cff;
+@define-color ags_accent_dark #6243e6;
+
+/* Seitenleiste der Übersicht: Hintergrund + Logo */
+.logo-sidebar {
+    background-image: url("/usr/share/anaconda/pixmaps/ags-sidebar.png");
+    background-color: #120f24;
+    background-size: cover;
+    background-repeat: no-repeat;
+}
+.logo {
+    background-image: url("/usr/share/anaconda/pixmaps/ags-logo.png");
+    background-position: 50% 24px;
+    background-size: 190px auto;
+    background-repeat: no-repeat;
+    background-color: transparent;
+}
+.product-logo {
+    background-image: none;
+    background-color: transparent;
+}
+
+/* Kopfzeile jeder Seite */
+AnacondaSpokeWindow #nav-box,
+AnacondaHubWindow #nav-box {
+    background-color: #120f24;
+    background-image: url("/usr/share/anaconda/pixmaps/ags-topbar.png");
+    background-size: cover;
+    background-repeat: no-repeat;
+    color: white;
+}
+AnacondaSpokeWindow #nav-box button,
+AnacondaHubWindow #nav-box button {
+    box-shadow: none;
+}
+
+/* Hauptknöpfe in der App-Akzentfarbe (z.B. „Installation beginnen“, „Fertig“) */
+button.suggested-action,
+button.suggested-action:focus {
+    background-image: none;
+    background-color: @ags_accent;
+    border-color: @ags_accent_dark;
+    color: white;
+    text-shadow: none;
+}
+button.suggested-action:hover {
+    background-color: shade(@ags_accent, 1.1);
+}
+button.suggested-action:disabled {
+    background-color: alpha(@ags_accent, 0.45);
+    color: alpha(white, 0.7);
+}
+
+/* Fortschrittsbalken der Installation */
+progressbar progress {
+    background-image: none;
+    background-color: @ags_accent;
+    border-color: @ags_accent_dark;
+}
+
+/* Auswahl (z.B. gewählte Festplatte) */
+*:selected, *:selected:focus {
+    background-color: @ags_accent;
+    color: white;
+}

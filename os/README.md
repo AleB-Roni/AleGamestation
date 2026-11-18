@@ -93,6 +93,9 @@ os/
     etc/sddm.conf.d/zz-zz-alegamestation.conf   Autologin in den Spielmodus
   installer/
     alegamestation.ks                 Kickstart: installiert das Abbild aus der Registry (ostreecontainer)
+    updates/                          wird über das Installer-System gelegt: Name „AleGamestation OS“, Logo/Farben
+                                      (pixmaps/alegamestation.css), ausgeblendete Schritte (conf.d), Download-Fortschritt
+                                      (usr/lib/ags-anaconda)
     build-iso.sh                      Fedora-netinst-ISO + Kickstart → Installer-ISO (mkksiso)
 ```
 
