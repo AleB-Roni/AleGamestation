@@ -9,6 +9,8 @@
   Input.configure({ chromiumPads: false });
   Input.hidConnected(1);
   api.onPadState((s) => Input.hidState(s));
+  // Tastatur (ohne Controller): Pfeiltasten/Enter/Esc kommen über die App, weil das Spiel den Tastaturfokus hat
+  if (api.onNavCommand) api.onNavCommand((a) => Input.trigger(a, 'keyboard'));
 
   function toast(text, type = 'info') {
     if (S.debug && type === 'error') api.debugLog({ level: 'error', source: 'overlay', message: text }).catch(() => {});

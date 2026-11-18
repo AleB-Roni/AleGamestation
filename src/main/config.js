@@ -131,6 +131,8 @@ const DEFAULT_CONFIG = {
     mouseSpeed: 1,
     // Maussteuerung: Maus mit dem linken Stick bewegen (aus = nur Touchpad)
     mouseStick: true,
+    // Tastenkürzel während eines Spiels (Shift+Tab = Overlay, Alt+F4/Strg+Q = Spiel beenden) – für Spielen ohne Controller
+    keyboardShortcuts: true,
     // Touchpad (DualSense/DualShock 4) als Maus: "outsideGames" | "mouseMode" (nur in der Maussteuerung) | "off"
     touchpadMouse: 'outsideGames',
     touchpadSpeed: 1,

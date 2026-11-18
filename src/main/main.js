@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, screen, shell, dialog, powerSaveBlocker, net, protocol } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, shell, dialog, powerSaveBlocker, net, protocol, globalShortcut } = require('electron');
 // Cover vom RomM-Server (mit Anmeldung, zwischengespeichert): agsromm://cover/<id>
 // AleGamestation OS (Linux, Gamescope-Spielmodus)
 const linuxOs = require('./linux-os');
@@ -834,6 +834,52 @@ const padLabel = (k) => {
   return `<b class="k ${lastPadIsPlayStation ? 'ps' : 'xb'} ${k.toLowerCase()}">${t}</b>`;
 };
 
+// ---------- Tastatur statt Controller (während ein Spiel läuft) ----------
+// Ohne Controller kommt man sonst aus Vollbild-Spielen (v.a. im Gamescope-Spielmodus ohne Fensterleiste) nicht mehr heraus.
+//   Shift+Tab  → Overlay öffnen/schließen (wie bei Steam)
+//   Alt+F4, Strg+Q → Spiel beenden
+// Im Overlay: Pfeiltasten, Enter, Esc/Rücktaste
+const GAME_KEYS = { overlay: ['Shift+Tab'], quit: ['Alt+F4', 'Control+Q'] };
+const OVERLAY_KEYS = { Up: 'up', Down: 'down', Left: 'left', Right: 'right', Return: 'accept', Space: 'accept', Escape: 'back', Backspace: 'back' };
+let gameKeysOn = false;
+let overlayKeysOn = false;
+function keyboardShortcutsEnabled() { return (cfg().controller || {}).keyboardShortcuts !== false; }
+function setGameKeys(on) {
+  on = !!on && keyboardShortcutsEnabled();
+  if (on === gameKeysOn) return;
+  gameKeysOn = on;
+  const all = [...GAME_KEYS.overlay, ...GAME_KEYS.quit];
+  if (!on) { all.forEach((k) => { try { globalShortcut.unregister(k); } catch { /* ignore */ } }); return; }
+  const reg = (k, fn) => { try { if (!globalShortcut.register(k, fn)) debug.warn('tastatur', `Tastenkürzel ${k} ist belegt`); } catch (err) { debug.warn('tastatur', `${k}: ${err.message}`); } };
+  GAME_KEYS.overlay.forEach((k) => reg(k, () => { debug.info('tastatur', 'Overlay per Tastatur'); if (overlay.isVisible()) closeOverlay(true); else openOverlay(); }));
+  GAME_KEYS.quit.forEach((k) => reg(k, () => { debug.info('tastatur', `Spiel beenden per ${k}`); if (overlay.isVisible()) closeOverlay(false); closeCurrentGame(); }));
+}
+/** Solange das Overlay offen ist: Pfeiltasten/Enter/Esc steuern es (das Spiel hat den Tastaturfokus) */
+function setOverlayKeys(on) {
+  on = !!on && keyboardShortcutsEnabled();
+  if (on === overlayKeysOn) return;
+  overlayKeysOn = on;
+  for (const [k, action] of Object.entries(OVERLAY_KEYS)) {
+    try {
+      if (on) globalShortcut.register(k, () => overlay.send('nav:command', action));
+      else globalShortcut.unregister(k);
+    } catch { /* ignore */ }
+  }
+}
+/** Ist ein Controller verbunden? (PlayStation per HID, Xbox per XInput unter Windows) */
+function controllerConnected() {
+  if (psWatcher.devices && psWatcher.devices.size) return true;
+  if (process.platform === 'win32' && watcher.state && [...watcher.state.values()].some((s) => s && s.seen)) return true;
+  return false;
+}
+launcher.on('started', () => {
+  setGameKeys(true);
+  if (gameKeysOn && !controllerConnected()) {
+    setTimeout(() => { if (launcher.isRunning()) osd.show('keyboard', 'Kein Controller – Tastatur:', 'Shift+Tab = Menü  ·  Alt+F4 oder Strg+Q = Spiel beenden', 6000); }, 3000);
+  }
+});
+launcher.on('exited', () => { setOverlayKeys(false); setGameKeys(false); });
+
 async function closeCurrentGame() {
   debug.info('ablauf', 'Spiel beenden angefordert', launcher.status());
   await resumeGame(); // ein angehaltenes Spiel lässt sich nicht sauber beenden
@@ -976,6 +1022,7 @@ async function openOverlay() {
   overlayTookFocus = focus;
   await overlay.show(display, focus).catch(() => {});
   linuxOs.markOverlay(overlay.win);
+  setOverlayKeys(true);
   // Spiel anhalten: bleibt im Vollbild sichtbar, reagiert aber nicht auf den Controller
   if (mode === 'pause' && overlayGameHwnd && overlay.isVisible()) await pauseGame(overlayGameHwnd);
   if (focus) {
@@ -991,6 +1038,7 @@ async function openOverlay() {
 /** @param {boolean} restoreGame Spiel danach wieder in den Vordergrund holen */
 function closeOverlay(restoreGame = true) {
   debug.info('ablauf', 'Overlay schließen', { restoreGame });
+  setOverlayKeys(false);
   overlay.hide();
   resumeGame();
   if (restoreGame && overlayTookFocus && overlayGameHwnd && launcher.isRunning()) {

@@ -427,6 +427,8 @@
           { value: 'xbox', label: 'Xbox  A B X Y' }, { value: 'nintendo', label: 'Nintendo' }
         ], 'Welche Symbole in der Oberfläche angezeigt werden'),
         toggle('PlayStation-Controller direkt unterstützen', () => C().controller, 'playstationHid', 'DualSense / DualShock 4 per USB oder Bluetooth – Beenden-Kombination funktioniert ohne Steam Input oder DS4Windows'),
+        group('Ohne Controller', 'Tastatur während eines Spiels'),
+        { ...toggle('Tastenkürzel im Spiel', () => C().controller, 'keyboardShortcuts', 'Shift+Tab = Overlay (dort Pfeiltasten, Enter, Esc) · Alt+F4 oder Strg+Q = Spiel beenden'), get: () => C().controller.keyboardShortcuts !== false },
         group('Maus & Tastatur per Controller', 'z.B. für Launcher-Fenster, Logins, Browser'),
         select('Tastenkombination „Maussteuerung“', () => C().controller, 'mouseModeCombo', comboOptions(C().controller.mouseModeCombo), 'Ein-/Ausschalten – funktioniert überall in Windows'),
         button('Kombination „Maussteuerung“ aufnehmen …', () => recordCombo('mouseModeCombo')),

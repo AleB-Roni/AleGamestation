@@ -64,7 +64,7 @@ class Tailscale extends EventEmitter {
     const extra = ['--json', '--accept-routes'];
     if (hostname) extra.push(`--hostname=${hostname}`);
     let cmd; let args;
-    if (!IS_WIN && fs.existsSync(OS_HELPER)) { cmd = 'pkexec'; args = [OS_HELPER, 'up', ...extra]; } else { cmd = cli(); args = ['up', ...extra]; }
+    if (!IS_WIN && !process.env.AGS_TAILSCALE_CLI && fs.existsSync(OS_HELPER)) { cmd = 'pkexec'; args = [OS_HELPER, 'up', ...extra]; } else { cmd = cli(); args = ['up', ...extra]; }
     return new Promise((resolve, reject) => {
       const p = spawn(cmd, args, { windowsHide: true });
       let buf = ''; let errBuf = ''; let sent = false;
@@ -94,7 +94,7 @@ class Tailscale extends EventEmitter {
   }
 
   async down() {
-    const r = !IS_WIN && fs.existsSync(OS_HELPER)
+    const r = !IS_WIN && !process.env.AGS_TAILSCALE_CLI && fs.existsSync(OS_HELPER)
       ? await new Promise((res) => execFile('pkexec', [OS_HELPER, 'down'], (err, out, e) => res({ ok: !err, err: String(e || '') })))
       : await run(['down']);
     if (!r.ok) throw new Error((r.err || 'Trennen fehlgeschlagen').trim().split('\n').pop());
