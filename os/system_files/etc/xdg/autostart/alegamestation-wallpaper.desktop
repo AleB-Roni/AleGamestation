@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=AleGamestation Hintergrundbild
+Exec=/usr/libexec/alegamestation-apply-wallpaper
+OnlyShowIn=KDE;
+NoDisplay=true
+X-KDE-autostart-phase=2
