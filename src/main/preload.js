@@ -100,7 +100,7 @@ contextBridge.exposeInMainWorld('api', {
   rommPlatforms: () => ipcRenderer.invoke('romm:platforms'),
   rommList: (systemId) => ipcRenderer.invoke('romm:list', systemId),
   rommRecommend: () => ipcRenderer.invoke('romm:recommend'),
-  rommDownload: (romId, systemId) => ipcRenderer.invoke('romm:download', romId, systemId),
+  rommDownload: (romId, systemId, opts) => ipcRenderer.invoke('romm:download', romId, systemId, opts),
   rommCancel: (romId) => ipcRenderer.invoke('romm:cancel', romId),
   rommDownloads: () => ipcRenderer.invoke('romm:downloads'),
   onRommProgress: on('romm:progress'),

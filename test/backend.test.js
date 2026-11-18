@@ -733,7 +733,7 @@ test('RomM: Anmeldung, Plattformen, Liste mit „schon vorhanden“, Empfehlunge
   const r = new RomM({ getConfig: () => conf, fetch: (u, o) => fetch(u, o), cacheDir: path.join(dir, 'cache') });
   try {
     const t = await r.test();
-    assert.deepStrictEqual([t.version, t.user, t.platforms, t.roms], ['5.4.0', 'ale', 2, 4]);
+    assert.deepStrictEqual([t.version, t.user, t.platforms, t.roms], ['5.4.0', 'ale', 3, 7]);
     // Falsches Token → verständliche Meldung
     conf.romm.token = 'falsch';
     await assert.rejects(() => (r.clearCache(), r.test()), /Anmeldung abgelehnt/);
@@ -759,14 +759,14 @@ test('RomM: Anmeldung, Plattformen, Liste mit „schon vorhanden“, Empfehlunge
     // Download einzelne Datei
     const prog = [];
     r.on('progress', (p) => prog.push(p));
-    const f = await r.download(11, snesDir);
+    const f = (await r.download(11, snesDir)).file;
     assert.strictEqual(path.basename(f), 'Super Mario World (USA).sfc');
     assert.strictEqual(fs.statSync(f).size, 2048);
     assert.ok(prog.some((p) => p.done));
     await assert.rejects(() => r.download(11, snesDir), /liegt schon/);
     // Mehrteilig: ZIP wird in einen Ordner entpackt
     const psxDir = path.join(dir, 'psx');
-    const g = await r.download(21, psxDir);
+    const g = (await r.download(21, psxDir)).file;
     assert.ok(fs.existsSync(path.join(g, 'Final Fantasy VII (Europe).cue')));
     assert.ok(!fs.readdirSync(psxDir).some((x) => x.endsWith('.part')));
   } finally {
@@ -943,4 +943,50 @@ test('AleGamestation OS: System-Update zeigt Fortschritt (bootc --progress-fd) u
   assert.match(events[1].text, /Importiere: Layer 21 \(20\/40\)/);
   assert.deepStrictEqual(events[2], { done: true, update: true });
   assert.match(r.stderr, /aktiv nach dem Neustart/);
+});
+
+test('RomM: Updates/DLC erkennen, dem Spiel zuordnen, gezielt mitladen und in Eden eintragen', async () => {
+  const { RomM, fileKind, versionOf, compareVersions } = require('../src/main/romm');
+  const { addExternalContentDir } = require('../src/main/eden-config');
+  assert.strictEqual(fileKind({ file_name: 'X [01006A800016E800][v1966080].nsp' }), 'update');
+  assert.strictEqual(fileKind({ file_name: 'X [01006A800016F001].nsp' }), 'dlc');
+  assert.strictEqual(fileKind({ file_name: 'X [01006A800016E000][v0].nsp' }), 'game');
+  assert.strictEqual(fileKind({ file_name: 'Zelda [UPD].nsp' }), 'update');
+  assert.strictEqual(versionOf('Smash [01006A800016E800][v1966080] (13.0.3).nsp'), '13.0.3');
+  assert.strictEqual(versionOf('Smash [v1966080].nsp'), 'v1966080');
+  assert.ok(compareVersions('13.0.3', '13.0.2') > 0 && compareVersions('v1966080', 'v1900544') > 0);
+
+  const fake = await require('./fake-romm').start();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ags-romm-upd-'));
+  const r = new RomM({ getConfig: () => ({ romm: { enabled: true, url: fake.url, token: 'rmm_test' } }), fetch: (u, o) => fetch(u, o), cacheDir: path.join(dir, 'c') });
+  try {
+    const list = await r.listForSystem({ id: 'switch', name: 'Nintendo Switch' }, []);
+    // Das eigenständige MK8-Update erscheint nicht als eigenes Spiel, sondern beim Spiel
+    assert.deepStrictEqual(list.roms.map((x) => x.name).sort(), ['Mario Kart 8 Deluxe', 'Super Smash Bros. Ultimate']);
+    const smash = list.roms.find((x) => x.id === 31);
+    assert.deepStrictEqual(smash.extras.map((x) => `${x.kind}:${x.version}`), ['update:13.0.3', 'update:13.0.2', 'dlc:']);
+    const mk = list.roms.find((x) => x.id === 32);
+    assert.deepStrictEqual(mk.extras.map((x) => `${x.kind}:${x.version}:${x.romId}`), ['update:3.0.1:33']);
+    // Smash mit Update 13.0.3 + DLC laden
+    const romDir = path.join(dir, 'switch');
+    const updatesDir = path.join(romDir, 'updates');
+    const res = await r.download(31, romDir, { extras: [smash.extras[0], smash.extras[2]], updatesDir });
+    assert.ok(fs.existsSync(path.join(romDir, 'Super Smash Bros. Ultimate [01006A800016E000]', 'Super Smash Bros. Ultimate [01006A800016E000][v0].nsp')));
+    const upd = fs.readdirSync(res.extraDir).sort();
+    assert.deepStrictEqual(upd, ['Super Smash Bros. Ultimate Fighters Pass [01006A800016F001].nsp', 'Super Smash Bros. Ultimate [01006A800016E800][v1966080] (13.0.3).nsp']);
+    assert.ok(!fs.readdirSync(path.join(romDir, 'Super Smash Bros. Ultimate [01006A800016E000]')).some((f) => /13\.0\.2|13\.0\.3|F001/.test(f)), 'Updates nicht im Spielordner');
+    // MK8: Spiel schon da → nur Update nachladen (eigenständiger RomM-Eintrag)
+    const res2 = await r.download(32, romDir, { extras: mk.extras, updatesDir, extrasOnly: true });
+    assert.deepStrictEqual(res2.extras.map((x) => path.basename(x)), ['Mario Kart 8 Deluxe [0100152000022800][v2228224] (3.0.1).nsp']);
+    assert.ok(fs.existsSync(res2.extras[0]));
+    // Die Bibliothek blendet den Update-Ordner aus
+    const { scanLibrary } = require('../src/main/library');
+    const cfgLib = { systems: [{ id: 'switch', name: 'Switch', extensions: ['.nsp', '.xci'], romDirs: [romDir], emulator: 'eden', enabled: true }], emulators: [], steam: { enabled: false }, stores: {}, pcGames: [] };
+    const lib = scanLibrary(cfgLib, {});
+    assert.deepStrictEqual(lib.games.filter((g) => !g.hidden).map((g) => path.basename(g.rom)), ['Super Smash Bros. Ultimate [01006A800016E000][v0].nsp']);
+    // Eden: Update-Ordner wird eingetragen
+    const ini = path.join(dir, 'eden', 'qt-config.ini');
+    assert.strictEqual(addExternalContentDir(ini, updatesDir), true);
+    assert.match(fs.readFileSync(ini, 'utf8'), /\[UI\]\nPaths\\external_content_dirs\\1\\path=.*\/switch\/updates\nPaths\\external_content_dirs\\size=1/);
+  } finally { fake.close(); }
 });

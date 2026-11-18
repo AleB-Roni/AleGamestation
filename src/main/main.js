@@ -1300,11 +1300,28 @@ ipcMain.handle('romm:recommend', async () => {
   const systems = cfg().systems.filter((x) => x.enabled !== false);
   return romm.recommendations(systems, library.games.filter((g) => g.type === 'rom'));
 });
-ipcMain.handle('romm:download', async (_e, romId, systemId) => {
+ipcMain.handle('romm:download', async (_e, romId, systemId, opts = {}) => {
   const sys = sysById(systemId);
   if (!sys) throw new Error('Konsole nicht gefunden');
   const dir = (sys.romDirs || [])[0];
-  const file = await romm.download(Number(romId), dir);
+  // Updates/DLC kommen nach <ROM-Ordner>/updates/<Spiel>/ – die Bibliothek blendet diesen Ordner aus
+  const updatesDir = dir ? path.join(dir, 'updates') : '';
+  const res = await romm.download(Number(romId), dir, { extras: opts.extras || [], extrasOnly: !!opts.extrasOnly, updatesDir });
+  const file = res.file;
+  // Eden: Update-Ordner als „externen Inhalt“ eintragen → Update/DLC wird beim Start geladen, ohne Installation
+  let eden = false;
+  if (res.extras.length) {
+    try {
+      const { emulator: emu } = require('./library').resolveEmulator(cfg(), { type: 'rom', system: sys.id, id: '' });
+      const ec = require('./eden-config');
+      if (ec.isEden(emu)) {
+        const ini = ec.edenConfigFile(emu.exe);
+        eden = true;
+        if (ec.addExternalContentDir(ini, updatesDir)) debug.info('romm', `Eden: Update-Ordner eingetragen (${ini})`);
+      }
+    } catch (err) { debug.warn('romm', 'Eden einrichten: ' + err.message); }
+  }
+  if (opts.extrasOnly) return { file, gameId: null, extras: res.extras.length, eden };
   // Cover vom Server gleich für das neue Spiel übernehmen (Cover-Ordner der App)
   try {
     const cover = await romm.coverFile(Number(romId));
@@ -1320,7 +1337,7 @@ ipcMain.handle('romm:download', async (_e, romId, systemId) => {
   refreshLibrary();
   send('library:changed', library);
   const game = library.games.find((g) => g.rom && (g.rom === file || g.rom.startsWith(file + path.sep)));
-  return { file, gameId: game ? game.id : null };
+  return { file, gameId: game ? game.id : null, extras: res.extras.length, eden };
 });
 ipcMain.handle('romm:cancel', (_e, romId) => romm.cancel(romId));
 ipcMain.handle('romm:downloads', () => [...romm.downloads.values()].map((d) => ({ id: d.id, name: d.name, received: d.received, total: d.total })));

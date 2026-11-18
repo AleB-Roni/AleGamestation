@@ -1163,9 +1163,45 @@
     const have = rommHave(r);
     const info = [r.platform, fmtSize(r.size), r.year, (r.genres || []).slice(0, 3).join(', '), r.rating ? `★ ${Math.round(r.rating)}/100` : '', r.regions && r.regions.length ? r.regions.join(', ') : ''].filter(Boolean).join(' · ');
     const items = [];
-    if (have) items.push({ label: 'Spielen', icon: 'play', action: () => { App.closeMenu(); rommActivate(r); } });
-    else if (running) items.push({ label: 'Download abbrechen', icon: 'x', hint: rommPct(dl), action: async () => { App.closeMenu(); await api.rommCancel(r.id); } });
-    else items.push({ label: 'Herunterladen', icon: 'download', hint: `${fmtSize(r.size)} → ${sys.short}-ROM-Ordner`, action: () => { App.closeMenu(); rommDownload(r); } });
+    // Updates/DLC vom Server (z.B. Switch): Version auswählen, DLC alle/keine
+    const updates = (r.extras || []).filter((x) => x.kind === 'update');
+    const dlcs = (r.extras || []).filter((x) => x.kind === 'dlc');
+    const sel = { update: updates.length ? updates[0].key : '', dlc: dlcs.length ? 'all' : 'none' };
+    const chosen = () => [...updates.filter((u) => u.key === sel.update), ...(sel.dlc === 'all' ? dlcs : [])];
+    const sizeOf = (list) => list.reduce((n, x) => n + (x.size || 0), 0);
+    const pickers = [];
+    let dlItem = null;
+    const refreshHint = () => {
+      if (!dlItem) return;
+      const extra = chosen();
+      dlItem.hint = have ? `${fmtSize(sizeOf(extra))} → Update-Ordner` : `${fmtSize(r.size + sizeOf(extra))}${extra.length ? ` · mit ${extra.length} Update/DLC` : ''} → ${sys.short}-ROM-Ordner`;
+    };
+    if (updates.length) {
+      pickers.push({
+        type: 'select', label: 'Update', icon: 'refresh', value: sel.update,
+        options: [...updates.map((u, i) => ({ value: u.key, label: `${u.version ? 'Version ' + u.version : u.name}${i === 0 ? ' (neueste)' : ''}` })), { value: '', label: 'Kein Update' }],
+        onChange: (v) => { sel.update = v; refreshHint(); }
+      });
+    }
+    if (dlcs.length) {
+      pickers.push({
+        type: 'select', label: 'DLC', icon: 'plus', value: sel.dlc,
+        options: [{ value: 'all', label: `Alle (${dlcs.length})` }, { value: 'none', label: 'Keine' }],
+        onChange: (v) => { sel.dlc = v; refreshHint(); }
+      });
+    }
+    if (have) {
+      items.push({ label: 'Spielen', icon: 'play', action: () => { App.closeMenu(); rommActivate(r); } });
+      if (pickers.length && !running) {
+        dlItem = { label: 'Update/DLC herunterladen', icon: 'download', focus: true, action: () => { const ex = chosen(); App.closeMenu(); if (ex.length) rommDownload(r, ex, true); else App.toast('Nichts ausgewählt', 'info'); } };
+        items.push(...pickers, dlItem);
+      }
+    } else if (running) items.push({ label: 'Download abbrechen', icon: 'x', hint: rommPct(dl), action: async () => { App.closeMenu(); await api.rommCancel(r.id); } });
+    else {
+      dlItem = { label: 'Herunterladen', icon: 'download', focus: true, action: () => { App.closeMenu(); rommDownload(r, chosen()); } };
+      items.push(...pickers, dlItem);
+    }
+    refreshHint();
     App.menu({
       title: r.name,
       text: `${esc(info)}${r.reason ? `<br><small>${esc(r.reason)}</small>` : ''}${r.summary ? `<br><br>${esc(r.summary.length > 420 ? r.summary.slice(0, 420) + ' …' : r.summary)}` : ''}${have ? '<br><br>✔ Schon in deiner Bibliothek' : ''}`,
@@ -1178,17 +1214,20 @@
     }
   }
 
-  async function rommDownload(r) {
-    App.romm.dl[r.id] = { id: r.id, name: r.name, received: 0, total: r.size };
+  async function rommDownload(r, extras = [], extrasOnly = false) {
+    App.romm.dl[r.id] = { id: r.id, name: r.name, received: 0, total: (extrasOnly ? 0 : r.size) + extras.reduce((n, x) => n + (x.size || 0), 0) };
     updateRommCard(r.id);
-    App.toast(`Lade „${r.name}“ herunter …`, 'info', 2500);
+    App.toast(extrasOnly ? `Lade Update/DLC für „${r.name}“ …` : `Lade „${r.name}“ herunter${extras.length ? ` (mit ${extras.length} Update/DLC)` : ''} …`, 'info', 3000);
     try {
-      const res = await api.rommDownload(r.id, r.system);
-      App.romm.got.add(r.id);
-      App.romm.gotGame = App.romm.gotGame || {};
-      if (res && res.gameId) { App.romm.gotGame[r.id] = res.gameId; r.local = res.gameId; }
+      const res = await api.rommDownload(r.id, r.system, { extras: extras.map(({ key, kind, romId, fileId, name, size }) => ({ key, kind, romId, fileId, name, size })), extrasOnly });
+      if (!extrasOnly) {
+        App.romm.got.add(r.id);
+        App.romm.gotGame = App.romm.gotGame || {};
+        if (res && res.gameId) { App.romm.gotGame[r.id] = res.gameId; r.local = res.gameId; }
+      }
       Sounds.play('accept');
-      App.toast(`✔ „${r.name}“ heruntergeladen – jetzt spielbar`, 'ok', 5000);
+      const edenNote = res && res.eden && res.extras ? ' – in Eden eingetragen, wird beim Start geladen' : res && res.extras ? ' – Update/DLC liegt im Ordner „updates“' : '';
+      App.toast(extrasOnly ? `✔ Update/DLC für „${r.name}“ geladen${edenNote}` : `✔ „${r.name}“ heruntergeladen – jetzt spielbar${edenNote}`, 'ok', 7000);
     } catch (e) {
       App.toast(`„${r.name}“: ${rommErr(e)}`, 'error', 8000);
     }
