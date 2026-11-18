@@ -1211,7 +1211,12 @@
   App.os = { os: false };
   const osErr = (e) => String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
   App.osDesktop = async function () {
-    if (!(await App.confirm('Zum Linux-Desktop wechseln?', 'AleGamestation wird beendet und der Desktop startet. Zurück geht es über „Zurück zu AleGamestation“ auf dem Desktop.', 'Wechseln'))) return;
+    if (!App.os.gamescope) {
+      // Desktop läuft im Hintergrund: AleGamestation nur minimieren – zurück mit PS-Taste oder „Zurück zu AleGamestation“
+      try { await api.osSession('desktop'); } catch (e) { App.toast(osErr(e), 'error', 8000); }
+      return;
+    }
+    if (!(await App.confirm('Zum Linux-Desktop wechseln?', 'Der Gamescope-Spielmodus wird beendet und der Desktop startet. Zurück geht es über „Zurück zu AleGamestation“ auf dem Desktop.', 'Wechseln'))) return;
     App.toast('Wechsle zum Desktop …', 'info', 5000);
     try { await api.osSession('desktop'); } catch (e) { App.toast(osErr(e), 'error', 8000); }
   };
@@ -1239,8 +1244,7 @@
       const r = await api.osUpdate();
       if (document.getElementById('osUpdLine')) App.closeMenu();
       if (r && r.none) App.toast('✔ System ist aktuell', 'ok', 5000);
-      else if (await App.confirm('Update bereit', `${r && r.already ? 'Ein neues System ist bereits geladen' : 'Das neue System ist geladen'}${r && r.version ? ` (Version ${esc(r.version)})` : ''}. Aktiv wird es nach dem Neustart. Jetzt neu starten?`, 'Neu starten')) api.power('restart');
-      else App.toast('Update wird beim nächsten Neustart aktiv', 'info', 5000);
+      else App.osRestartCountdown(r);
     } catch (e) {
       if (document.getElementById('osUpdLine')) App.closeMenu();
       App.toast(osErr(e), 'error', 9000);
@@ -1248,6 +1252,27 @@
       App.osUpdating = false;
       if (typeof off === 'function') off();
     }
+  };
+  /** Update geladen: automatisch neu starten (15 s, abbrechbar) */
+  App.osRestartCountdown = function (r) {
+    let left = 15; let timer = null;
+    const stop = () => { clearInterval(timer); timer = null; };
+    App.menu({
+      title: '✔ Update bereit',
+      text: `${r && r.already ? 'Ein neues System ist bereits geladen' : 'Das neue System ist geladen'}${r && r.version ? ` (Version ${esc(r.version)})` : ''}.<br>Neustart in <b id="osRestartLeft">${left}</b> Sekunden …`,
+      items: [
+        { label: 'Jetzt neu starten', icon: 'restart', action: () => { stop(); App.closeMenu(); api.power('restart'); } },
+        { label: 'Später', icon: 'later', hint: 'aktiv beim nächsten Neustart', action: () => { stop(); App.closeMenu(); App.toast('Update wird beim nächsten Neustart aktiv', 'info', 5000); } }
+      ],
+      onClose: () => stop()
+    });
+    timer = setInterval(() => {
+      left--;
+      const el = document.getElementById('osRestartLeft');
+      if (!el) return stop();
+      el.textContent = left;
+      if (left <= 0) { stop(); App.closeMenu(); App.toast('Starte neu …', 'info', 5000); api.power('restart'); }
+    }, 1000);
   };
   App.osSetup = async function () {
     App.toast('Richte Emulatoren ein – das kann einige Minuten dauern …', 'info', 6000);
@@ -1297,9 +1322,7 @@
       items: [
         ...(App.update && App.update.status === 'ready' ? [{ label: `Update auf v${App.update.available} installieren`, icon: 'update', hint: 'App startet neu', action: () => { App.closeMenu(); App.installUpdate(); } }] : []),
         ...(App.os && App.os.os ? [
-          App.os.gamescope
-            ? { label: 'Zum Linux-Desktop wechseln', icon: 'monitor', hint: 'Strg+Alt+D', action: () => { App.closeMenu(); App.osDesktop(); } }
-            : { label: 'Zum Spielmodus wechseln', icon: 'tv', hint: 'AleGamestation im Vollbild', action: () => { App.closeMenu(); App.osGameMode(); } },
+          { label: App.os.gamescope ? 'Zum Linux-Desktop wechseln' : 'Zum Desktop (App läuft weiter)', icon: 'monitor', hint: App.os.gamescope ? 'Strg+Alt+D' : 'Strg+Alt+D · zurück mit PS-Taste', action: () => { App.closeMenu(); App.osDesktop(); } },
           { label: 'System aktualisieren', icon: 'refresh', hint: App.os.version ? `AleGamestation OS ${App.os.version}` : '', action: () => { App.closeMenu(); App.osUpdate(); } },
           { label: 'Emulatoren laden & aktualisieren', icon: 'download', hint: 'Eden, RetroArch, Dolphin …', action: () => { App.closeMenu(); openSettings('emudl'); } }
         ] : [

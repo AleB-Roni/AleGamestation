@@ -705,6 +705,29 @@
       }
     },
     {
+      id: 'shares', title: 'Freigaben', rows: () => {
+        const f = S.shares;
+        if (!App.os || !App.os.os) return [{ type: 'info', label: 'Nur auf AleGamestation OS', desc: 'Unter Windows den ROM-Ordner wie gewohnt im Explorer freigeben.', get: () => '' }];
+        if (!f) return [{ type: 'info', label: 'Prüfe Freigaben …', desc: '', get: () => '' }];
+        if (!f.available) return [{ type: 'info', label: 'Freigaben kommen mit dem nächsten System-Update', desc: '☰ → System aktualisieren', get: () => '' }];
+        const addr = f.ips[0] || f.host;
+        return [
+          group('Freigaben (SMB)', 'Dateien vom Windows-PC im Heimnetz kopieren'),
+          { type: 'item', label: f.active ? 'Freigaben aktiv' : 'Freigaben aus', desc: f.active ? `Im Windows-Explorer eingeben: \\\\${addr}\\ROMs  bzw.  \\\\${addr}\\Freigabe  ·  Benutzer: ${f.user}` : 'Werden bei jedem Start automatisch eingeschaltet', status: f.active ? 'ok' : 'off', statusText: f.active ? 'aktiv' : 'aus', action: () => loadShares() },
+          { type: 'item', label: 'Freigabe-Passwort', desc: f.passwordSet === false ? 'Noch keins gesetzt – ohne Passwort kann sich der Windows-PC nicht anmelden' : 'Passwort für die Anmeldung vom Windows-PC (unabhängig vom Systempasswort)', status: f.passwordSet === false ? 'bad' : 'ok', statusText: f.passwordSet === false ? 'fehlt' : 'gesetzt', action: () => {} },
+          { type: 'text', label: 'Neues Passwort', desc: 'Eingeben und dann „Passwort speichern“', secret: true, get: () => S.sharesPw || '', set: (v) => { S.sharesPw = v; } },
+          button('Passwort speichern', async () => {
+            try { await api.osSharesPasswd(S.sharesPw || ''); S.sharesPw = ''; App.toast('✔ Freigabe-Passwort gespeichert', 'ok', 5000); } catch (e) { App.toast(cleanErr(e), 'error', 8000); }
+            loadShares();
+          }),
+          button(f.active ? 'Freigaben ausschalten' : 'Freigaben einschalten', async () => {
+            try { await api.osSharesSet(!f.active); } catch (e) { App.toast(cleanErr(e), 'error', 8000); }
+            loadShares();
+          })
+        ];
+      }
+    },
+    {
       id: 'romm', title: 'RomM', rows: () => {
         if (!C().romm) C().romm = { enabled: false, url: '', token: '', user: '', password: '', recommend: true, serverRow: true, platformMap: {} };
         const R = () => C().romm;
@@ -1189,6 +1212,11 @@
     });
   }
 
+  async function loadShares() {
+    try { S.shares = api.osShares ? await api.osShares() : null; } catch { S.shares = { available: false }; }
+    if (App.view === 'settings' && SECTIONS[S.section].id === 'shares' && !S.detail) render();
+  }
+
   // ---------- Tailscale ----------
   async function refreshTs() {
     try { S.ts = await api.tailscaleStatus(); } catch (e) { S.ts = { state: 'stopped', error: cleanErr(e) }; }
@@ -1325,7 +1353,7 @@
     { id: 'controller', title: 'Controller', icon: 'gamepad', desc: 'Tasten, Overlay, Maus & Tastatur', sections: ['controller'] },
     { id: 'emulation', title: 'Emulatoren', icon: 'grid', desc: 'Konsolen, Emulatoren, Downloads & Updates', sections: ['systems', 'emulators', 'emudl'] },
     { id: 'library', title: 'Bibliothek', icon: 'list', desc: 'Eigene Spiele, Steam & Stores, Cover, RomM', sections: ['games', 'stores', 'media', 'romm'] },
-    { id: 'services', title: 'Verbindungen', icon: 'plug', desc: 'Home Assistant, Spotify, Clips, Fernzugriff', sections: ['ha', 'spotify', 'aleclip', 'remote'] }
+    { id: 'services', title: 'Verbindungen', icon: 'plug', desc: 'Home Assistant, Spotify, Clips, Fernzugriff, Freigaben', sections: ['ha', 'spotify', 'aleclip', 'remote', 'shares'] }
   ];
   const secIndex = (id) => SECTIONS.findIndex((x) => x.id === id);
   const catOf = (secIdx) => CATEGORIES.find((c) => c.sections.includes((SECTIONS[secIdx] || {}).id)) || CATEGORIES[0];
@@ -1592,6 +1620,7 @@
       try { S.aleclip = await api.aleclipStatus(); } catch { S.aleclip = {}; }
       if (api.emuMgrList && !S.emuList) loadEmuList(true);
       if (api.tailscaleStatus) refreshTs();
+      if (api.osShares && App.os && App.os.os) loadShares();
       if (api.onEmuMgrProgress && !S.emuProgressHooked) {
         S.emuProgressHooked = true;
         api.onEmuMgrProgress((p) => {

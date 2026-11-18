@@ -1,0 +1,69 @@
+#!/usr/bin/bash
+# (root) SMB-Freigaben für den Windows-PC im Heimnetz – läuft bei jedem Systemstart (alegamestation-shares.service)
+#   alegamestation-shares            → Freigaben einrichten/prüfen und Samba starten
+#   alegamestation-shares passwd     → Passwort für den Zugriff setzen (liest es von stdin)
+#   alegamestation-shares off        → Freigaben ausschalten (bis wieder eingeschaltet)
+# Freigaben: \\<rechner>\ROMs  → ~/ROMs   ·   \\<rechner>\Freigabe → ~/Freigabe   (Hauptbenutzer, UID 1000)
+set -uo pipefail
+USER_NAME="$(id -nu 1000 2>/dev/null || true)"
+[ -n "$USER_NAME" ] || { echo "Kein Hauptbenutzer (UID 1000) gefunden"; exit 0; }
+HOME_DIR="$(getent passwd "$USER_NAME" | cut -d: -f6)"
+HOME_REAL="$(readlink -f "$HOME_DIR")"
+OFF=/etc/alegamestation/shares-off
+CONF=/etc/samba/alegamestation-shares.conf
+
+case "${1:-}" in
+  passwd)
+    IFS= read -r PW || true
+    [ -n "$PW" ] || { echo "Kein Passwort angegeben"; exit 2; }
+    printf '%s\n%s\n' "$PW" "$PW" | smbpasswd -s -a "$USER_NAME" >/dev/null && smbpasswd -e "$USER_NAME" >/dev/null && echo "Passwort gesetzt"
+    exit $?
+    ;;
+  off)
+    mkdir -p /etc/alegamestation && touch "$OFF"
+    systemctl stop smb nmb 2>/dev/null; echo "Freigaben ausgeschaltet"; exit 0 ;;
+  on) rm -f "$OFF" ;;
+esac
+[ -f "$OFF" ] && { echo "Freigaben sind ausgeschaltet"; exit 0; }
+
+mkdir -p "$HOME_REAL/ROMs" "$HOME_REAL/Freigabe"
+chown "$USER_NAME:$USER_NAME" "$HOME_REAL/ROMs" "$HOME_REAL/Freigabe"
+
+cat > "$CONF" <<CONF
+# Von AleGamestation OS verwaltet – wird bei jedem Start neu geschrieben
+[ROMs]
+	path = $HOME_REAL/ROMs
+	browseable = yes
+	read only = no
+	valid users = $USER_NAME
+	force user = $USER_NAME
+	create mask = 0664
+	directory mask = 0775
+
+[Freigabe]
+	path = $HOME_REAL/Freigabe
+	browseable = yes
+	read only = no
+	valid users = $USER_NAME
+	force user = $USER_NAME
+	create mask = 0664
+	directory mask = 0775
+CONF
+grep -q "include = $CONF" /etc/samba/smb.conf || printf '\ninclude = %s\n' "$CONF" >> /etc/samba/smb.conf
+# Arbeitsgruppe wie bei Windows (sonst taucht der Rechner in der Netzwerkumgebung nicht auf)
+sed -i 's/^\(\s*workgroup\s*=\s*\)SAMBA\s*$/\1WORKGROUP/' /etc/samba/smb.conf
+
+# SELinux: dauerhaft freigegeben (übersteht Neustarts/Relabel)
+if command -v semanage >/dev/null; then
+  for d in ROMs Freigabe; do
+    semanage fcontext -a -t samba_share_t "$HOME_REAL/$d(/.*)?" 2>/dev/null || semanage fcontext -m -t samba_share_t "$HOME_REAL/$d(/.*)?" 2>/dev/null || true
+  done
+  restorecon -R "$HOME_REAL/ROMs" "$HOME_REAL/Freigabe" 2>/dev/null || true
+fi
+# Firewall
+if systemctl is-active --quiet firewalld; then
+  firewall-cmd --permanent --add-service=samba >/dev/null 2>&1 && firewall-cmd --reload >/dev/null 2>&1 || firewall-cmd --add-service=samba >/dev/null 2>&1 || true
+fi
+systemctl enable --now smb nmb >/dev/null 2>&1 || systemctl restart smb nmb
+pdbedit -L 2>/dev/null | grep -q "^$USER_NAME:" || echo "Hinweis: noch kein Freigabe-Passwort gesetzt (AleGamestation → Einstellungen → Verbindungen → Freigaben)"
+echo "Freigaben aktiv"

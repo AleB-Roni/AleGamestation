@@ -103,4 +103,51 @@ function markOverlay(win) {
   } catch { /* ohne xprop: Fenster erscheint nur, wenn es den Fokus hat */ }
 }
 
-module.exports = { isOS, inGamescope, info, switchSession, setupEmulators, updateSystem, stagedUpdate, markOverlay, SESSION_CMD };
+/** Läuft KDE Plasma (KWin)? */
+function isKde() { return isLinux && /KDE/i.test(process.env.XDG_CURRENT_DESKTOP || ''); }
+
+/** KWin-Skript ausführen (z.B. aktives Fenster schließen) */
+function kwinScript(code) {
+  const qd = ['qdbus-qt6', 'qdbus6', 'qdbus'].find((q) => { try { return require('child_process').execFileSync('which', [q], { stdio: 'ignore' }) || true; } catch { return false; } });
+  if (!qd) return Promise.reject(new Error('KWin nicht erreichbar'));
+  const file = path.join(require('os').tmpdir(), `ags-kwin-${process.pid}-${Date.now()}.js`);
+  fs.writeFileSync(file, code);
+  const name = 'ags' + Date.now();
+  const q = (args) => new Promise((resolve, reject) => execFile(qd, args, { timeout: 8000 }, (err, out) => (err ? reject(err) : resolve(String(out).trim()))));
+  return q(['org.kde.KWin', '/Scripting', 'org.kde.kwin.Scripting.loadScript', file, name])
+    .then((id) => q(['org.kde.KWin', `/Scripting/Script${id}`, 'org.kde.kwin.Script.run']))
+    .finally(() => { setTimeout(() => { q(['org.kde.KWin', '/Scripting', 'org.kde.kwin.Scripting.unloadScript', name]).catch(() => {}); fs.rmSync(file, { force: true }); }, 1500); });
+}
+/** Aktives Fenster schließen (z.B. hängender Emulator, Desktop-Programm) – AleGamestation selbst nie */
+function closeActiveWindow() {
+  if (!isKde()) return Promise.reject(new Error('Nur im KDE-Desktop verfügbar'));
+  return kwinScript(`const w = workspace.activeWindow;
+if (w && w.resourceClass !== 'alegamestation' && !w.desktopWindow && !w.dock) { print('AleGamestation schließt: ' + w.caption); w.closeWindow(); }`);
+}
+
+// ---------- SMB-Freigaben ----------
+const SHARES = '/usr/libexec/alegamestation-shares';
+function sharesStatus() {
+  return new Promise((resolve) => {
+    execFile('systemctl', ['is-active', 'smb'], (err, out) => {
+      const active = String(out).trim() === 'active';
+      const ips = Object.values(require('os').networkInterfaces()).flat().filter((a) => a && a.family === 'IPv4' && !a.internal).map((a) => a.address);
+      execFile('pdbedit', ['-L'], (e2, out2) => resolve({ available: fs.existsSync(SHARES), active, ips, host: require('os').hostname().split('.')[0], user: require('os').userInfo().username, passwordSet: e2 ? null : new RegExp('^' + require('os').userInfo().username + ':', 'm').test(String(out2)) }));
+    });
+  });
+}
+function sharesPassword(pw) {
+  if (!pw || String(pw).length < 4) return Promise.reject(new Error('Passwort bitte mit mindestens 4 Zeichen'));
+  return new Promise((resolve, reject) => {
+    const p = spawn('pkexec', [SHARES, 'passwd'], { stdio: ['pipe', 'pipe', 'pipe'] });
+    let out = '';
+    p.stdout.on('data', (d) => { out += d; }); p.stderr.on('data', (d) => { out += d; });
+    p.on('exit', (code) => (code === 0 ? resolve(true) : reject(new Error(out.trim().split('\n').pop() || 'Passwort konnte nicht gesetzt werden'))));
+    p.stdin.end(String(pw) + '\n');
+  });
+}
+function sharesSet(on) {
+  return runWithProgress('pkexec', [SHARES, on ? 'on' : 'off'], () => {});
+}
+
+module.exports = { isKde, closeActiveWindow, sharesStatus, sharesPassword, sharesSet, isOS, inGamescope, info, switchSession, setupEmulators, updateSystem, stagedUpdate, markOverlay, SESSION_CMD };

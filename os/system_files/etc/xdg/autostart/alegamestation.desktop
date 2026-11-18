@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=AleGamestation
+Comment=Startet die Konsolen-Oberfläche nach dem Anmelden im Vollbild (der Desktop läuft im Hintergrund weiter)
+Exec=/usr/libexec/alegamestation-autostart
+OnlyShowIn=KDE;GNOME;
+X-GNOME-Autostart-enabled=true
+X-KDE-autostart-phase=2
+NoDisplay=true

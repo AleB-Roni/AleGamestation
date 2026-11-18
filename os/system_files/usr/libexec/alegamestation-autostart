@@ -1,0 +1,5 @@
+#!/usr/bin/bash
+# Nach dem Anmelden im Desktop: AleGamestation im Vollbild starten (abschaltbar mit
+# „alegamestation-session desktop-only“ bzw. Datei ~/.config/alegamestation-os/no-autostart)
+[ -f "$HOME/.config/alegamestation-os/no-autostart" ] && exit 0
+exec /usr/bin/alegamestation --console
