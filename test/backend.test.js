@@ -916,3 +916,27 @@ test('Tailscale: verbinden mit Anmelde-Link/QR, Status mit Geräten, trennen', {
     assert.strictEqual((await ts.status()).state, 'stopped');
   } finally { delete process.env.AGS_TAILSCALE_CLI; }
 });
+
+test('AleGamestation OS: System-Update zeigt Fortschritt (bootc --progress-fd) und erkennt „kein Update“', { skip: process.platform === 'win32' }, () => {
+  const { parseBootcProgress } = require('../src/main/linux-os');
+  const { spawnSync } = require('child_process');
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'ags-bootc-'));
+  fs.copyFileSync(path.join(__dirname, 'fixtures', 'fake-bootc'), path.join(bin, 'bootc'));
+  fs.chmodSync(path.join(bin, 'bootc'), 0o755);
+  const script = path.join(__dirname, '..', 'os', 'system_files', 'usr', 'libexec', 'alegamestation-os-update');
+  const runScript = (mode) => spawnSync('bash', [script], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, FAKE_BOOTC_MODE: mode } });
+  // Kein Update
+  let r = runScript('current');
+  assert.strictEqual(r.status, 0);
+  assert.deepStrictEqual(parseBootcProgress(r.stdout.trim().split('\n').pop()), { done: true, update: false });
+  assert.match(r.stderr, /System ist aktuell/);
+  // Update mit Fortschritt
+  r = runScript('update');
+  assert.strictEqual(r.status, 0, r.stderr);
+  const events = r.stdout.trim().split('\n').map(parseBootcProgress).filter(Boolean);
+  assert.deepStrictEqual(events.map((e) => e.pct), [25, 50, undefined]);
+  assert.match(events[0].text, /1,0 GB von 4,0 GB · Ebene 4 von 40/);
+  assert.match(events[1].text, /Importiere: Layer 21 \(20\/40\)/);
+  assert.deepStrictEqual(events[2], { done: true, update: true });
+  assert.match(r.stderr, /aktiv nach dem Neustart/);
+});

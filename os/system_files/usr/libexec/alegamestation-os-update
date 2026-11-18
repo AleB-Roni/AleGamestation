@@ -1,10 +1,26 @@
 #!/usr/bin/bash
-# (root) AleGamestation OS aktualisieren – neues Abbild wird beim nächsten Neustart aktiv
-set -euo pipefail
-echo "Lade System-Update …"
-if command -v bootc >/dev/null; then
-  bootc upgrade 2>&1 | sed -u 's/^/  /'
-else
-  rpm-ostree upgrade 2>&1 | sed -u 's/^/  /'
+# (root, per pkexec) AleGamestation OS aktualisieren – neues Abbild wird beim nächsten Neustart aktiv.
+# Ausgabe für die App:  Klartext-Zeilen auf stderr,  Fortschritt als JSON-Zeilen auf stdout
+#   (bootc --progress-fd: ProgressBytes/ProgressSteps, dazu {"type":"AgsDone","update":true|false})
+set -uo pipefail
+say() { echo "$*" >&2; }
+
+say "Suche nach System-Updates …"
+check="$(bootc upgrade --check 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ]; then say "$check"; exit 1; fi
+if echo "$check" | grep -qiE 'no changes|no update available'; then
+  echo '{"type":"AgsDone","update":false}'
+  say "System ist aktuell"
+  exit 0
 fi
-echo "System-Update geladen – aktiv nach dem Neustart"
+
+say "Update gefunden – lade herunter …"
+# Fortschritt (versteckte bootc-Option, ab bootc 1.1.x) – ältere Versionen ohne
+if bootc upgrade --progress-fd 3 --help >/dev/null 2>&1; then
+  bootc upgrade --progress-fd 3 3>&1 1>&2; rc=$?
+else
+  bootc upgrade 1>&2; rc=$?
+fi
+[ "$rc" -eq 0 ] || { say "System-Update fehlgeschlagen (Code $rc)"; exit "$rc"; }
+echo '{"type":"AgsDone","update":true}'
+say "System-Update geladen – aktiv nach dem Neustart"

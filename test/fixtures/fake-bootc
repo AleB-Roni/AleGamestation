@@ -1,0 +1,15 @@
+#!/usr/bin/bash
+# Nachgebautes bootc für Tests: FAKE_BOOTC_MODE=current | update
+if [ "$1" = upgrade ] && [ "${2:-}" = --check ]; then
+  [ "${FAKE_BOOTC_MODE:-update}" = current ] && echo "No changes in: ostree-unverified-registry:ghcr.io/aleb-roni/alegamestation-os:stable" || echo "Update available for: ostree-unverified-registry:ghcr.io/aleb-roni/alegamestation-os:stable"
+  exit 0
+fi
+if [ "$1" = upgrade ] && [ "${2:-}" = --progress-fd ]; then
+  [ "${4:-}" = --help ] && exit 0
+  echo '{"type":"Start","version":"0.1.0"}' >&3
+  echo '{"type":"ProgressBytes","task":"pulling","description":"Pulling Image","id":"x","bytesCached":0,"bytes":1073741824,"bytesTotal":4294967296,"stepsCached":0,"steps":3,"stepsTotal":40,"subtasks":[]}' >&3
+  echo '{"type":"ProgressSteps","task":"importing","description":"Importing Image","id":"x","stepsCached":0,"steps":20,"stepsTotal":40,"subtasks":[{"subtask":"layer","description":"Layer 21","id":"l","completed":false}]}' >&3
+  echo "Queued for next boot"
+  exit 0
+fi
+exit 2

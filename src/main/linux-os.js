@@ -46,7 +46,7 @@ function runWithProgress(cmd, args, onLine) {
   return new Promise((resolve, reject) => {
     const p = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
     let last = '';
-    const read = (buf) => String(buf).split(/\r?\n/).map((l) => l.trim()).filter(Boolean).forEach((l) => { last = l; onLine && onLine(l); });
+    const read = (buf) => String(buf).split(/\r?\n/).map((l) => l.trim()).filter(Boolean).forEach((l) => { if (!l.startsWith('{')) last = l; onLine && onLine(l); });
     p.stdout.on('data', read);
     p.stderr.on('data', read);
     p.on('error', reject);
@@ -61,9 +61,41 @@ function setupEmulators(onLine) {
 }
 
 /** Systemupdate (bootc): neues Abbild laden – aktiv nach dem Neustart */
-function updateSystem(onLine) {
+/**
+ * Fortschritt von bootc (--progress-fd, JSON-Zeilen) in etwas Lesbares übersetzen.
+ * @returns {{ pct?: number, text?: string, done?: boolean, update?: boolean } | null}
+ */
+function parseBootcProgress(line) {
+  if (!line.startsWith('{')) return null;
+  let e;
+  try { e = JSON.parse(line); } catch { return null; }
+  const gb = (b) => (b >= 1073741824 ? (b / 1073741824).toFixed(1).replace('.', ',') + ' GB' : Math.round(b / 1048576) + ' MB');
+  if (e.type === 'AgsDone') return { done: true, update: !!e.update };
+  if (e.type === 'ProgressBytes') {
+    const total = e.bytesTotal || 0;
+    const pct = total ? Math.min(100, Math.floor((e.bytes / total) * 100)) : (e.stepsTotal ? Math.floor((e.steps / e.stepsTotal) * 100) : undefined);
+    const parts = [total ? `${gb(e.bytes)} von ${gb(total)}` : e.bytes ? gb(e.bytes) : '', e.stepsTotal ? `Ebene ${Math.min(e.steps + 1, e.stepsTotal)} von ${e.stepsTotal}` : ''].filter(Boolean);
+    return { pct, text: `Lade System-Update: ${parts.join(' · ')}` };
+  }
+  if (e.type === 'ProgressSteps') {
+    const pct = e.stepsTotal ? Math.floor((e.steps / e.stepsTotal) * 100) : undefined;
+    const sub = (e.subtasks || []).find((x) => !x.completed);
+    const what = { importing: 'Importiere', deploying: 'Richte ein', staging: 'Bereite vor', pulling: 'Lade' }[String(e.task || '').toLowerCase()] || e.description || 'Arbeite';
+    return { pct, text: `${what}${sub && sub.description ? ': ' + sub.description : ''}${e.stepsTotal ? ` (${e.steps}/${e.stepsTotal})` : ''}` };
+  }
+  return null;
+}
+
+/** Systemupdate (bootc): neues Abbild laden – aktiv nach dem Neustart. Ergebnis: { update: true|false } */
+function updateSystem(onProgress) {
   if (!fs.existsSync(UPDATE)) return Promise.reject(new Error('Systemupdate nur auf AleGamestation OS verfügbar'));
-  return runWithProgress('pkexec', [UPDATE], onLine);
+  let result = { update: true };
+  return runWithProgress('pkexec', [UPDATE], (line) => {
+    const pr = parseBootcProgress(line);
+    if (pr && pr.done) { result = { update: pr.update }; return; }
+    if (pr) { onProgress && onProgress(pr); return; }
+    if (!line.startsWith('{')) onProgress && onProgress({ text: line });
+  }).then(() => result);
 }
 
 /**
@@ -80,4 +112,4 @@ function markOverlay(win) {
   } catch { /* ohne xprop: Fenster erscheint nur, wenn es den Fokus hat */ }
 }
 
-module.exports = { isOS, inGamescope, info, switchSession, setupEmulators, updateSystem, markOverlay, SESSION_CMD };
+module.exports = { isOS, inGamescope, info, switchSession, setupEmulators, updateSystem, markOverlay, parseBootcProgress, SESSION_CMD };

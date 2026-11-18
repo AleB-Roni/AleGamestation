@@ -564,3 +564,12 @@ html.windowed #topbar #updateBadge, html.windowed #topbar .debug-badge { -webkit
 .s-card > .s-row.focused { background: rgba(255,255,255,0.1); border-color: color-mix(in srgb, var(--accent) 70%, white 10%); transform: none;
   box-shadow: 0 0 0 1px var(--accent), 0 8px 26px rgba(0,0,0,0.35); }
 .s-card > .s-row:hover:not(.focused) { background: rgba(255,255,255,0.04); }
+
+/* System-Update: Fortschritt */
+.os-upd { display: flex; flex-direction: column; gap: 0.7rem; margin-top: 0.4rem; }
+.os-upd-text { font-size: 1rem; color: var(--text); min-height: 1.4em; }
+.os-upd-bar { height: 10px; border-radius: 999px; background: rgba(255,255,255,0.1); overflow: hidden; position: relative; }
+.os-upd-bar i { display: block; height: 100%; width: 0; border-radius: inherit; background: var(--accent); transition: width 0.4s ease; }
+.os-upd-bar.busy i { width: 35% !important; animation: updBusy 1.4s ease-in-out infinite; }
+@keyframes updBusy { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
+.os-upd small { color: var(--muted); }

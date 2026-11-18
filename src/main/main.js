@@ -1405,7 +1405,7 @@ ipcMain.handle('os:setupEmulators', async () => {
   send('library:changed', library);
   return r;
 });
-ipcMain.handle('os:update', () => linuxOs.updateSystem((line) => send('os:progress', { kind: 'update', line })));
+ipcMain.handle('os:update', () => linuxOs.updateSystem((p) => send('os:progress', { kind: 'update', line: p.text || '', pct: p.pct })));
 // ---------- Emulatoren herunterladen / aktualisieren ----------
 const { EmuManager } = require('./emu-manager');
 const emuManager = new EmuManager({
