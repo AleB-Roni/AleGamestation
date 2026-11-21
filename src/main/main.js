@@ -860,11 +860,17 @@ function setGameKeys(on) {
   if (on === gameKeysOn) return;
   gameKeysOn = on;
   const all = [...GAME_KEYS.overlay, ...GAME_KEYS.quit];
-  if (!on) { all.forEach((k) => { try { globalShortcut.unregister(k); } catch { /* ignore */ } }); return; }
+  if (!on) { all.forEach((k) => { try { globalShortcut.unregister(k); } catch { /* ignore */ } }); linuxOs.kwinAltF4(false); return; }
+  linuxOs.kwinAltF4(true).then(() => { if (gameKeysOn) regKeys(); });
+}
+function regKeys() {
   const reg = (k, fn) => { try { if (!globalShortcut.register(k, fn)) debug.warn('tastatur', `Tastenkürzel ${k} ist belegt`); } catch (err) { debug.warn('tastatur', `${k}: ${err.message}`); } };
   GAME_KEYS.overlay.forEach((k) => reg(k, () => { debug.info('tastatur', 'Overlay per Tastatur'); if (overlay.isVisible()) closeOverlay(true); else openOverlay(); }));
   GAME_KEYS.quit.forEach((k) => reg(k, () => { debug.info('tastatur', `Spiel beenden per ${k}`); if (overlay.isVisible()) closeOverlay(false); closeCurrentGame(); }));
 }
+// Falls die App während eines Spiels abgestürzt ist: Alt+F4 für KWin wiederherstellen
+app.whenReady().then(() => linuxOs.kwinAltF4(false));
+app.on('will-quit', () => { if (gameKeysOn) linuxOs.kwinAltF4(false); });
 /** Solange das Overlay offen ist: Pfeiltasten/Enter/Esc steuern es (das Spiel hat den Tastaturfokus) */
 function setOverlayKeys(on) {
   on = !!on && keyboardShortcutsEnabled();

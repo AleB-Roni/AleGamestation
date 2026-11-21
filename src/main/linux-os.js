@@ -125,6 +125,16 @@ function closeActiveWindow() {
 if (w && w.resourceClass !== 'alegamestation' && !w.desktopWindow && !w.dock) { print('AleGamestation schließt: ' + w.caption); w.closeWindow(); }`);
 }
 
+/** Alt+F4 im KDE-Desktop: KWin belegt die Taste selbst („Fenster schließen“) – während eines Spiels wird sie
+ *  freigegeben, damit AleGamestation das Spiel samt Emulator beenden kann; danach wieder zurückgesetzt. */
+const KWIN_CLOSE = "['kwin','Window Close','KWin','Fenster schließen']";
+const ALT_F4 = 0x08000000 | 0x01000033;
+function kwinAltF4(free) {
+  if (!isKde()) return Promise.resolve(false);
+  return new Promise((resolve) => execFile('gdbus', ['call', '--session', '--dest', 'org.kde.kglobalaccel', '--object-path', '/kglobalaccel',
+    '--method', 'org.kde.KGlobalAccel.setForeignShortcut', KWIN_CLOSE, free ? '@ai []' : `[${ALT_F4}]`], { timeout: 3000 }, (err) => resolve(!err)));
+}
+
 // ---------- SMB-Freigaben ----------
 const SHARES = '/usr/libexec/alegamestation-shares';
 function sharesStatus() {
@@ -150,4 +160,4 @@ function sharesSet(on) {
   return runWithProgress('pkexec', [SHARES, on ? 'on' : 'off'], () => {});
 }
 
-module.exports = { isKde, closeActiveWindow, sharesStatus, sharesPassword, sharesSet, isOS, inGamescope, info, switchSession, setupEmulators, updateSystem, stagedUpdate, markOverlay, SESSION_CMD };
+module.exports = { isKde, kwinAltF4, closeActiveWindow, sharesStatus, sharesPassword, sharesSet, isOS, inGamescope, info, switchSession, setupEmulators, updateSystem, stagedUpdate, markOverlay, SESSION_CMD };
