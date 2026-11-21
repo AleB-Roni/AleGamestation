@@ -33,7 +33,7 @@ case "$mode" in
     pkexec /usr/libexec/alegamestation-session-select "$mode" >/dev/null || true
     if [ "$in_gamescope" = 1 ]; then logout_now; exit 0; fi
     # Im Desktop: nichts abmelden – die App holt sich nach vorne bzw. minimiert sich
-    if [ "$mode" = game ]; then exec /usr/bin/alegamestation; else exec /usr/bin/alegamestation --to-desktop; fi
+    if [ "$mode" = game ]; then exec /usr/bin/alegamestation --ozone-platform=x11; else exec /usr/bin/alegamestation --ozone-platform=x11 --to-desktop; fi
     ;;
   gamescope|steam)
     pkexec /usr/libexec/alegamestation-session-select "$mode"

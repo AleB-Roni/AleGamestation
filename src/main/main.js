@@ -6,7 +6,14 @@ const linuxOs = require('./linux-os');
 // Gamescope stellt Xwayland bereit – Electron dort als X11-Programm starten
 // Gamescope bzw. KDE-Desktop: AleGamestation über XWayland (X11) – nur so funktionieren „immer oben“ (Overlay),
 // globale Tastenkürzel und das Nach-vorne-Holen zuverlässig
-if (linuxOs.isOS()) app.commandLine.appendSwitch('ozone-platform', 'x11');
+// Wichtig: Die Plattform muss schon beim Programmstart auf der Kommandozeile stehen. appendSwitch kommt zu spät –
+// im KDE-Desktop (Wayland) lief das Hauptfenster sonst über Wayland, der Grafikprozess aber über X11, und das
+// Fenster blieb unsichtbar (nur in der Taskleiste zu sehen). Daher einmal mit dem Schalter neu starten.
+if (linuxOs.isOS() && !process.argv.some((a) => a.startsWith('--ozone-platform'))) {
+  app.relaunch({ args: [...process.argv.slice(1), '--ozone-platform=x11'] });
+  app.exit(0);
+  process.exit(0);
+}
 protocol.registerSchemesAsPrivileged([{ scheme: 'agsromm', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 const fs = require('fs');
 const path = require('path');

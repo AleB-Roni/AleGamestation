@@ -1,6 +1,6 @@
 # AleGamestation als Oberfläche des Gamescope-Spielmodus (gamescope-session-plus)
 export ALEGAMESTATION_OS=1
-CLIENTCMD="/usr/bin/alegamestation --gamescope"
+CLIENTCMD="/usr/bin/alegamestation --ozone-platform=x11 --gamescope"
 
 # Gamescope OHNE „--steam“ starten: Im Steam-Modus zeigt Gamescope nur Fenster an, die der Steam-Client freigibt
 # (Fokus über Steam-App-IDs) – AleGamestation und die daraus gestarteten Spiele blieben schwarz.
