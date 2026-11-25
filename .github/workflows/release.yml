@@ -167,7 +167,10 @@ jobs:
             test -x /usr/bin/alegamestation-session
             test -f /usr/share/wayland-sessions/gamescope-session-alegamestation.desktop
             test -f /usr/share/gamescope-session-plus/sessions.d/alegamestation
-            grep -q alegamestation /usr/lib/sddm/sddm.conf.d/holo.conf
+            grep -q plasma.desktop /usr/lib/sddm/sddm.conf.d/holo.conf
+            test -x /usr/libexec/alegamestation-autostart && test -f /etc/xdg/autostart/alegamestation.desktop
+            grep -q alegamestation /etc/xdg/kwinrulesrc && grep -q XwaylandEavesdrops /etc/xdg/kwinrc
+            test -x /usr/libexec/alegamestation-shares && systemctl is-enabled alegamestation-shares.service
             command -v xprop
             command -v tailscale && test -x /usr/libexec/alegamestation-tailscale
             command -v gamescope-session-plus || ls /usr/share/gamescope-session-plus/gamescope-session-plus

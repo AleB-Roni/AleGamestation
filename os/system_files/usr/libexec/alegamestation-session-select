@@ -1,5 +1,8 @@
 #!/usr/bin/bash
-# (root) Sitzung für den automatischen Login setzen: desktop | game | steam
+# (root) Sitzung für den automatischen Login setzen
+#   game | desktop  → KDE-Desktop (AleGamestation startet darauf im Vollbild bzw. bleibt minimiert)
+#   gamescope       → reiner Gamescope-Spielmodus (ohne Desktop im Hintergrund)
+#   steam           → Steam-Spielmodus von Bazzite
 set -euo pipefail
 mode="${1:-game}"
 desktop_session() {
@@ -9,13 +12,12 @@ desktop_session() {
   echo plasma.desktop
 }
 case "$mode" in
-  desktop) SESSION="$(desktop_session)" ;;
-  game)    SESSION="gamescope-session-alegamestation.desktop" ;;
-  steam)   SESSION="gamescope-session-ogui-steam.desktop"; [ -f "/usr/share/wayland-sessions/$SESSION" ] || SESSION="gamescope-session-steam.desktop" ;;
+  game|desktop) SESSION="$(desktop_session)" ;;
+  gamescope)    SESSION="gamescope-session-alegamestation.desktop" ;;
+  steam)        SESSION="gamescope-session-ogui-steam.desktop"; [ -f "/usr/share/wayland-sessions/$SESSION" ] || SESSION="gamescope-session-steam.desktop" ;;
   *) echo "Unbekannter Modus: $mode" >&2; exit 2 ;;
 esac
 mkdir -p /etc/sddm.conf.d
-# „zz-zz“: wird nach den Bazzite-Dateien gelesen und gewinnt
 cat > /etc/sddm.conf.d/zz-zz-alegamestation.conf <<CONF
 [Autologin]
 Relogin=true

@@ -1,0 +1,8 @@
+{
+  "KPlugin": {
+    "Id": "AleGamestation",
+    "Name": "AleGamestation",
+    "Authors": [{ "Name": "AleGamestation" }],
+    "License": "MIT"
+  }
+}

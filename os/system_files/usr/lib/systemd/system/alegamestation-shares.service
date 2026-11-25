@@ -1,0 +1,12 @@
+[Unit]
+Description=AleGamestation OS – SMB-Freigaben (ROMs, Freigabe) für den Heimnetz-PC
+After=network-online.target firewalld.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/alegamestation-shares
+
+[Install]
+WantedBy=multi-user.target

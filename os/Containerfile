@@ -13,6 +13,7 @@ LABEL org.opencontainers.image.title="AleGamestation OS" \
 # App (Linux-Build) und System-Dateien
 COPY dist/linux-unpacked/ /usr/lib/alegamestation/
 COPY os/system_files/ /
+COPY os/kwin-setup.sh /tmp/kwin-setup.sh
 COPY build/icon.png /usr/share/alegamestation/icon.png
 
 RUN set -eux; \
@@ -21,7 +22,8 @@ RUN set -eux; \
     ln -sf /usr/lib/alegamestation/alegamestation /usr/bin/alegamestation-app; \
     chmod 0755 /usr/bin/alegamestation /usr/bin/alegamestation-session /usr/bin/return-to-gamemode \
                /usr/libexec/alegamestation-session-select /usr/libexec/alegamestation-firstboot /usr/libexec/alegamestation-os-update \
-               /usr/libexec/alegamestation-gpu-check /usr/libexec/alegamestation-tailscale \
+               /usr/libexec/alegamestation-gpu-check /usr/libexec/alegamestation-tailscale /usr/libexec/alegamestation-apply-wallpaper \
+               /usr/libexec/alegamestation-autostart /usr/libexec/alegamestation-shares \
                /usr/libexec/alegamestation-usb-setup; \
     echo "${APP_VERSION}" > /usr/share/alegamestation/os-version; \
     # xprop: eigene Fenster (Overlay, Tastatur) als Gamescope-Overlay markieren; unzip: RetroArch-Cores
@@ -35,6 +37,10 @@ RUN set -eux; \
     # USB-Stick-Abbild: Partition beim ersten Start vergrößern, Deutsch einstellen (nicht bei Installer-Installationen)
     systemctl enable alegamestation-usb-setup.service; \
     # Bazzite bootet sonst in die Steam-Oberfläche – AleGamestation ist der Spielmodus
-    sed -i 's/^Session=.*/Session=gamescope-session-alegamestation.desktop/' /usr/lib/sddm/sddm.conf.d/holo.conf || true; \
+    sed -i 's/^Session=.*/Session=plasma.desktop/' /usr/lib/sddm/sddm.conf.d/holo.conf || true; \
+    # Desktop läuft immer, AleGamestation startet darauf im Vollbild; KWin-Regeln dafür
+    bash /tmp/kwin-setup.sh /etc/xdg && rm -f /tmp/kwin-setup.sh; \
+    # SMB-Freigaben bei jedem Start einrichten
+    systemctl enable alegamestation-shares.service; \
     rm -rf /var/* /tmp/* || true; \
     bootc container lint || true

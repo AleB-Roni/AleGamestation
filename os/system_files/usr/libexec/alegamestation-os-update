@@ -2,22 +2,41 @@
 # (root, per pkexec) AleGamestation OS aktualisieren – neues Abbild wird beim nächsten Neustart aktiv.
 #   alegamestation-os-update          Update suchen und laden
 #   alegamestation-os-update --check  nur prüfen, ob eins da ist
-# Ausgabe für die App:  Klartext-Zeilen auf stderr,  Fortschritt als JSON-Zeilen auf stdout
-#   (bootc --progress-fd: ProgressBytes/ProgressSteps, dazu {"type":"AgsDone","update":true|false})
+# Ausgabe für die App:
+#   Klartext-Zeilen auf stderr
+#   Fortschritt als JSON-Zeilen auf stdout (bootc --progress-fd: ProgressBytes/ProgressSteps; {"type":"AgsCheck","update":…})
+#   letzte Zeile: UPDATE_STAGED | UPDATE_NONE
 set -uo pipefail
 say() { echo "$*" >&2; }
+LOCK="${AGS_UPDATE_LOCK:-/run/alegamestation-os-update.lock}"
+exec 9>"$LOCK"
+flock -n 9 || { say "Es läuft bereits ein System-Update"; exit 3; }
+
+staged() { rpm-ostree status --json 2>/dev/null | grep -q '"staged" *: *true'; }
+
+# Ohne bootc (älteres rpm-ostree-System): einfacher Weg ohne Fortschritt
+if ! command -v bootc >/dev/null; then
+  [ "${1:-}" = "--check" ] && { rpm-ostree upgrade --check >/dev/null 2>&1 && echo '{"type":"AgsCheck","update":true}' || echo '{"type":"AgsCheck","update":false}'; exit 0; }
+  say "Suche nach System-Updates …"
+  OUT="$(rpm-ostree upgrade 2>&1)"; rc=$?
+  say "$OUT"
+  [ "$rc" = 0 ] || { say "System-Update fehlgeschlagen (Code $rc)"; exit "$rc"; }
+  if staged; then say "System-Update geladen – aktiv nach dem Neustart"; echo UPDATE_STAGED; else say "System ist aktuell"; echo UPDATE_NONE; fi
+  exit 0
+fi
 
 say "Suche nach System-Updates …"
 check="$(bootc upgrade --check 2>&1)"; rc=$?
 if [ "$rc" -ne 0 ]; then say "$check"; exit 1; fi
-# Nur prüfen (automatische Suche der App): {"type":"AgsCheck","update":true|false}
+nochange() { echo "$check" | grep -qiE 'no changes|no update available'; }
+# Nur prüfen (automatische Suche der App)
 if [ "${1:-}" = "--check" ]; then
-  if echo "$check" | grep -qiE 'no changes|no update available'; then echo '{"type":"AgsCheck","update":false}'; else echo '{"type":"AgsCheck","update":true}'; fi
+  if nochange; then echo '{"type":"AgsCheck","update":false}'; else echo '{"type":"AgsCheck","update":true}'; fi
   exit 0
 fi
-if echo "$check" | grep -qiE 'no changes|no update available'; then
-  echo '{"type":"AgsDone","update":false}'
+if nochange; then
   say "System ist aktuell"
+  echo UPDATE_NONE
   exit 0
 fi
 
@@ -29,5 +48,5 @@ else
   bootc upgrade 1>&2; rc=$?
 fi
 [ "$rc" -eq 0 ] || { say "System-Update fehlgeschlagen (Code $rc)"; exit "$rc"; }
-echo '{"type":"AgsDone","update":true}'
 say "System-Update geladen – aktiv nach dem Neustart"
+echo UPDATE_STAGED

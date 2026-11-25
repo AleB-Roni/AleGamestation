@@ -1,6 +1,6 @@
 // Mitglieder von „wheel“ (der Hauptbenutzer) dürfen ohne Passwort zwischen Spielmodus und Desktop wechseln und aktualisieren
 polkit.addRule(function (action, subject) {
-  if ((action.id == "org.alegamestation.os.session-select" || action.id == "org.alegamestation.os.update" || action.id == "org.alegamestation.os.tailscale") && subject.isInGroup("wheel")) {
+  if ((action.id == "org.alegamestation.os.session-select" || action.id == "org.alegamestation.os.update" || action.id == "org.alegamestation.os.tailscale" || action.id == "org.alegamestation.os.shares") && subject.isInGroup("wheel")) {
     return polkit.Result.YES;
   }
 });

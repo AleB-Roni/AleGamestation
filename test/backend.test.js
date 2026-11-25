@@ -924,24 +924,25 @@ test('AleGamestation OS: System-Update zeigt Fortschritt (bootc --progress-fd) u
   fs.copyFileSync(path.join(__dirname, 'fixtures', 'fake-bootc'), path.join(bin, 'bootc'));
   fs.chmodSync(path.join(bin, 'bootc'), 0o755);
   const script = path.join(__dirname, '..', 'os', 'system_files', 'usr', 'libexec', 'alegamestation-os-update');
-  const runScript = (mode) => spawnSync('bash', [script], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, FAKE_BOOTC_MODE: mode } });
+  const env = (mode) => ({ ...process.env, PATH: `${bin}:${process.env.PATH}`, FAKE_BOOTC_MODE: mode, AGS_UPDATE_LOCK: path.join(bin, 'lock') });
+  const runScript = (mode) => spawnSync('bash', [script], { encoding: 'utf8', env: env(mode) });
   // Nur prüfen (automatische Suche der App)
-  const check = (mode) => parseBootcProgress(spawnSync('bash', [script, '--check'], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, FAKE_BOOTC_MODE: mode } }).stdout.trim());
+  const check = (mode) => parseBootcProgress(spawnSync('bash', [script, '--check'], { encoding: 'utf8', env: env(mode) }).stdout.trim());
   assert.deepStrictEqual(check('update'), { check: true, update: true });
   assert.deepStrictEqual(check('current'), { check: true, update: false });
   // Kein Update
   let r = runScript('current');
   assert.strictEqual(r.status, 0);
-  assert.deepStrictEqual(parseBootcProgress(r.stdout.trim().split('\n').pop()), { done: true, update: false });
+  assert.strictEqual(r.stdout.trim().split('\n').pop(), 'UPDATE_NONE');
   assert.match(r.stderr, /System ist aktuell/);
   // Update mit Fortschritt
   r = runScript('update');
   assert.strictEqual(r.status, 0, r.stderr);
   const events = r.stdout.trim().split('\n').map(parseBootcProgress).filter(Boolean);
-  assert.deepStrictEqual(events.map((e) => e.pct), [25, 50, undefined]);
+  assert.deepStrictEqual(events.map((e) => e.pct), [25, 50]);
   assert.match(events[0].text, /1,0 GB von 4,0 GB · Ebene 4 von 40/);
   assert.match(events[1].text, /Importiere: Layer 21 \(20\/40\)/);
-  assert.deepStrictEqual(events[2], { done: true, update: true });
+  assert.strictEqual(r.stdout.trim().split('\n').pop(), 'UPDATE_STAGED');
   assert.match(r.stderr, /aktiv nach dem Neustart/);
 });
 

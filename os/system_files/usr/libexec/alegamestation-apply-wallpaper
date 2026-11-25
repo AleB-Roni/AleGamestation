@@ -1,0 +1,12 @@
+#!/usr/bin/bash
+# Setzt einmal pro Benutzer das AleGamestation-Hintergrundbild (Desktop + Sperrbildschirm) in KDE Plasma.
+# Läuft beim Anmelden im Desktop (Autostart); danach kann man das Bild frei ändern.
+MARK="$HOME/.config/alegamestation-os/wallpaper-set"
+[ -f "$MARK" ] && [ "${1:-}" != "--force" ] && exit 0
+IMG=/usr/share/wallpapers/AleGamestation/contents/images/3840x2160.png
+[ -f "$IMG" ] || exit 0
+sleep 4   # Plasma fertig laden lassen
+plasma-apply-wallpaperimage "$IMG" >/dev/null 2>&1 || exit 0
+kwriteconfig6 --file kscreenlockerrc --group Greeter --key WallpaperPlugin org.kde.image
+kwriteconfig6 --file kscreenlockerrc --group Greeter --group Wallpaper --group org.kde.image --group General --key Image "file://$IMG"
+mkdir -p "$(dirname "$MARK")" && date > "$MARK"

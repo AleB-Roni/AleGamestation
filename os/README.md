@@ -76,8 +76,12 @@ sudo bootc switch ghcr.io/aleb-roni/alegamestation-os:stable
 
 ## Bedienung
 
-- **Spielmodus** (Standard): AleGamestation im Vollbild über Gamescope. Spiele und Emulatoren laufen darin.
-- **Zum Linux-Desktop:** ☰-Menü → „Zum Linux-Desktop wechseln“, oder **Strg+Alt+D**.
+- **Konsolen-Oberfläche** (Standard): Der KDE-Desktop läuft immer, AleGamestation startet darauf im Vollbild. Spiele, Emulatoren und Dateidialoge sind normale Fenster – das ganze System bleibt bedienbar.
+- **Gamescope-Spielmodus** (optional, ohne Desktop im Hintergrund): `alegamestation-session gamescope`.
+- **Zum Desktop:** ☰-Menü → „Zum Desktop“ oder **Strg+Alt+D** – AleGamestation wird nur minimiert (sofort).
+- **Zurück:** PS-/Xbox-Taste, Desktop-Symbol „Zurück zu AleGamestation“ oder Klick in der Taskleiste.
+- **Fenster schließen:** im Overlay „Fenster schließen“ (schließt das aktive Programm, z.B. einen hängenden Emulator).
+- **Freigaben (SMB):** Einstellungen → Verbindungen → Freigaben: Passwort festlegen, dann am Windows-PC `\\<IP>\ROMs` bzw. `\\<IP>\Freigabe` öffnen. Werden bei jedem Start automatisch eingerichtet.
 - **Zurück zu AleGamestation:** Desktop-Symbol „Zurück zu AleGamestation“ (auch im Startmenü unter Spiele).
 - **System aktualisieren:** AleGamestation sucht beim Start und alle 6 Stunden selbst nach Updates und fragt, ob gleich aktualisiert werden soll (abschaltbar: Einstellungen → System → Allgemein). Manuell: ☰-Menü → „System aktualisieren“. Das lädt das neueste Abbild samt neuester App.
   Aktiv wird es nach dem Neustart. Neue App-Versionen landen automatisch im Abbild, sobald ein Release

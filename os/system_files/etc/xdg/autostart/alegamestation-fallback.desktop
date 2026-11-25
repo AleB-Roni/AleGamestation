@@ -1,8 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=AleGamestation (ohne Spielmodus-Grafik)
-Comment=Startet AleGamestation auf dem Desktop, wenn keine Grafik für den Gamescope-Spielmodus da ist (z.B. in einer VM)
-Exec=sh -c '/usr/libexec/alegamestation-gpu-check || exec /usr/bin/alegamestation'
-OnlyShowIn=KDE;GNOME;
-X-GNOME-Autostart-enabled=true
-NoDisplay=true

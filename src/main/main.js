@@ -4,7 +4,16 @@ const { app, BrowserWindow, ipcMain, screen, shell, dialog, powerSaveBlocker, ne
 // AleGamestation OS (Linux, Gamescope-Spielmodus)
 const linuxOs = require('./linux-os');
 // Gamescope stellt Xwayland bereit – Electron dort als X11-Programm starten
-if (linuxOs.inGamescope()) app.commandLine.appendSwitch('ozone-platform', 'x11');
+// Gamescope bzw. KDE-Desktop: AleGamestation über XWayland (X11) – nur so funktionieren „immer oben“ (Overlay),
+// globale Tastenkürzel und das Nach-vorne-Holen zuverlässig
+// Wichtig: Die Plattform muss schon beim Programmstart auf der Kommandozeile stehen. appendSwitch kommt zu spät –
+// im KDE-Desktop (Wayland) lief das Hauptfenster sonst über Wayland, der Grafikprozess aber über X11, und das
+// Fenster blieb unsichtbar (nur in der Taskleiste zu sehen). Daher einmal mit dem Schalter neu starten.
+if (linuxOs.isOS() && !process.argv.some((a) => a.startsWith('--ozone-platform'))) {
+  app.relaunch({ args: [...process.argv.slice(1), '--ozone-platform=x11'] });
+  app.exit(0);
+  process.exit(0);
+}
 protocol.registerSchemesAsPrivileged([{ scheme: 'agsromm', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 const fs = require('fs');
 const path = require('path');
@@ -33,6 +42,8 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
   process.exit(0);
 }
+// „alegamestation --to-desktop“ ohne laufende App: nichts zu minimieren
+if (process.argv.includes('--to-desktop')) { app.quit(); process.exit(0); }
 
 const store = new ConfigStore(app.getPath('userData'));
 const { DebugLog, brief } = require('./debug-log');
@@ -767,7 +778,7 @@ function createWindow() {
       win.webContents.send('window:fullscreen', on);
     }
     // Strg+Alt+D: auf AleGamestation OS zum Linux-Desktop wechseln
-    if (input.type === 'keyDown' && input.control && input.alt && String(input.key).toLowerCase() === 'd' && linuxOs.isOS() && linuxOs.inGamescope()) {
+    if (input.type === 'keyDown' && input.control && input.alt && String(input.key).toLowerCase() === 'd' && linuxOs.isOS()) {
       e.preventDefault();
       send('os:askDesktop');
     }
@@ -862,13 +873,20 @@ function setGameKeys(on) {
   if (!on) {
     [...activeGameKeys.overlay, ...activeGameKeys.quit].forEach((k) => { try { globalShortcut.unregister(k); } catch { /* ignore */ } });
     activeGameKeys = { overlay: [], quit: [] };
+    linuxOs.kwinAltF4(false);
     return;
   }
   activeGameKeys = gameKeys();
+  linuxOs.kwinAltF4(true).then(() => { if (gameKeysOn) regKeys(); });
+}
+function regKeys() {
   const reg = (k, fn) => { try { if (!globalShortcut.register(k, fn)) debug.warn('tastatur', `Tastenkürzel ${k} ist belegt`); } catch (err) { debug.warn('tastatur', `${k}: ${err.message}`); } };
   activeGameKeys.overlay.forEach((k) => reg(k, () => { debug.info('tastatur', `Overlay per ${k}`); if (overlay.isVisible()) closeOverlay(true); else openOverlay(); }));
   activeGameKeys.quit.forEach((k) => reg(k, () => { debug.info('tastatur', `Spiel beenden per ${k}`); if (overlay.isVisible()) closeOverlay(false); closeCurrentGame(); }));
 }
+// Falls die App während eines Spiels abgestürzt ist: Alt+F4 für KWin wiederherstellen
+app.whenReady().then(() => linuxOs.kwinAltF4(false));
+app.on('will-quit', () => { if (gameKeysOn) linuxOs.kwinAltF4(false); });
 /** Solange das Overlay offen ist: Pfeiltasten/Enter/Esc steuern es (das Spiel hat den Tastaturfokus) */
 function setOverlayKeys(on) {
   on = !!on && keyboardShortcutsEnabled();
@@ -958,6 +976,12 @@ watcher.on('pressed', ({ id, pressed }) => {
     clearTimeout(guideTimer);
     guideHeld = false;
     if (overlay.isVisible()) { guideHeld = true; closeOverlay(); return; }
+    // Im Desktop ohne laufendes Spiel: PS-/Xbox-Taste holt AleGamestation zurück
+    if (!launcher.isRunning() && win && !win.isDestroyed() && (win.isMinimized() || !win.isFocused())) {
+      guideHeld = true;
+      bringToFront();
+      return;
+    }
     if (cfg().controller.overlayEnabled !== false) {
       guideTimer = setTimeout(() => { guideHeld = true; openOverlay(); }, cfg().controller.overlayHoldMs || 600);
     }
@@ -1077,7 +1101,7 @@ function overlayData() {
     if (g && !recent.some((r) => r.id === g.id) && !(st.running && st.game.id === g.id)) recent.push({ id: g.id, name: g.name, cover: g.cover || '', system: g.system });
   }
   const running = st.running ? { ...st.game, startedAt: st.startedAt, cover: (library.games.find((g) => g.id === st.game.id) || {}).cover || '' } : null;
-  return { running, recent, systems: library.systems.map((s) => ({ id: s.id, short: s.short, color: s.color })), mouseMode: mouseMode.active, keyboard: screenKeyboard.isVisible(), ps: lastPadIsPlayStation };
+  return { running, recent, systems: library.systems.map((s) => ({ id: s.id, short: s.short, color: s.color })), mouseMode: mouseMode.active, keyboard: screenKeyboard.isVisible(), kde: linuxOs.isKde(), ps: lastPadIsPlayStation };
 }
 
 async function overlayAction(a) {
@@ -1114,6 +1138,7 @@ async function overlayAction(a) {
       return media.mediaKey((l) => mouseMode.send(l), a.cmd);
     case 'volume': return media.mediaKey((l) => mouseMode.send(l), a.cmd);
     case 'mouse': closeOverlay(); mouseMode.toggle(); return mouseMode.active;
+    case 'closeWindow': closeOverlay(false); setTimeout(() => linuxOs.closeActiveWindow().catch((e) => send('toast', { type: 'error', text: e.message })), 300); return true;
     case 'keyboard':
       // Ein-/ausblenden; das Spiel bekommt den Fokus zurück, damit die Zeichen dort ankommen
       if (screenKeyboard.isVisible()) { hideScreenKeyboard(); closeOverlay(true); return false; }
@@ -1412,10 +1437,16 @@ ipcMain.handle('os:info', () => linuxOs.info());
 ipcMain.handle('os:session', async (_e, mode) => {
   debug.info('os', `Wechsel in den ${mode === 'desktop' ? 'Desktop' : 'Spielmodus'}`);
   // Aus dem Spielmodus in den Desktop: vorher aufräumen. Im Desktop selbst wird nicht abgemeldet.
-  if (mode === 'desktop' && !linuxOs.inGamescope()) throw new Error('Du bist schon im Desktop');
+  // Desktop läuft im Hintergrund: einfach minimieren (sofort, nichts wird beendet)
+  if (mode === 'desktop' && !linuxOs.inGamescope()) { if (win && !win.isDestroyed()) win.minimize(); return true; }
+  if (mode === 'game' && !linuxOs.inGamescope()) { bringToFront(); return true; }
   if (mode === 'desktop' || mode === 'game') { await leaveConsoleMode().catch(() => {}); quitting = true; }
   return linuxOs.switchSession(mode);
 });
+ipcMain.handle('os:closeWindow', () => linuxOs.closeActiveWindow());
+ipcMain.handle('os:shares', () => linuxOs.sharesStatus());
+ipcMain.handle('os:sharesPasswd', (_e, pw) => linuxOs.sharesPassword(pw));
+ipcMain.handle('os:sharesSet', (_e, on) => linuxOs.sharesSet(on));
 ipcMain.handle('os:setupEmulators', async () => {
   const r = await linuxOs.setupEmulators((line) => send('os:progress', { kind: 'setup', line }));
   refreshLibrary();
@@ -1693,6 +1724,8 @@ if (process.env.AGS_TEST === '1') global.__ags = { watcher, launcher, osd, overl
 
 app.on('second-instance', (_e, argv) => {
   if (chooserWin && !chooserWin.isDestroyed()) { chooserWin.show(); chooserWin.focus(); return; }
+  // „Zum Desktop“ von außen (alegamestation-session desktop): minimieren statt nach vorne holen
+  if ((argv || []).includes('--to-desktop')) { if (win && !win.isDestroyed()) win.minimize(); return; }
   bringToFront();
   // Einrichten-Verknüpfung, während AleGamestation schon läuft: direkt die Einstellungen zeigen
   if ((argv || []).includes('--setup')) send('app:openSettings', 'general');
