@@ -34,7 +34,15 @@ jobs:
           df -h /
 
       - name: System-Abbild laden
-        run: sudo podman pull "ghcr.io/aleb-roni/${{ matrix.image }}:stable"
+        run: |
+          sudo podman pull "ghcr.io/aleb-roni/${{ matrix.image }}:stable"
+          # Stick-Einrichtung (Partition vergrößern, Benutzer, Deutsch) immer in der Fassung aus dem Repo –
+          # so wirken Änderungen daran sofort, ohne das ganze System-Abbild neu zu bauen. Updates kommen danach von :stable.
+          printf '%s\n' "FROM ghcr.io/aleb-roni/${{ matrix.image }}:stable" \
+            "COPY os/system_files/usr/libexec/alegamestation-usb-setup /usr/libexec/alegamestation-usb-setup" \
+            "COPY os/system_files/usr/lib/systemd/system/alegamestation-usb-setup.service /usr/lib/systemd/system/alegamestation-usb-setup.service" \
+            "RUN chmod 0755 /usr/libexec/alegamestation-usb-setup && systemctl enable alegamestation-usb-setup.service" > Containerfile.usb
+          sudo podman build -f Containerfile.usb -t localhost/ags-usb:latest .
 
       - name: Disk-Abbild bauen (bootc install to-disk)
         run: |
@@ -44,7 +52,7 @@ jobs:
           truncate -s 24G output/disk.raw
           sudo podman run --rm --privileged --pid=host --security-opt label=type:unconfined_t --security-opt apparmor=unconfined \
             -v /dev:/dev -v /var/lib/containers:/var/lib/containers -v "$PWD/output:/output" \
-            "ghcr.io/aleb-roni/${{ matrix.image }}:stable" \
+            localhost/ags-usb:latest \
             bootc install to-disk --via-loopback --generic-image --wipe --filesystem btrfs \
               --target-imgref "ghcr.io/aleb-roni/${{ matrix.image }}:stable" /output/disk.raw
           sudo ls -lsh output
