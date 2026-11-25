@@ -129,7 +129,7 @@ os/
                                       (usr/lib/ags-anaconda)
     build-iso.sh                      Fedora-netinst-ISO + Kickstart → Installer-ISO (mkksiso)
   usb/
-    config.toml                       bootc-image-builder: Disk-Abbild für USB-Sticks (Benutzer „spieler“, 24 GB)
+    config.toml                       bootc-image-builder: Disk-Abbild für USB-Sticks (Benutzer „spieler“)
     zusammenfuegen.bat                setzt die Release-Teile unter Windows wieder zusammen
 ```
 
