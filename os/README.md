@@ -36,6 +36,32 @@ komplettes System-Abbild. Geht etwas schief, startest du einfach die vorige Vers
 „MOK management“: **Enroll MOK → Continue → Yes**, Passwort **`universalblue`**, dann **Reboot**. Alternativ
 Secure Boot im BIOS ausschalten.
 
+### USB-Stick zum Mitnehmen (wie Batocera)
+
+Ein fertiges System, das direkt vom USB-Stick startet, ohne etwas auf dem Rechner zu installieren. Steck den
+Stick an einen beliebigen PC, starte davon, spiel. Spielstände, ROMs und Einstellungen bleiben auf dem Stick.
+
+**Du brauchst:** einen USB-3-Stick (oder eine USB-SSD) mit **mindestens 32 GB**, besser 64 GB oder mehr für ROMs.
+Schnelle Sticks bzw. eine USB-SSD machen einen großen Unterschied. Alles auf dem Stick wird gelöscht.
+
+1. Aus dem neuesten [Release](https://github.com/AleB-Roni/AleGamestation/releases/latest) **alle Teile** herunterladen:
+   - AMD/Intel: `AleGamestation-OS-USB-<version>.img.xz.part00`, `.part01`, … 
+   - NVIDIA: `AleGamestation-OS-NVIDIA-USB-<version>.img.xz.part00`, `.part01`, …
+   - dazu `zusammenfuegen.bat` (nur Windows)
+2. Die Teile zusammensetzen (GitHub erlaubt nur 2 GB pro Datei):
+   - **Windows:** `zusammenfuegen.bat` in denselben Ordner legen und doppelklicken. Es entsteht `…-USB-<version>.img.xz`.
+   - **Linux/macOS:** `cat AleGamestation-OS-USB-<version>.img.xz.part* > AleGamestation-OS-USB-<version>.img.xz`
+3. Die `.img.xz` mit [Rufus](https://rufus.ie) oder [balenaEtcher](https://etcher.balena.io) auf den Stick schreiben
+   (nicht entpacken, beide Programme können `.img.xz` direkt). **Ventoy geht hier nicht**, Ventoy startet nur ISOs.
+4. Am Ziel-PC vom Stick starten (Boot-Menü meist mit **F12**, **F11**, **F8** oder **Esc**). **Secure Boot im BIOS ausschalten**.
+5. Beim ersten Start vergrößert sich das System auf den ganzen Stick, stellt Deutsch ein und meldet den Benutzer
+   **`spieler`** (Passwort **`alegamestation`**) automatisch an. Danach richtet es wie gewohnt die Emulatoren ein
+   (Internet nötig, dauert beim ersten Mal etwas).
+
+Der Stick bekommt die gleichen System-Updates wie eine installierte Version (☰-Menü → „System aktualisieren“).
+Welches Abbild? Das normale läuft auf fast allem (AMD, Intel, auch Laptops). Das NVIDIA-Abbild nur für Rechner mit
+NVIDIA-Grafikkarte.
+
 ### Alternativ: bestehendes Bazzite umstellen
 
 Bazzite (Deck-Edition) von [bazzite.gg](https://bazzite.gg) installieren, im Desktop ein Terminal öffnen und
@@ -88,6 +114,7 @@ os/
     usr/libexec/alegamestation-session-select   (root, per pkexec) SDDM-Autologin-Sitzung setzen
     usr/libexec/alegamestation-firstboot        Emulatoren, Cores, ROM-Ordner (pro Benutzer)
     usr/libexec/alegamestation-os-update        bootc upgrade
+    usr/libexec/alegamestation-usb-setup        USB-Abbild: Partition beim ersten Start vergrößern, Deutsch einstellen
     usr/share/gamescope-session-plus/sessions.d/alegamestation   Gamescope-Sitzung
     usr/share/wayland-sessions/gamescope-session-alegamestation.desktop
     etc/sddm.conf.d/zz-zz-alegamestation.conf   Autologin in den Spielmodus
@@ -97,6 +124,9 @@ os/
                                       (pixmaps/alegamestation.css), ausgeblendete Schritte (conf.d), Download-Fortschritt
                                       (usr/lib/ags-anaconda)
     build-iso.sh                      Fedora-netinst-ISO + Kickstart → Installer-ISO (mkksiso)
+  usb/
+    config.toml                       bootc-image-builder: Disk-Abbild für USB-Sticks (Benutzer „spieler“, 24 GB)
+    zusammenfuegen.bat                setzt die Release-Teile unter Windows wieder zusammen
 ```
 
-Gebaut wird automatisch im Release-Workflow (`build-linux` → `build-os` → `build-iso`), für beide Varianten.
+Gebaut wird automatisch im Release-Workflow (`build-linux` → `build-os` → `build-iso` und `build-usb`), für beide Varianten.

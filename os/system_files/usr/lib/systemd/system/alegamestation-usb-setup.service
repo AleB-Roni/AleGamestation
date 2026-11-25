@@ -1,0 +1,17 @@
+[Unit]
+Description=AleGamestation OS (USB-Stick) – Speicher auf den ganzen Stick erweitern, Deutsch einstellen
+# Nur für das Disk-Abbild: Installationen aus dem Installer haben /etc/alegamestation-image
+ConditionPathExists=!/etc/alegamestation-image
+ConditionPathExists=!/var/lib/alegamestation/usb-setup-done
+After=local-fs.target dbus.socket
+Before=display-manager.service bazzite-autologin.service systemd-user-sessions.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/alegamestation-usb-setup
+ExecStartPost=/usr/bin/mkdir -p /var/lib/alegamestation
+ExecStartPost=/usr/bin/touch /var/lib/alegamestation/usb-setup-done
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

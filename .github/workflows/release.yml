@@ -216,3 +216,66 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           VER="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' package.json | head -1)"
           gh release upload "v$VER" "dist/${{ matrix.iso }}-$VER.iso" --repo "$GITHUB_REPOSITORY" --clobber
+
+  # USB-Stick-Abbild („wie Batocera“): fertiges System zum Draufschreiben, startet auf jedem PC vom Stick.
+  # Größer als 2 GB → komprimiert (xz) und in Teile zerlegt (GitHub erlaubt max. 2 GB pro Datei).
+  build-usb:
+    needs: build-os
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: alegamestation-os
+            name: AleGamestation-OS-USB
+          - image: alegamestation-os-nvidia
+            name: AleGamestation-OS-NVIDIA-USB
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Speicherplatz schaffen
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/share/swift || true
+          sudo docker image prune -af || true
+          # Container-Speicher und Ausgabe auf die große /mnt-Platte
+          sudo mkdir -p /mnt/storage /mnt/out /var/lib/containers/storage
+          sudo mount --bind /mnt/storage /var/lib/containers/storage
+          df -h / /mnt
+
+      - name: System-Abbild laden
+        run: sudo podman pull "ghcr.io/aleb-roni/${{ matrix.image }}:stable"
+
+      - name: Disk-Abbild bauen (bootc-image-builder)
+        run: |
+          sudo podman run --rm --privileged --security-opt label=type:unconfined_t \
+            -v /var/lib/containers/storage:/var/lib/containers/storage \
+            -v "$PWD/os/usb/config.toml:/config.toml:ro" \
+            -v /mnt/out:/output \
+            quay.io/centos-bootc/bootc-image-builder:latest \
+            build --output /output --type raw --rootfs btrfs \
+            "ghcr.io/aleb-roni/${{ matrix.image }}:stable"
+          sudo find /mnt/out -type f -exec ls -lsh {} +
+
+      - name: Komprimieren und aufteilen
+        run: |
+          VER="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' package.json | head -1)"
+          RAW="$(sudo find /mnt/out -name 'disk.raw' | head -1)"
+          [ -n "$RAW" ] || { echo "disk.raw fehlt" >&2; exit 1; }
+          sudo rm -rf /var/lib/containers/storage/* || true
+          mkdir -p dist
+          BASE="dist/${{ matrix.name }}-$VER.img.xz"
+          sudo xz -T0 -4 -c "$RAW" | split -b 1900M -d -a 2 - "$BASE.part"
+          sudo rm -f "$RAW"
+          ( cd dist && cat ${{ matrix.name }}-$VER.img.xz.part* | sha256sum | sed "s|-|${{ matrix.name }}-$VER.img.xz|" > ${{ matrix.name }}-$VER.img.xz.sha256 )
+          ls -lh dist; cat dist/*.sha256
+          # Teile prüfen: zusammengesetzt ein gültiges xz-Archiv?
+          cat "$BASE".part* | xz -t && echo "xz OK"
+
+      - name: Zum Release hinzufügen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VER="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' package.json | head -1)"
+          gh release upload "v$VER" dist/${{ matrix.name }}-$VER.img.xz.part* dist/${{ matrix.name }}-$VER.img.xz.sha256 \
+            os/usb/zusammenfuegen.bat --repo "$GITHUB_REPOSITORY" --clobber
