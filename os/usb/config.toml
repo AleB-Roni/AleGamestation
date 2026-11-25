@@ -1,7 +1,0 @@
-# AleGamestation OS als Disk-Abbild für USB-Sticks (bootc-image-builder, --type raw)
-# Benutzer „spieler“ (Passwort „alegamestation“) wird automatisch angemeldet (Bazzite: Benutzer mit UID 1000).
-# Beim ersten Start wächst die Systempartition auf den ganzen Stick (alegamestation-usb-setup).
-[[customizations.user]]
-name = "spieler"
-password = "alegamestation"
-groups = ["wheel"]

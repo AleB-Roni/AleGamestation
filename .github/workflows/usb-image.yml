@@ -1,7 +1,7 @@
 name: USB-Stick-Abbild
 
 # AleGamestation OS als Disk-Abbild für USB-Sticks („wie Batocera“): fertiges System zum Draufschreiben,
-# startet auf jedem PC vom Stick. Läuft im Release nach build-os, oder einzeln über Actions → „Run workflow“
+# startet auf jedem PC vom Stick. Gebaut mit `bootc install to-disk --generic-image`. Läuft im Release nach build-os, oder einzeln über Actions → „Run workflow“
 # (baut dann aus dem aktuellen :stable-Abbild und hängt es an das Release der Version in package.json).
 # Größer als 2 GB → komprimiert (xz) und in Teile zerlegt (GitHub erlaubt max. 2 GB pro Datei).
 on:
@@ -36,17 +36,18 @@ jobs:
       - name: System-Abbild laden
         run: sudo podman pull "ghcr.io/aleb-roni/${{ matrix.image }}:stable"
 
-      - name: Disk-Abbild bauen (bootc-image-builder)
+      - name: Disk-Abbild bauen (bootc install to-disk)
         run: |
+          # Das System installiert sich selbst in eine Abbild-Datei (wie auf einen Stick):
+          # --generic-image = für Wechseldatenträger (kein Eintrag im BIOS, Standard-EFI-Pfad, startet überall)
           mkdir -p output
-          sudo podman run --rm --privileged --pull=newer --security-opt label=type:unconfined_t \
-            -v /var/lib/containers/storage:/var/lib/containers/storage \
-            -v "$PWD/os/usb/config.toml:/config.toml:ro" \
-            -v "$PWD/output:/output" \
-            quay.io/centos-bootc/bootc-image-builder:latest \
-            build --output /output --type raw --rootfs btrfs --use-librepo=True \
-            "ghcr.io/aleb-roni/${{ matrix.image }}:stable"
-          sudo find output -type f -exec ls -lsh {} +
+          truncate -s 24G output/disk.raw
+          sudo podman run --rm --privileged --pid=host --security-opt label=type:unconfined_t --security-opt apparmor=unconfined \
+            -v /dev:/dev -v /var/lib/containers:/var/lib/containers -v "$PWD/output:/output" \
+            "ghcr.io/aleb-roni/${{ matrix.image }}:stable" \
+            bootc install to-disk --via-loopback --generic-image --wipe --filesystem btrfs \
+              --target-imgref "ghcr.io/aleb-roni/${{ matrix.image }}:stable" /output/disk.raw
+          sudo ls -lsh output
 
       - name: Komprimieren und aufteilen
         run: |

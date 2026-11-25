@@ -1,5 +1,5 @@
 [Unit]
-Description=AleGamestation OS (USB-Stick) – Speicher auf den ganzen Stick erweitern, Deutsch einstellen
+Description=AleGamestation OS (USB-Stick) – Speicher auf den ganzen Stick erweitern, Benutzer anlegen, Deutsch einstellen
 # Nur für das Disk-Abbild: Installationen aus dem Installer haben /etc/alegamestation-image
 ConditionPathExists=!/etc/alegamestation-image
 ConditionPathExists=!/var/lib/alegamestation/usb-setup-done
