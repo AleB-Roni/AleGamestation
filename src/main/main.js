@@ -846,11 +846,22 @@ const padLabel = (k) => {
 };
 
 // ---------- Tastatur statt Controller (während ein Spiel läuft) ----------
-// Ohne Controller kommt man sonst aus Vollbild-Spielen (v.a. im Gamescope-Spielmodus ohne Fensterleiste) nicht mehr heraus.
-//   Shift+Tab  → Overlay öffnen/schließen (wie bei Steam)
-//   Alt+F4, Strg+Q → Spiel beenden
+// Ohne Controller kommt man sonst aus Vollbild-Spielen (Windows und Gamescope-Spielmodus) nicht mehr heraus.
+//   Shift+Tab (einstellbar) → Overlay öffnen/schließen (wie bei Steam; bei Steam-Spielen unter Windows Strg+Shift+O)
+//   Alt+F4, Strg+Q (einstellbar) → Spiel beenden
 // Im Overlay: Pfeiltasten, Enter, Esc/Rücktaste
-const GAME_KEYS = { overlay: ['Shift+Tab'], quit: ['Alt+F4', 'Control+Q'] };
+// Tasten einstellbar (Einstellungen → Controller → Ohne Controller)
+const keyLabel = (k) => String(k).replace(/Control/g, 'Strg').replace(/\+/g, '+');
+/** Aktuelle Tastenkürzel. Steam-Spiele unter Windows: Shift+Tab gehört dem Steam-Overlay → Ausweichtaste */
+function gameKeys() {
+  const c = cfg().controller || {};
+  let ov = c.overlayKey || 'Shift+Tab';
+  const cur = launcher.current && launcher.current.game;
+  if (ov === 'Shift+Tab' && process.platform === 'win32' && cur && cur.type === 'steam') ov = 'Control+Shift+O';
+  const q = c.quitKey || 'Alt+F4|Control+Q';
+  return { overlay: ov === 'off' ? [] : [ov], quit: q === 'off' ? [] : q.split('|') };
+}
+let activeGameKeys = { overlay: [], quit: [] };
 const OVERLAY_KEYS = { Up: 'up', Down: 'down', Left: 'left', Right: 'right', Return: 'accept', Space: 'accept', Escape: 'back', Backspace: 'back' };
 let gameKeysOn = false;
 let overlayKeysOn = false;
@@ -859,14 +870,19 @@ function setGameKeys(on) {
   on = !!on && keyboardShortcutsEnabled();
   if (on === gameKeysOn) return;
   gameKeysOn = on;
-  const all = [...GAME_KEYS.overlay, ...GAME_KEYS.quit];
-  if (!on) { all.forEach((k) => { try { globalShortcut.unregister(k); } catch { /* ignore */ } }); linuxOs.kwinAltF4(false); return; }
+  if (!on) {
+    [...activeGameKeys.overlay, ...activeGameKeys.quit].forEach((k) => { try { globalShortcut.unregister(k); } catch { /* ignore */ } });
+    activeGameKeys = { overlay: [], quit: [] };
+    linuxOs.kwinAltF4(false);
+    return;
+  }
+  activeGameKeys = gameKeys();
   linuxOs.kwinAltF4(true).then(() => { if (gameKeysOn) regKeys(); });
 }
 function regKeys() {
   const reg = (k, fn) => { try { if (!globalShortcut.register(k, fn)) debug.warn('tastatur', `Tastenkürzel ${k} ist belegt`); } catch (err) { debug.warn('tastatur', `${k}: ${err.message}`); } };
-  GAME_KEYS.overlay.forEach((k) => reg(k, () => { debug.info('tastatur', 'Overlay per Tastatur'); if (overlay.isVisible()) closeOverlay(true); else openOverlay(); }));
-  GAME_KEYS.quit.forEach((k) => reg(k, () => { debug.info('tastatur', `Spiel beenden per ${k}`); if (overlay.isVisible()) closeOverlay(false); closeCurrentGame(); }));
+  activeGameKeys.overlay.forEach((k) => reg(k, () => { debug.info('tastatur', `Overlay per ${k}`); if (overlay.isVisible()) closeOverlay(true); else openOverlay(); }));
+  activeGameKeys.quit.forEach((k) => reg(k, () => { debug.info('tastatur', `Spiel beenden per ${k}`); if (overlay.isVisible()) closeOverlay(false); closeCurrentGame(); }));
 }
 // Falls die App während eines Spiels abgestürzt ist: Alt+F4 für KWin wiederherstellen
 app.whenReady().then(() => linuxOs.kwinAltF4(false));
@@ -892,7 +908,9 @@ function controllerConnected() {
 launcher.on('started', () => {
   setGameKeys(true);
   if (gameKeysOn && !controllerConnected()) {
-    setTimeout(() => { if (launcher.isRunning()) osd.show('keyboard', 'Kein Controller – Tastatur:', 'Shift+Tab = Menü  ·  Alt+F4 oder Strg+Q = Spiel beenden', 6000); }, 3000);
+    const k = activeGameKeys;
+    const parts = [k.overlay.length ? `${k.overlay.map(keyLabel).join(' / ')} = Menü` : '', k.quit.length ? `${k.quit.map(keyLabel).join(' oder ')} = Spiel beenden` : ''].filter(Boolean);
+    if (parts.length) setTimeout(() => { if (launcher.isRunning()) osd.show('keyboard', 'Kein Controller – Tastatur:', parts.join('  ·  '), 6000); }, 3000);
   }
 });
 launcher.on('exited', () => { setOverlayKeys(false); setGameKeys(false); });
@@ -1307,11 +1325,28 @@ ipcMain.handle('romm:recommend', async () => {
   const systems = cfg().systems.filter((x) => x.enabled !== false);
   return romm.recommendations(systems, library.games.filter((g) => g.type === 'rom'));
 });
-ipcMain.handle('romm:download', async (_e, romId, systemId) => {
+ipcMain.handle('romm:download', async (_e, romId, systemId, opts = {}) => {
   const sys = sysById(systemId);
   if (!sys) throw new Error('Konsole nicht gefunden');
   const dir = (sys.romDirs || [])[0];
-  const file = await romm.download(Number(romId), dir);
+  // Updates/DLC kommen nach <ROM-Ordner>/updates/<Spiel>/ – die Bibliothek blendet diesen Ordner aus
+  const updatesDir = dir ? path.join(dir, 'updates') : '';
+  const res = await romm.download(Number(romId), dir, { extras: opts.extras || [], extrasOnly: !!opts.extrasOnly, updatesDir });
+  const file = res.file;
+  // Eden: Update-Ordner als „externen Inhalt“ eintragen → Update/DLC wird beim Start geladen, ohne Installation
+  let eden = false;
+  if (res.extras.length) {
+    try {
+      const { emulator: emu } = require('./library').resolveEmulator(cfg(), { type: 'rom', system: sys.id, id: '' });
+      const ec = require('./eden-config');
+      if (ec.isEden(emu)) {
+        const ini = ec.edenConfigFile(emu.exe);
+        eden = true;
+        if (ec.addExternalContentDir(ini, updatesDir)) debug.info('romm', `Eden: Update-Ordner eingetragen (${ini})`);
+      }
+    } catch (err) { debug.warn('romm', 'Eden einrichten: ' + err.message); }
+  }
+  if (opts.extrasOnly) return { file, gameId: null, extras: res.extras.length, eden };
   // Cover vom Server gleich für das neue Spiel übernehmen (Cover-Ordner der App)
   try {
     const cover = await romm.coverFile(Number(romId));
@@ -1327,7 +1362,7 @@ ipcMain.handle('romm:download', async (_e, romId, systemId) => {
   refreshLibrary();
   send('library:changed', library);
   const game = library.games.find((g) => g.rom && (g.rom === file || g.rom.startsWith(file + path.sep)));
-  return { file, gameId: game ? game.id : null };
+  return { file, gameId: game ? game.id : null, extras: res.extras.length, eden };
 });
 ipcMain.handle('romm:cancel', (_e, romId) => romm.cancel(romId));
 ipcMain.handle('romm:downloads', () => [...romm.downloads.values()].map((d) => ({ id: d.id, name: d.name, received: d.received, total: d.total })));
@@ -1418,7 +1453,20 @@ ipcMain.handle('os:setupEmulators', async () => {
   send('library:changed', library);
   return r;
 });
-ipcMain.handle('os:update', () => linuxOs.updateSystem((line) => send('os:progress', { kind: 'update', line })));
+ipcMain.handle('os:checkUpdate', () => linuxOs.checkSystemUpdate());
+/** AleGamestation OS: regelmäßig nach System-Updates suchen und in der Oberfläche fragen (nie während eines Spiels) */
+let osUpdateAnnounced = false;
+async function autoCheckSystemUpdate() {
+  if (!linuxOs.isOS() || osUpdateAnnounced || launcher.isRunning() || (cfg().general || {}).osAutoCheck === false) return;
+  try {
+    if (await linuxOs.checkSystemUpdate()) {
+      osUpdateAnnounced = true;
+      debug.info('os', 'System-Update verfügbar');
+      send('os:updateAvailable');
+    }
+  } catch (err) { debug.warn('os', 'Update-Suche: ' + err.message); }
+}
+ipcMain.handle('os:update', () => linuxOs.updateSystem((p) => send('os:progress', { kind: 'update', line: p.text || '', pct: p.pct })));
 // ---------- Emulatoren herunterladen / aktualisieren ----------
 const { EmuManager } = require('./emu-manager');
 const emuManager = new EmuManager({
@@ -1733,6 +1781,8 @@ app.whenReady().then(async () => {
   }).catch(() => []);
   setTimeout(autoScrape, 8000);
   setTimeout(autoUpdateEmulators, 90 * 1000);
+  setTimeout(autoCheckSystemUpdate, 2 * 60 * 1000);
+  setInterval(autoCheckSystemUpdate, 6 * 3600 * 1000);
   setInterval(autoUpdateEmulators, 24 * 3600 * 1000);
   // Erst über Chromium (System-Proxy), bei Fehlern über Node erneut versuchen
   const robustFetch = async (u, o) => {

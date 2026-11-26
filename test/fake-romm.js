@@ -19,11 +19,23 @@ function rom(id, platform, fsName, extra = {}) {
 function start({ token = 'rmm_test', port = 0 } = {}) {
   const snes = { id: 1, slug: 'snes', fs_slug: 'snes', name: 'Super Nintendo', rom_count: 3 };
   const psx = { id: 2, slug: 'psx', fs_slug: 'psx', name: 'PlayStation', rom_count: 1 };
+  const sw = { id: 3, slug: 'switch', fs_slug: 'switch', name: 'Nintendo Switch', rom_count: 3 };
+  const file = (id, file_name, category, size = 1024) => ({ id, rom_id: 0, file_name, file_path: '', file_size_bytes: size, category });
   const roms = [
     rom(11, snes, 'Super Mario World (USA).sfc'),
     rom(12, snes, 'Donkey Kong Country (Europe).sfc'),
     rom(13, snes, 'Chrono Trigger (USA).sfc'),
-    rom(21, psx, 'Final Fantasy VII (Europe)', { has_multiple_files: true, fs_extension: '' })
+    rom(21, psx, 'Final Fantasy VII (Europe)', { has_multiple_files: true, fs_extension: '' }),
+    // Switch: Updates/DLC im Spielordner (RomM-Kategorien)
+    rom(31, sw, 'Super Smash Bros. Ultimate [01006A800016E000]', { name: 'Super Smash Bros. Ultimate', has_multiple_files: true, fs_extension: '', files: [
+      file(301, 'Super Smash Bros. Ultimate [01006A800016E000][v0].nsp', 'game', 2048),
+      file(302, 'Super Smash Bros. Ultimate [01006A800016E800][v1966080] (13.0.3).nsp', 'update'),
+      file(303, 'Super Smash Bros. Ultimate [01006A800016E800][v1900544] (13.0.2).nsp', 'update'),
+      file(304, 'Super Smash Bros. Ultimate Fighters Pass [01006A800016F001].nsp', 'dlc', 512)
+    ] }),
+    // Switch: Update als eigener Eintrag neben dem Spiel
+    rom(32, sw, 'Mario Kart 8 Deluxe [0100152000022000][v0].nsp', { name: 'Mario Kart 8 Deluxe' }),
+    rom(33, sw, 'Mario Kart 8 Deluxe [0100152000022800][v2228224] (3.0.1).nsp', { name: 'Mario Kart 8 Deluxe' })
   ];
   const calls = [];
   const srv = http.createServer((req, res) => {
@@ -35,7 +47,7 @@ function start({ token = 'rmm_test', port = 0 } = {}) {
     const ok = auth === `Bearer ${token}` || auth === 'Basic ' + Buffer.from('ale:geheim').toString('base64');
     if (!ok) return json({ detail: 'Unauthorized' }, 401);
     if (u.pathname === '/api/users/me') return json({ username: 'ale' });
-    if (u.pathname === '/api/platforms') return json([snes, psx]);
+    if (u.pathname === '/api/platforms') return json([snes, psx, sw]);
     if (u.pathname === '/api/roms') {
       const ids = u.searchParams.getAll('platform_ids').map(Number);
       const items = roms.filter((r) => !ids.length || ids.includes(r.platform_id));
@@ -51,6 +63,14 @@ function start({ token = 'rmm_test', port = 0 } = {}) {
     if (m) {
       const r = roms.find((x) => x.id === Number(m[1]));
       if (!r) return json({}, 404);
+      const fid = u.searchParams.get('file_ids');
+      if (fid && r.files) {
+        const f = r.files.find((x) => String(x.id) === fid);
+        if (!f) return json({}, 404);
+        const body = Buffer.alloc(f.file_size_bytes, 3);
+        res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': body.length });
+        return res.end(body);
+      }
       if (r.has_multiple_files) {
         // Kleines ZIP mit zwei Dateien (cue + bin), mit „store“ (unkomprimiert)
         const zip = require('./fake-zip')([['Final Fantasy VII (Europe).cue', 'FILE "Final Fantasy VII (Europe).bin" BINARY'], ['Final Fantasy VII (Europe).bin', 'DATA']]);

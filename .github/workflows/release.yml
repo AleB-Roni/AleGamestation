@@ -208,7 +208,7 @@ jobs:
       - name: Installer-ISO bauen
         run: |
           VER="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' package.json | head -1)"
-          os/installer/build-iso.sh "ghcr.io/aleb-roni/${{ matrix.image }}:stable" "dist/${{ matrix.iso }}-$VER.iso"
+          os/installer/build-iso.sh "ghcr.io/aleb-roni/${{ matrix.image }}:stable" "dist/${{ matrix.iso }}-$VER.iso" "$VER"
           SIZE=$(stat -c %s "dist/${{ matrix.iso }}-$VER.iso")
           echo "Größe: $((SIZE / 1048576)) MB"
           [ "$SIZE" -lt 2000000000 ] || { echo "ISO zu groß für GitHub-Releases" >&2; exit 1; }
@@ -220,3 +220,8 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           VER="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' package.json | head -1)"
           gh release upload "v$VER" "dist/${{ matrix.iso }}-$VER.iso" --repo "$GITHUB_REPOSITORY" --clobber
+
+  # USB-Stick-Abbild („wie Batocera“) – eigener Workflow, lässt sich auch einzeln starten
+  build-usb:
+    needs: build-os
+    uses: ./.github/workflows/usb-image.yml

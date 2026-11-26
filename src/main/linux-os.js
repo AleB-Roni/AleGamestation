@@ -46,7 +46,7 @@ function runWithProgress(cmd, args, onLine) {
   return new Promise((resolve, reject) => {
     const p = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
     let last = '';
-    const read = (buf) => String(buf).split(/\r?\n/).map((l) => l.trim()).filter(Boolean).forEach((l) => { last = l; onLine && onLine(l); });
+    const read = (buf) => String(buf).split(/\r?\n/).map((l) => l.trim()).filter(Boolean).forEach((l) => { if (!l.startsWith('{')) last = l; onLine && onLine(l); });
     p.stdout.on('data', read);
     p.stderr.on('data', read);
     p.on('error', reject);
@@ -60,7 +60,44 @@ function setupEmulators(onLine) {
   return runWithProgress(FIRSTBOOT, ['--force'], onLine);
 }
 
+/** Gibt es ein System-Update? (nur prüfen, nichts laden) → true/false */
+async function checkSystemUpdate() {
+  if (!fs.existsSync(UPDATE) || updating) return false;
+  if (await stagedUpdate()) return false; // schon geladen, wartet auf Neustart
+  let available = false;
+  return runWithProgress('pkexec', [UPDATE, '--check'], (line) => {
+    const pr = parseBootcProgress(line);
+    if (pr && pr.check) available = pr.update;
+  }).then(() => available);
+}
+
 /** Systemupdate (bootc): neues Abbild laden – aktiv nach dem Neustart */
+/**
+ * Fortschritt von bootc (--progress-fd, JSON-Zeilen) in etwas Lesbares übersetzen.
+ * @returns {{ pct?: number, text?: string, done?: boolean, update?: boolean } | null}
+ */
+function parseBootcProgress(line) {
+  if (!line.startsWith('{')) return null;
+  let e;
+  try { e = JSON.parse(line); } catch { return null; }
+  const gb = (b) => (b >= 1073741824 ? (b / 1073741824).toFixed(1).replace('.', ',') + ' GB' : Math.round(b / 1048576) + ' MB');
+  if (e.type === 'AgsDone') return { done: true, update: !!e.update };
+  if (e.type === 'AgsCheck') return { check: true, update: !!e.update };
+  if (e.type === 'ProgressBytes') {
+    const total = e.bytesTotal || 0;
+    const pct = total ? Math.min(100, Math.floor((e.bytes / total) * 100)) : (e.stepsTotal ? Math.floor((e.steps / e.stepsTotal) * 100) : undefined);
+    const parts = [total ? `${gb(e.bytes)} von ${gb(total)}` : e.bytes ? gb(e.bytes) : '', e.stepsTotal ? `Ebene ${Math.min(e.steps + 1, e.stepsTotal)} von ${e.stepsTotal}` : ''].filter(Boolean);
+    return { pct, text: `Lade System-Update: ${parts.join(' · ')}` };
+  }
+  if (e.type === 'ProgressSteps') {
+    const pct = e.stepsTotal ? Math.floor((e.steps / e.stepsTotal) * 100) : undefined;
+    const sub = (e.subtasks || []).find((x) => !x.completed);
+    const what = { importing: 'Importiere', deploying: 'Richte ein', staging: 'Bereite vor', pulling: 'Lade' }[String(e.task || '').toLowerCase()] || e.description || 'Arbeite';
+    return { pct, text: `${what}${sub && sub.description ? ': ' + sub.description : ''}${e.stepsTotal ? ` (${e.steps}/${e.stepsTotal})` : ''}` };
+  }
+  return null;
+}
+
 /** Ist schon ein neues System für den nächsten Start vorgemerkt? → Version oder '' */
 function stagedUpdate() {
   return new Promise((resolve) => {
@@ -75,15 +112,25 @@ function stagedUpdate() {
 }
 
 let updating = null;
-/** Systemupdate (bootc): neues Abbild laden – aktiv nach dem Neustart. Ergebnis: { staged, version } bzw. { none } */
-async function updateSystem(onLine) {
+/** Systemupdate (bootc): neues Abbild laden – aktiv nach dem Neustart. Ergebnis: { staged, version, already? } bzw. { none }
+ *  onProgress bekommt { text, pct } (pct aus bootc --progress-fd, sonst undefined) */
+async function updateSystem(onProgress) {
   if (!fs.existsSync(UPDATE)) return Promise.reject(new Error('Systemupdate nur auf AleGamestation OS verfügbar'));
   if (updating) return Promise.reject(new Error('Es läuft bereits ein System-Update'));
+  const report = (p) => { try { onProgress && onProgress(p); } catch { /* ignore */ } };
   updating = (async () => {
     const pending = await stagedUpdate();
     if (pending) return { staged: true, version: pending, already: true };
-    const last = await runWithProgress('pkexec', [UPDATE], (l) => { if (!/^UPDATE_/.test(l)) onLine(l); });
-    if (/UPDATE_NONE/.test(last)) return { none: true };
+    let none = false;
+    await runWithProgress('pkexec', [UPDATE], (line) => {
+      if (/^UPDATE_NONE/.test(line)) { none = true; return; }
+      if (/^UPDATE_/.test(line)) return;
+      const pr = parseBootcProgress(line);
+      if (pr && pr.done) { if (!pr.update) none = true; return; }
+      if (pr) { if (!pr.check) report(pr); return; }
+      if (!line.startsWith('{')) report({ text: line.trim() });
+    });
+    if (none) return { none: true };
     return { staged: true, version: await stagedUpdate() };
   })();
   try { return await updating; } finally { updating = null; }
@@ -160,4 +207,4 @@ function sharesSet(on) {
   return runWithProgress('pkexec', [SHARES, on ? 'on' : 'off'], () => {});
 }
 
-module.exports = { isKde, kwinAltF4, closeActiveWindow, sharesStatus, sharesPassword, sharesSet, isOS, inGamescope, info, switchSession, setupEmulators, updateSystem, stagedUpdate, markOverlay, SESSION_CMD };
+module.exports = { isKde, kwinAltF4, closeActiveWindow, sharesStatus, sharesPassword, sharesSet, isOS, inGamescope, info, switchSession, setupEmulators, updateSystem, stagedUpdate, checkSystemUpdate, parseBootcProgress, markOverlay, SESSION_CMD };

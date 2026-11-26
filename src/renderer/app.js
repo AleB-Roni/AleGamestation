@@ -1163,9 +1163,45 @@
     const have = rommHave(r);
     const info = [r.platform, fmtSize(r.size), r.year, (r.genres || []).slice(0, 3).join(', '), r.rating ? `★ ${Math.round(r.rating)}/100` : '', r.regions && r.regions.length ? r.regions.join(', ') : ''].filter(Boolean).join(' · ');
     const items = [];
-    if (have) items.push({ label: 'Spielen', icon: 'play', action: () => { App.closeMenu(); rommActivate(r); } });
-    else if (running) items.push({ label: 'Download abbrechen', icon: 'x', hint: rommPct(dl), action: async () => { App.closeMenu(); await api.rommCancel(r.id); } });
-    else items.push({ label: 'Herunterladen', icon: 'download', hint: `${fmtSize(r.size)} → ${sys.short}-ROM-Ordner`, action: () => { App.closeMenu(); rommDownload(r); } });
+    // Updates/DLC vom Server (z.B. Switch): Version auswählen, DLC alle/keine
+    const updates = (r.extras || []).filter((x) => x.kind === 'update');
+    const dlcs = (r.extras || []).filter((x) => x.kind === 'dlc');
+    const sel = { update: updates.length ? updates[0].key : '', dlc: dlcs.length ? 'all' : 'none' };
+    const chosen = () => [...updates.filter((u) => u.key === sel.update), ...(sel.dlc === 'all' ? dlcs : [])];
+    const sizeOf = (list) => list.reduce((n, x) => n + (x.size || 0), 0);
+    const pickers = [];
+    let dlItem = null;
+    const refreshHint = () => {
+      if (!dlItem) return;
+      const extra = chosen();
+      dlItem.hint = have ? `${fmtSize(sizeOf(extra))} → Update-Ordner` : `${fmtSize(r.size + sizeOf(extra))}${extra.length ? ` · mit ${extra.length} Update/DLC` : ''} → ${sys.short}-ROM-Ordner`;
+    };
+    if (updates.length) {
+      pickers.push({
+        type: 'select', label: 'Update', icon: 'refresh', value: sel.update,
+        options: [...updates.map((u, i) => ({ value: u.key, label: `${u.version ? 'Version ' + u.version : u.name}${i === 0 ? ' (neueste)' : ''}` })), { value: '', label: 'Kein Update' }],
+        onChange: (v) => { sel.update = v; refreshHint(); }
+      });
+    }
+    if (dlcs.length) {
+      pickers.push({
+        type: 'select', label: 'DLC', icon: 'plus', value: sel.dlc,
+        options: [{ value: 'all', label: `Alle (${dlcs.length})` }, { value: 'none', label: 'Keine' }],
+        onChange: (v) => { sel.dlc = v; refreshHint(); }
+      });
+    }
+    if (have) {
+      items.push({ label: 'Spielen', icon: 'play', action: () => { App.closeMenu(); rommActivate(r); } });
+      if (pickers.length && !running) {
+        dlItem = { label: 'Update/DLC herunterladen', icon: 'download', focus: true, action: () => { const ex = chosen(); App.closeMenu(); if (ex.length) rommDownload(r, ex, true); else App.toast('Nichts ausgewählt', 'info'); } };
+        items.push(...pickers, dlItem);
+      }
+    } else if (running) items.push({ label: 'Download abbrechen', icon: 'x', hint: rommPct(dl), action: async () => { App.closeMenu(); await api.rommCancel(r.id); } });
+    else {
+      dlItem = { label: 'Herunterladen', icon: 'download', focus: true, action: () => { App.closeMenu(); rommDownload(r, chosen()); } };
+      items.push(...pickers, dlItem);
+    }
+    refreshHint();
     App.menu({
       title: r.name,
       text: `${esc(info)}${r.reason ? `<br><small>${esc(r.reason)}</small>` : ''}${r.summary ? `<br><br>${esc(r.summary.length > 420 ? r.summary.slice(0, 420) + ' …' : r.summary)}` : ''}${have ? '<br><br>✔ Schon in deiner Bibliothek' : ''}`,
@@ -1178,17 +1214,20 @@
     }
   }
 
-  async function rommDownload(r) {
-    App.romm.dl[r.id] = { id: r.id, name: r.name, received: 0, total: r.size };
+  async function rommDownload(r, extras = [], extrasOnly = false) {
+    App.romm.dl[r.id] = { id: r.id, name: r.name, received: 0, total: (extrasOnly ? 0 : r.size) + extras.reduce((n, x) => n + (x.size || 0), 0) };
     updateRommCard(r.id);
-    App.toast(`Lade „${r.name}“ herunter …`, 'info', 2500);
+    App.toast(extrasOnly ? `Lade Update/DLC für „${r.name}“ …` : `Lade „${r.name}“ herunter${extras.length ? ` (mit ${extras.length} Update/DLC)` : ''} …`, 'info', 3000);
     try {
-      const res = await api.rommDownload(r.id, r.system);
-      App.romm.got.add(r.id);
-      App.romm.gotGame = App.romm.gotGame || {};
-      if (res && res.gameId) { App.romm.gotGame[r.id] = res.gameId; r.local = res.gameId; }
+      const res = await api.rommDownload(r.id, r.system, { extras: extras.map(({ key, kind, romId, fileId, name, size }) => ({ key, kind, romId, fileId, name, size })), extrasOnly });
+      if (!extrasOnly) {
+        App.romm.got.add(r.id);
+        App.romm.gotGame = App.romm.gotGame || {};
+        if (res && res.gameId) { App.romm.gotGame[r.id] = res.gameId; r.local = res.gameId; }
+      }
       Sounds.play('accept');
-      App.toast(`✔ „${r.name}“ heruntergeladen – jetzt spielbar`, 'ok', 5000);
+      const edenNote = res && res.eden && res.extras ? ' – in Eden eingetragen, wird beim Start geladen' : res && res.extras ? ' – Update/DLC liegt im Ordner „updates“' : '';
+      App.toast(extrasOnly ? `✔ Update/DLC für „${r.name}“ geladen${edenNote}` : `✔ „${r.name}“ heruntergeladen – jetzt spielbar${edenNote}`, 'ok', 7000);
     } catch (e) {
       App.toast(`„${r.name}“: ${rommErr(e)}`, 'error', 8000);
     }
@@ -1225,33 +1264,40 @@
     App.toast('Wechsle zum Spielmodus …', 'info', 5000);
     try { await api.osSession('game'); } catch (e) { App.toast(osErr(e), 'error', 8000); }
   };
-  App.osUpdating = false;
-  App.osUpdate = async function () {
-    if (App.osUpdating) return App.toast('Das System-Update läuft bereits …', 'info', 4000);
-    if (!(await App.confirm('System aktualisieren?', 'Lädt die neueste Version von AleGamestation OS (inkl. App). Aktiv nach dem nächsten Neustart. Das kann einige Minuten dauern.', 'Aktualisieren'))) return;
-    App.osUpdating = true;
-    // Fortschritt in einem Fenster (läuft auch weiter, wenn man es schließt)
-    App.menu({
-      title: 'System wird aktualisiert …',
-      text: '<span id="osUpdLine">Suche nach System-Updates …</span><br><small>Das kann einige Minuten dauern. Du kannst weiterspielen – am Ende kommt eine Meldung.</small>',
-      items: [{ label: 'Im Hintergrund weiterlaufen lassen', icon: 'later', action: () => App.closeMenu() }]
-    });
-    const off = api.onOsProgress ? api.onOsProgress((p) => {
-      const el = document.getElementById('osUpdLine');
-      if (el && p.kind === 'update' && p.line) el.textContent = p.line.trim();
-    }) : null;
+  App.osUpdate = async function (confirmed = false) {
+    if (App.osUpdating) { App.osUpdateShow(); return; }
+    if (!confirmed && !(await App.confirm('System aktualisieren?', 'Lädt die neueste Version von AleGamestation OS (inkl. App). Aktiv nach dem nächsten Neustart. Das kann einige Minuten dauern.', 'Aktualisieren'))) return;
+    App.osUpdating = { text: 'Suche nach System-Updates …', pct: null };
+    App.osUpdateShow();
     try {
       const r = await api.osUpdate();
-      if (document.getElementById('osUpdLine')) App.closeMenu();
-      if (r && r.none) App.toast('✔ System ist aktuell', 'ok', 5000);
-      else App.osRestartCountdown(r);
+      App.osUpdating = null;
+      if (App.modalStack.length && document.getElementById('osUpdBox')) App.closeMenu();
+      if (r && r.none) { App.toast('✔ System ist aktuell – kein Update verfügbar', 'ok', 6000); return; }
+      App.osRestartCountdown(r);
     } catch (e) {
-      if (document.getElementById('osUpdLine')) App.closeMenu();
+      App.osUpdating = null;
+      if (App.modalStack.length && document.getElementById('osUpdBox')) App.closeMenu();
       App.toast(osErr(e), 'error', 9000);
-    } finally {
-      App.osUpdating = false;
-      if (typeof off === 'function') off();
     }
+  };
+  /** Fortschrittsfenster (kann geschlossen werden – das Update läuft im Hintergrund weiter) */
+  App.osUpdateShow = function () {
+    App.menu({
+      title: 'System aktualisieren',
+      text: '<div id="osUpdBox" class="os-upd"><div class="os-upd-text"></div><div class="os-upd-bar"><i></i></div><small>Läuft auch weiter, wenn du dieses Fenster schließt (☰ → System aktualisieren zeigt den Stand).</small></div>',
+      items: [{ label: 'Im Hintergrund weiter', icon: 'check', action: () => App.closeMenu() }]
+    });
+    App.osUpdateRender();
+  };
+  App.osUpdateRender = function () {
+    const box = document.getElementById('osUpdBox');
+    const st = App.osUpdating;
+    if (!box || !st) return;
+    box.querySelector('.os-upd-text').textContent = st.text || '';
+    const bar = box.querySelector('.os-upd-bar');
+    bar.classList.toggle('busy', st.pct == null);
+    bar.querySelector('i').style.width = st.pct == null ? '' : `${st.pct}%`;
   };
   /** Update geladen: automatisch neu starten (15 s, abbrechbar) */
   App.osRestartCountdown = function (r) {
@@ -1579,9 +1625,24 @@
     // Einrichtungsmodus (Desktop-Verknüpfung): direkt die Einstellungen, ohne Fernseher & Co.
     try { App.os = (api.osInfo && (await api.osInfo())) || { os: false }; } catch { App.os = { os: false }; }
     if (api.onOsAskDesktop) api.onOsAskDesktop(() => App.osDesktop());
+    // System-Update gefunden → fragen, ob gleich aktualisiert werden soll (danach Frage nach Neustart)
+    if (api.onOsUpdateAvailable) api.onOsUpdateAvailable(async () => {
+      if (App.running || App.osUpdating) return;
+      Sounds.play('open');
+      if (await App.confirm('System-Update verfügbar', 'Eine neue Version von AleGamestation OS ist da – mit der neuesten App und allen Verbesserungen. Jetzt herunterladen? Danach kannst du direkt neu starten.', 'Jetzt aktualisieren')) App.osUpdate(true);
+    });
     if (api.onOsProgress) {
       let lastToast = 0;
-      api.onOsProgress((p) => { if (p.kind === 'update' && (App.osUpdating || document.getElementById('osUpdLine'))) return; if (Date.now() - lastToast > 1500) { lastToast = Date.now(); App.toast(p.line, 'info', 2500); } });
+      api.onOsProgress((p) => {
+        // System-Update: Fortschrittsfenster aktualisieren (ohne Toast-Flut)
+        if (p.kind === 'update' && App.osUpdating) {
+          if (p.line) App.osUpdating.text = p.line;
+          if (p.pct != null) App.osUpdating.pct = p.pct;
+          App.osUpdateRender();
+          return;
+        }
+        if (p.line && Date.now() - lastToast > 1500) { lastToast = Date.now(); App.toast(p.line, 'info', 2500); }
+      });
     }
     let mode = {};
     try { mode = (await api.appMode()) || {}; } catch { mode = {}; }

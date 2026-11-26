@@ -7,6 +7,8 @@ lang de_DE.UTF-8
 keyboard --vckeymap=de --xlayouts='de'
 timezone Europe/Berlin --utc
 network --bootproto=dhcp --device=link --activate
+# Kein root-Konto (gesperrt) – der Hauptbenutzer bekommt Administratorrechte
+rootpw --lock
 
 # Das eigentliche System: AleGamestation OS (bootc-Abbild)
 ostreecontainer --url=@IMAGE@ --transport=registry --no-signature-verification

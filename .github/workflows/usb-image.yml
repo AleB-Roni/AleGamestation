@@ -1,0 +1,81 @@
+name: USB-Stick-Abbild
+
+# AleGamestation OS als Disk-Abbild für USB-Sticks („wie Batocera“): fertiges System zum Draufschreiben,
+# startet auf jedem PC vom Stick. Gebaut mit `bootc install to-disk --generic-image`. Läuft im Release nach build-os, oder einzeln über Actions → „Run workflow“
+# (baut dann aus dem aktuellen :stable-Abbild und hängt es an das Release der Version in package.json).
+# Größer als 2 GB → komprimiert (xz) und in Teile zerlegt (GitHub erlaubt max. 2 GB pro Datei).
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: read
+
+jobs:
+  build-usb:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: alegamestation-os
+            name: AleGamestation-OS-USB
+          - image: alegamestation-os-nvidia
+            name: AleGamestation-OS-NVIDIA-USB
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Speicherplatz schaffen
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/share/swift || true
+          sudo docker image prune -af || true
+          df -h /
+
+      - name: System-Abbild laden
+        run: |
+          sudo podman pull "ghcr.io/aleb-roni/${{ matrix.image }}:stable"
+          # Stick-Einrichtung (Partition vergrößern, Benutzer, Deutsch) immer in der Fassung aus dem Repo –
+          # so wirken Änderungen daran sofort, ohne das ganze System-Abbild neu zu bauen. Updates kommen danach von :stable.
+          printf '%s\n' "FROM ghcr.io/aleb-roni/${{ matrix.image }}:stable" \
+            "COPY os/system_files/usr/libexec/alegamestation-usb-setup /usr/libexec/alegamestation-usb-setup" \
+            "COPY os/system_files/usr/lib/systemd/system/alegamestation-usb-setup.service /usr/lib/systemd/system/alegamestation-usb-setup.service" \
+            "RUN chmod 0755 /usr/libexec/alegamestation-usb-setup && systemctl enable alegamestation-usb-setup.service" > Containerfile.usb
+          sudo podman build -f Containerfile.usb -t localhost/ags-usb:latest .
+
+      - name: Disk-Abbild bauen (bootc install to-disk)
+        run: |
+          # Das System installiert sich selbst in eine Abbild-Datei (wie auf einen Stick):
+          # --generic-image = für Wechseldatenträger (kein Eintrag im BIOS, Standard-EFI-Pfad, startet überall)
+          mkdir -p output
+          truncate -s 24G output/disk.raw
+          sudo podman run --rm --privileged --pid=host --security-opt label=type:unconfined_t --security-opt apparmor=unconfined \
+            -v /dev:/dev -v /var/lib/containers:/var/lib/containers -v "$PWD/output:/output" \
+            localhost/ags-usb:latest \
+            bootc install to-disk --via-loopback --generic-image --wipe --filesystem btrfs \
+              --target-imgref "ghcr.io/aleb-roni/${{ matrix.image }}:stable" /output/disk.raw
+          sudo ls -lsh output
+
+      - name: Komprimieren und aufteilen
+        run: |
+          VER="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' package.json | head -1)"
+          RAW="$(sudo find output -name 'disk.raw' | head -1)"
+          [ -n "$RAW" ] || { echo "disk.raw fehlt" >&2; exit 1; }
+          echo "Abbild: $(sudo du -h --apparent-size "$RAW" | cut -f1) (belegt $(sudo du -h "$RAW" | cut -f1))"
+          sudo podman rmi -af >/dev/null 2>&1 || true
+          mkdir -p dist
+          BASE="dist/${{ matrix.name }}-$VER.img.xz"
+          sudo xz -T0 -4 -c "$RAW" | split -b 1900M -d -a 2 - "$BASE.part"
+          sudo rm -f "$RAW"
+          ( cd dist && cat ${{ matrix.name }}-$VER.img.xz.part* | sha256sum | sed "s|-|${{ matrix.name }}-$VER.img.xz|" > ${{ matrix.name }}-$VER.img.xz.sha256 )
+          ls -lh dist; cat dist/*.sha256
+          cat "$BASE".part* | xz -t && echo "xz OK"
+
+      - name: Zum Release hinzufügen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VER="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' package.json | head -1)"
+          gh release upload "v$VER" dist/${{ matrix.name }}-$VER.img.xz.part* dist/${{ matrix.name }}-$VER.img.xz.sha256 \
+            os/usb/zusammenfuegen.bat --repo "$GITHUB_REPOSITORY" --clobber

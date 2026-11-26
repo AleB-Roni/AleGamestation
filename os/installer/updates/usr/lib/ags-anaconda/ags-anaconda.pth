@@ -1,0 +1,1 @@
+import sys; sys.path.append('/usr/lib/ags-anaconda'); __import__('ags_anaconda_progress').install()

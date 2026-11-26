@@ -299,6 +299,7 @@
           try { const f = await api.createSetupShortcut(); App.toast(`Verknüpfung erstellt: ${f.split(/[\\/]/).pop().replace(/\.lnk$/, '')}`, 'ok', 6000); } catch (e) { App.toast(cleanErr(e), 'error', 6000); }
         }, { desc: 'Öffnet AleGamestation nur zum Einstellen: im Fenster auf dem PC-Monitor, ohne Fernseher, Bildschirm-/Tonumschaltung und Leistungsmodus – mit Debug-Protokoll' }),
         toggle('Vollbild', () => C().general, 'startFullscreen', 'Mit F11 jederzeit an- und ausschalten'),
+        ...(App.os && App.os.os ? [{ ...toggle('Automatisch nach System-Updates suchen', () => C().general, 'osAutoCheck', 'AleGamestation OS: beim Start und alle 6 Stunden prüfen und fragen, ob gleich aktualisiert werden soll'), get: () => C().general.osAutoCheck !== false }] : []),
         toggle('Vollbild im Einrichtungsmodus', () => C().general, 'setupFullscreen', 'Auch beim Start über „Einrichten (ohne Fernseher)“ im Vollbild – z.B. um direkt am PC zu spielen. F11 schaltet um'),
         select('Oberfläche anzeigen auf', () => C().general, 'targetDisplay', [{ value: 'primary', label: 'Hauptbildschirm' }, { value: 'tv', label: 'Fernseher (Einstellungen → Bild & Ton)' }].concat(S.displays.filter((d) => d.electronId != null && d.active !== false).map((d) => ({ value: 'id:' + d.electronId, label: displayLabel(d) }))), 'Bei „Nur Fernseher“ ist der TV automatisch der Hauptbildschirm'),
         group('Beim Spielen'),
@@ -428,7 +429,17 @@
         ], 'Welche Symbole in der Oberfläche angezeigt werden'),
         toggle('PlayStation-Controller direkt unterstützen', () => C().controller, 'playstationHid', 'DualSense / DualShock 4 per USB oder Bluetooth – Beenden-Kombination funktioniert ohne Steam Input oder DS4Windows'),
         group('Ohne Controller', 'Tastatur während eines Spiels'),
-        { ...toggle('Tastenkürzel im Spiel', () => C().controller, 'keyboardShortcuts', 'Shift+Tab = Overlay (dort Pfeiltasten, Enter, Esc) · Alt+F4 oder Strg+Q = Spiel beenden'), get: () => C().controller.keyboardShortcuts !== false },
+        { ...toggle('Tastenkürzel im Spiel', () => C().controller, 'keyboardShortcuts', 'Overlay und Spiel beenden per Tastatur – im Overlay: Pfeiltasten, Enter, Esc'), get: () => C().controller.keyboardShortcuts !== false },
+        ...(C().controller.keyboardShortcuts !== false ? [
+          { ...select('Overlay öffnen', () => C().controller, 'overlayKey', [
+            { value: 'Shift+Tab', label: 'Shift+Tab' }, { value: 'Control+Shift+O', label: 'Strg+Shift+O' }, { value: 'Control+Alt+O', label: 'Strg+Alt+O' },
+            { value: 'Alt+O', label: 'Alt+O' }, { value: 'F10', label: 'F10' }, { value: 'off', label: 'Aus' }
+          ], 'Bei Steam-Spielen unter Windows gehört Shift+Tab dem Steam-Overlay – dort gilt dann Strg+Shift+O'), get: () => C().controller.overlayKey || 'Shift+Tab' },
+          { ...select('Spiel beenden', () => C().controller, 'quitKey', [
+            { value: 'Alt+F4|Control+Q', label: 'Alt+F4 oder Strg+Q' }, { value: 'Alt+F4', label: 'Alt+F4' }, { value: 'Control+Q', label: 'Strg+Q' },
+            { value: 'Control+Shift+Q', label: 'Strg+Shift+Q' }, { value: 'off', label: 'Aus' }
+          ], 'Beendet das laufende Spiel bzw. den Emulator sofort'), get: () => C().controller.quitKey || 'Alt+F4|Control+Q' }
+        ] : []),
         group('Maus & Tastatur per Controller', 'z.B. für Launcher-Fenster, Logins, Browser'),
         select('Tastenkombination „Maussteuerung“', () => C().controller, 'mouseModeCombo', comboOptions(C().controller.mouseModeCombo), 'Ein-/Ausschalten – funktioniert überall in Windows'),
         button('Kombination „Maussteuerung“ aufnehmen …', () => recordCombo('mouseModeCombo')),

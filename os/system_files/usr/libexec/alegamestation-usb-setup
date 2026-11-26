@@ -1,0 +1,57 @@
+#!/usr/bin/bash
+# AleGamestation OS vom USB-Stick (Disk-Abbild): beim ersten Start einmalig
+#  1. die Systempartition auf den ganzen Stick bzw. die ganze Festplatte vergrößern
+#     (das Abbild ist nur ~24 GB groß, damit der Download klein bleibt)
+#  2. Benutzer „spieler“ (Passwort „alegamestation“, Administrator) anlegen, falls es noch keinen gibt –
+#     Bazzite meldet den Benutzer mit UID 1000 automatisch an
+#  3. Deutsch als Sprache/Tastatur und Europe/Berlin als Zeitzone einstellen (wie der Installer)
+# Läuft nicht auf Systemen aus dem Installer (die haben /etc/alegamestation-image).
+# Testbar ohne echtes System: AGS_MNT (eingehängte Systempartition), AGS_RW (beschreibbarer Pfad darauf), AGS_NO_USER=1, AGS_NO_LOCALE=1
+set -u
+log() { echo "alegamestation-usb-setup: $*"; }
+
+MNT="${AGS_MNT:-}"
+if [ -z "$MNT" ]; then
+  if mountpoint -q /sysroot; then MNT=/sysroot; else MNT=/; fi
+fi
+RW="${AGS_RW:-/var}"   # /sysroot ist schreibgeschützt eingehängt, /var liegt auf derselben Partition
+
+src="$(findmnt -nvo SOURCE "$MNT" | head -1)"
+fstype="$(findmnt -no FSTYPE "$MNT" | head -1)"
+devpath="$(readlink -f "$src")"
+name="$(basename "$devpath")"
+if [ ! -r "/sys/class/block/$name/partition" ]; then
+  log "$src ist keine Partition – nichts zu vergrößern"
+else
+  part="$(cat "/sys/class/block/$name/partition")"
+  disk="/dev/$(lsblk -no PKNAME "$devpath" | head -1)"
+  log "Systempartition $devpath (Nr. $part auf $disk, $fstype)"
+  # Sicherungskopie der GPT ans neue Ende verschieben (der Stick ist größer als das Abbild)
+  sfdisk --relocate gpt-bak-std "$disk" 2>&1 || true
+  if command -v growpart >/dev/null; then
+    growpart "$disk" "$part" 2>&1 || true
+  else
+    echo ', +' | sfdisk --no-reread --no-tell-kernel -N "$part" "$disk" 2>&1 || true
+    partx -u -n "$part" "$disk" 2>&1 || true
+  fi
+  case "$fstype" in
+    btrfs) btrfs filesystem resize max "$RW" 2>&1 ;;
+    xfs) xfs_growfs "$RW" 2>&1 ;;
+    ext4) resize2fs "$devpath" 2>&1 ;;
+    *) log "Dateisystem $fstype wird nicht vergrößert" ;;
+  esac
+  log "Größe jetzt: $(df -h --output=size "$RW" | tail -1 | tr -d ' ')"
+fi
+
+if [ "${AGS_NO_USER:-0}" != 1 ] && ! awk -F: '$3>=1000 && $3<60000 {f=1} END {exit !f}' /etc/passwd; then
+  log "Lege Benutzer spieler an"
+  useradd -m -u 1000 -G wheel -c "Spieler" spieler 2>&1 && echo 'spieler:alegamestation' | chpasswd 2>&1
+fi
+
+if [ "${AGS_NO_LOCALE:-0}" != 1 ]; then
+  localectl set-locale LANG=de_DE.UTF-8 2>&1 || true
+  localectl set-keymap de 2>&1 || true
+  localectl set-x11-keymap de 2>&1 || true
+  timedatectl set-timezone Europe/Berlin 2>&1 || true
+fi
+exit 0

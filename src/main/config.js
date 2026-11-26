@@ -19,6 +19,8 @@ const DEFAULT_CONFIG = {
     startAskDefault: 'tv',
     // Vollbild auch im Einrichtungsmodus (Desktop-Verknüpfung ohne Fernseher)
     setupFullscreen: false,
+    // AleGamestation OS: automatisch nach System-Updates suchen und fragen
+    osAutoCheck: true,
     // Bildschirm, auf dem die Oberfläche erscheint: "primary" oder Index (0, 1, 2 ...)
     targetDisplay: 'primary',
     autostartWithWindows: false,
@@ -133,6 +135,9 @@ const DEFAULT_CONFIG = {
     mouseStick: true,
     // Tastenkürzel während eines Spiels (Shift+Tab = Overlay, Alt+F4/Strg+Q = Spiel beenden) – für Spielen ohne Controller
     keyboardShortcuts: true,
+    // Overlay-Taste (Electron-Schreibweise) bzw. 'off'; Spiel-beenden-Tasten, mehrere mit | getrennt, oder 'off'
+    overlayKey: 'Shift+Tab',
+    quitKey: 'Alt+F4|Control+Q',
     // Touchpad (DualSense/DualShock 4) als Maus: "outsideGames" | "mouseMode" (nur in der Maussteuerung) | "off"
     touchpadMouse: 'outsideGames',
     touchpadSpeed: 1,

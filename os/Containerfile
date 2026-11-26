@@ -23,7 +23,8 @@ RUN set -eux; \
     chmod 0755 /usr/bin/alegamestation /usr/bin/alegamestation-session /usr/bin/return-to-gamemode \
                /usr/libexec/alegamestation-session-select /usr/libexec/alegamestation-firstboot /usr/libexec/alegamestation-os-update \
                /usr/libexec/alegamestation-gpu-check /usr/libexec/alegamestation-tailscale /usr/libexec/alegamestation-apply-wallpaper \
-               /usr/libexec/alegamestation-autostart /usr/libexec/alegamestation-shares; \
+               /usr/libexec/alegamestation-autostart /usr/libexec/alegamestation-shares \
+               /usr/libexec/alegamestation-usb-setup; \
     echo "${APP_VERSION}" > /usr/share/alegamestation/os-version; \
     # xprop: eigene Fenster (Overlay, Tastatur) als Gamescope-Overlay markieren; unzip: RetroArch-Cores
     dnf5 install -y --setopt=install_weak_deps=False xprop unzip || dnf install -y xprop unzip; \
@@ -33,6 +34,8 @@ RUN set -eux; \
     dnf5 clean all || true; \
     # Ersteinrichtung (Emulatoren, Cores, ROM-Ordner) für jeden Benutzer beim ersten Anmelden
     systemctl --global enable alegamestation-firstboot.service; \
+    # USB-Stick-Abbild: Partition beim ersten Start vergrößern, Deutsch einstellen (nicht bei Installer-Installationen)
+    systemctl enable alegamestation-usb-setup.service; \
     # Bazzite bootet sonst in die Steam-Oberfläche – AleGamestation ist der Spielmodus
     sed -i 's/^Session=.*/Session=plasma.desktop/' /usr/lib/sddm/sddm.conf.d/holo.conf || true; \
     # Desktop läuft immer, AleGamestation startet darauf im Vollbild; KWin-Regeln dafür
