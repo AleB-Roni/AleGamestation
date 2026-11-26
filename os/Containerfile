@@ -39,5 +39,11 @@ RUN set -eux; \
     bash /tmp/kwin-setup.sh /etc/xdg && rm -f /tmp/kwin-setup.sh; \
     # SMB-Freigaben bei jedem Start einrichten
     systemctl enable alegamestation-shares.service; \
+    # Neue Benutzer: Bazzite Portal nicht bei jeder Anmeldung öffnen; Desktop-Symbol „Return to Gaming Mode“
+    # führt (über return-to-gamemode) zu AleGamestation – Name und Symbol entsprechend
+    rm -f /etc/skel/.config/autostart/bazzite-portal.desktop; \
+    mkdir -p /etc/skel/Desktop; \
+    printf '%s\n' '[Desktop Entry]' 'Name=Zurück zu AleGamestation' 'Comment=AleGamestation im Vollbild nach vorne holen' 'Exec=/usr/bin/return-to-gamemode' 'Icon=/usr/share/alegamestation/icon.png' 'Terminal=false' 'Type=Application' 'StartupNotify=false' > /etc/skel/Desktop/Return.desktop; \
+    chmod +x /etc/skel/Desktop/Return.desktop; \
     rm -rf /var/* /tmp/* || true; \
     bootc container lint || true

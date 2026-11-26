@@ -171,6 +171,7 @@ jobs:
             test -x /usr/libexec/alegamestation-autostart && test -f /etc/xdg/autostart/alegamestation.desktop
             grep -q alegamestation /etc/xdg/kwinrulesrc && grep -q XwaylandEavesdrops /etc/xdg/kwinrc
             test -x /usr/libexec/alegamestation-shares && systemctl is-enabled alegamestation-shares.service
+            test ! -e /etc/skel/.config/autostart/bazzite-portal.desktop && grep -q 'Zurück zu AleGamestation' /etc/skel/Desktop/Return.desktop
             command -v xprop
             command -v tailscale && test -x /usr/libexec/alegamestation-tailscale
             command -v gamescope-session-plus || ls /usr/share/gamescope-session-plus/gamescope-session-plus
